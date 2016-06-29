@@ -70,6 +70,35 @@ def posterior_embedding(posterior_weights, k_xxq, k_yyq):
     # [Posterior Embedding] (n_qy x n_qx)
     return np.dot(k_yyq.T, np.dot(posterior_weights, k_xxq))
 
+def kernel_bayes_average(g, posterior_weights, k_ygyg, k_yyg, k_xxq):
+    """
+    Obtain the expectance of a function g under the posterior.
+
+    This function is vectorised over the input variable being conditioned on.
+
+    Parameters
+    ----------
+    posterior_weights : numpy.ndarray
+        The posterior weights ready to be conditioned on arbitrary 
+        input x values and queried at arbitrary output y values (n x n)
+    k_ygyg : numpy.ndarray
+        The gram matrix on the output basis for function evaluation
+    k_yyg : numpy.ndarray
+        The gram matrix between the observed and basis output (n x m)
+    k_xxq : numpy.ndarray
+        The gram matrix between the observed and query input (n x n_qx)           
+    """
+    # [Weights of projection of g on the RKHS on y] alpha_g: (m, )
+    alpha_g = solve_posdef(k_ygyg, g)
+
+    # [Expectance of g(Y) under the posterior] (n_qx, )
+    return np.dot(alpha_g, posterior_embedding(posterior_weights, k_xxq, k_yyg))
+
+
+
+
+
+
 
 
 
