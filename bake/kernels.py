@@ -25,9 +25,9 @@ def gaussian(x_p, x_q, theta):
     Parameters
     ----------
     x_p : numpy.ndarray
-        A collection of data as an (n_p x m) [2D Array]
+        A collection of data (n_p x m) [2D Array]
     x_q : numpy.ndarray
-        A collection of data as an (n_q x m) [2D Array]
+        A collection of data (n_q x m) [2D Array]
     theta : numpy.ndarray
         Hyperparameters that parametrises the kernel [1D Array]
 
@@ -49,9 +49,9 @@ def laplace(x_p, x_q, theta):
     Parameters
     ----------
     x_p : numpy.ndarray
-        A collection of data as an (n_p x m) [2D Array]
+        A collection of data (n_p x m) [2D Array]
     x_q : numpy.ndarray
-        A collection of data as an (n_q x m) [2D Array]
+        A collection of data (n_q x m) [2D Array]
     theta : numpy.ndarray
         Hyperparameters that parametrises the kernel [1D Array]
 
@@ -73,9 +73,9 @@ def matern3on2(x_p, x_q, theta):
     Parameters
     ----------
     x_p : numpy.ndarray
-        A collection of data as an (n_p x m) [2D Array]
+        A collection of data (n_p x m) [2D Array]
     x_q : numpy.ndarray
-        A collection of data as an (n_q x m) [2D Array]
+        A collection of data (n_q x m) [2D Array]
     theta : numpy.ndarray
         Hyperparameters that parametrises the kernel [1D Array]
 
