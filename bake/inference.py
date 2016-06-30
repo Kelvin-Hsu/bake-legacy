@@ -94,9 +94,16 @@ def kernel_bayes_average(g, posterior_weights, k_ygyg, k_yyg, k_xxq):
     # [Expectance of g(Y) under the posterior] (n_qx, )
     return np.dot(alpha_g, posterior_embedding(posterior_weights, k_xxq, k_yyg))
 
+# def posterior_mode(w, ky, y, y0):
+
+#     Requires flattening...
+#     def objective(yq):
+#         return -2 * np.dot(ky(yq, np.array([y])).flatten(), w) + ky(yq, yq)
+
+# def kernel_herding():
 
 
-
+# def embedding_to_density():
 
 
 
