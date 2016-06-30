@@ -2,7 +2,7 @@
 Demonstration of simple kernel embeddings.
 """
 import numpy as np
-import bake.inference, bake.kernels
+import bake.infer, bake.kernels
 import matplotlib.pyplot as plt
 
 def main():
@@ -11,13 +11,13 @@ def main():
     x = generate_data(seed = 200)
 
     # Put uniform weights on the data
-    w = bake.inference.uniform_weights(x)
+    w = bake.infer.uniform_weights(x)
 
     # Specify the hyperparameters of the kernel
     theta = 0.1
 
     # Compute the kernel embedding
-    mu = bake.inference.embedding(w, x, bake.kernels.matern3on2, theta)
+    mu = bake.infer.embedding(w, x, bake.kernels.matern3on2, theta)
 
     # Generate some query points and evaluate the embedding at those points
     xq = np.linspace(-5.0, 5.0, 200)[:, np.newaxis]
