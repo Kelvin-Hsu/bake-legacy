@@ -10,7 +10,7 @@ def embedding(w, x, k, theta):
 def uniform_weights(x):
     return np.ones(x.shape[0]) / x.shape[0]
 
-def posterior_weights(prior_embedding, k_xx, k_yy, epsil, delta):
+def posterior_weight_matrix(prior_embedding, k_xx, k_yy, epsil, delta):
     """
     Obtain the posterior weights involved in Kernel Bayes' Rule.
 
@@ -41,7 +41,7 @@ def posterior_weights(prior_embedding, k_xx, k_yy, epsil, delta):
     I = np.eye(n)
 
     # [Prior Effect] prior_effect: (n x n)
-    prior_effect = np.diag(solve_posdef(k_yy + n * epsil * I, prior_embedding))
+    prior_effect = np.diag(solve_posdef(k_yy + n * epsil * I, prior_embedding)[0])
 
     # [Observation Prior] obs_prior: (n x n)
     obs_prior = np.dot(prior_effect, k_xx)
@@ -52,7 +52,7 @@ def posterior_weights(prior_embedding, k_xx, k_yy, epsil, delta):
     # [Posterior Weights] (n x n)
     return np.dot(obs_prior, solve_posdef(reg_sq_obs_prior, prior_effect)[0])
 
-def posterior_embedding(posterior_weights, k_xxq, k_yyq):
+def posterior_embedding_core(W, k_xxq, k_yyq):
     """
     Obtain the posterior embedding involved in Kernel Bayes' Rule.
 
@@ -60,7 +60,7 @@ def posterior_embedding(posterior_weights, k_xxq, k_yyq):
 
     Parameters
     ----------
-    posterior_weights : numpy.ndarray
+    W : numpy.ndarray
         The posterior weights ready to be conditioned on arbitrary 
         input x values and queried at arbitrary output y values (n x n)
     k_xxq : numpy.ndarray
@@ -74,9 +74,18 @@ def posterior_embedding(posterior_weights, k_xxq, k_yyq):
         (n_qy x n_qx)
     """
     # [Posterior Embedding] (n_qy x n_qx)
-    return np.dot(k_yyq.T, np.dot(posterior_weights, k_xxq))
+    return np.dot(k_yyq.T, np.dot(W, k_xxq))
 
-def kernel_bayes_average(g, posterior_weights, k_ygyg, k_yyg, k_xxq):
+def posterior_embedding(mu_prior, x, y, k_x, k_y, theta_x, theta_y, epsil, delta):
+
+    k_xx = k_x(x, x, theta_x)
+    k_yy = k_y(y, y, theta_y)
+
+    W = posterior_weight_matrix(mu_prior(y), k_xx, k_yy, epsil, delta)
+
+    return lambda yq, xq: np.dot(k_y(yq, y, theta_y), np.dot(W, k_x(x, xq, theta_x)))
+
+def kernel_bayes_average(g, W, k_ygyg, k_yyg, k_xxq):
     """
     Obtain the expectance of a function g under the posterior.
 
@@ -98,7 +107,7 @@ def kernel_bayes_average(g, posterior_weights, k_ygyg, k_yyg, k_xxq):
     alpha_g = solve_posdef(k_ygyg, g)
 
     # [Expectance of g(Y) under the posterior] (n_qx, )
-    return np.dot(alpha_g, posterior_embedding(posterior_weights, k_xxq, k_yyg))
+    return np.dot(alpha_g, posterior_embedding_core(W, k_xxq, k_yyg))
 
 # def posterior_mode(w, ky, y, y0):
 
