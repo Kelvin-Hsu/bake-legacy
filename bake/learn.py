@@ -8,64 +8,57 @@ from scipy.optimize import minimize
 
 def nlml_log(x, log_theta, log_var, log_alpha):
 
+    # Convert the hyperparameters back to its original scale
     theta = np.exp(log_theta)
     var = np.exp(log_var)
     alpha = np.exp(log_alpha)
 
+    # Compute the negative log marginal likelihood
     return nlml(x, theta, var, alpha)
 
 def nlml(x, theta, var, alpha):
 
-    r = cdist(x/theta, x/theta, 'sqeuclidean')
-    kxx = np.exp(-0.5 * r)
+    # Compute the squared euclidean distance across the training data
+    dxx = cdist(x/theta, x/theta, 'sqeuclidean')
+
+    # Compute the gram matrix with the rkhs kernel
+    kxx = np.exp(-0.5 * dxx)
+
+    # Compute the mean embedding at the training points
     mu = kxx.mean(axis = 0)
 
-    rxx = rkhs_kernel(x, r, theta, alpha)
+    # Compute the gram matrix with the gp kernel
+    rxx = gp_kernel(x, theta, alpha, dxx)
 
+    # This is the regularised gram matrix with the gp kernel
     A = rxx + var * np.eye(x.shape[0])
 
+    # Solve the regularised gp kernel matrix against the mean embedding
     b, logdetA = solve_posdef(A, mu)
 
-    n = x.shape[0]
-    J = np.arange(n)
+    # Compute the correction factor for the log marginal likelihood
+    log_gamma = 0.5 * np.sum([np.log(np.sum((np.sum(kxx[:, [j]] * (x - x[j, :]), 
+        axis = 0) / (theta ** 2)) ** 2)) for j in np.arange(x.shape[0])])
 
-    log_gamma = 0.5 * np.sum([np.log(np.sum((np.sum(kxx[:, [j]] * (x - x[j, :]), axis = 0) / (theta ** 2)) ** 2)) for j in J])
+    # Compute the negative log marginal likelihood
     return 0.5 * (np.dot(mu, b) + logdetA) - log_gamma
 
-# def correction(x, theta, k):
-    # """
-    # General Gaussian Correction
-    # """
-    # kxx = k(x, x, theta)
-    # n = x.shape[0]
-    # J = np.arange(n)
-    # return np.sqrt(np.prod(np.array([np.sum((np.sum(kxx[:, [j]] * (x - x[j, :]), axis = 0) / (n * theta**2)) ** 2) for j in J])))
+def gp_kernel(x, theta, alpha, dxx):
 
-# def log_correction(x, theta, k):
-    # """
-    # General Shifted Log Gaussian Correction.
+    # This is the length scale hyperparameters of the gp
+    theta_gp = np.sqrt(0.5 * theta ** 2 + alpha ** 2)
 
-    # """
-    # kxx = k(x, x, theta)
-    # n = x.shape[0]
-    # J = np.arange(n)
-    # return 0.5 * np.sum([np.log(np.sum((np.sum(kxx[:, [j]] * (x - x[j, :]), axis = 0) / (theta ** 2)) ** 2)) for j in J])
+    # This is the normalised feature vector for the gp
+    z_gp = x / theta_gp
 
-def rkhs_kernel(x, r, theta, alpha):
+    # This is the sensitivity of the gp kernel
+    s = (np.sqrt(2 * np.pi) ** theta.shape[0]) * np.prod(theta_gp)
 
-    d = theta.shape[0]
+    # This is the normalised squared distances of the gp features
+    dzz = 0.25 * dxx + 0.125 * cdist(z_gp, -z_gp, 'sqeuclidean')
 
-    t1 = np.sqrt(2 * np.pi) ** d
-
-    rkhs_ls = np.sqrt(0.5 * theta ** 2 + alpha ** 2)
-    t2 = np.prod(rkhs_ls)
-
-    t3 = -0.25 * r
-
-    rkhs_r = x / rkhs_ls
-    t4 = -0.125 * cdist(rkhs_r, -rkhs_r, 'sqeuclidean')
-
-    return t1 * t2 * np.exp(t3 + t4)
+    # This is the resulting gram matrix
+    return s * np.exp(-dzz)
 
 def hyperparameters(x, theta_init, var_init = None, alpha_init = None, var_fix = 1.0, alpha_fix = 1.0):
 
