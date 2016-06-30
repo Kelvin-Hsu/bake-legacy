@@ -23,6 +23,8 @@ def main():
     y = y1.copy()
     y[ind] = y2[ind]
 
+    z = np.vstack((x.ravel(), y.ravel())).T
+
     # Put uniform weights on the data
     w = bake.infer.uniform_weights(x)
 
@@ -30,48 +32,46 @@ def main():
     theta_x_0 = np.array([1.0])
     mu_x_0 = bake.infer.embedding(w, x, bake.kernels.gaussian, theta_x_0)
 
-    # Learn the hyperparameters of the kernel
-    theta_x, var_x, alpha_x = bake.learn.hyperparameters(x, theta_x_0, var_init = None, alpha_init = None)
-    mu_x = bake.infer.embedding(w, x, bake.kernels.gaussian, theta_x)
-
-    print('x: The learned length scale is: ', theta_x)
-    print('x: The learned standard deviation is: ', np.sqrt(var_x))
-    print('x: The learned measure length scale is: ', alpha_x)
-
-    log_theta_x, log_var_x, log_alpha_x = bake.learn.log_hyperparameters(x, np.log(theta_x_0), log_var_init = None, log_alpha_init = None)
-    mu_x_log = bake.infer.embedding(w, x, bake.kernels.gaussian, np.exp(log_theta_x))
-
-    print('x: The log-learned length scale is: ', np.exp(log_theta_x))
-    print('x: The log-learned standard deviation is: ', np.sqrt(np.exp(log_var_x)))
-    print('x: The log-learned measure length scale is: ', np.exp(log_alpha_x))
-
-
-
-
 
     # Initialise the hyperparameters of the kernel
     theta_y_0 = np.array([0.4])
     mu_y_0 = bake.infer.embedding(w, y, bake.kernels.gaussian, theta_y_0)
 
+
+    theta_z_0 = np.append(theta_x_0, theta_y_0)
+    mu_z_0 = bake.infer.embedding(w, z, bake.kernels.gaussian, theta_z_0)
+
     # Learn the hyperparameters of the kernel
-    theta_y, var_y, alpha_y = bake.learn.hyperparameters(y, theta_y_0, var_init = None, alpha_init = None)
+    theta_z, var_z, alpha_z = bake.learn.hyperparameters(z, theta_z_0, var_init = None, alpha_init = None)
+    mu_z = bake.infer.embedding(w, z, bake.kernels.gaussian, theta_z)
+
+    print('z: The learned length scale is: ', theta_z)
+    print('z: The learned standard deviation is: ', np.sqrt(var_z))
+    print('z: The learned measure length scale is: ', alpha_z)
+
+    log_theta_z, log_var_z, log_alpha_z = bake.learn.log_hyperparameters(z, np.log(theta_z_0), log_var_init = None, log_alpha_init = None)
+    mu_z_log = bake.infer.embedding(w, z, bake.kernels.gaussian, np.exp(log_theta_z))
+
+    print('z: The log-learned length scale is: ', np.exp(log_theta_z))
+    print('z: The log-learned standard deviation is: ', np.sqrt(np.exp(log_var_z)))
+    print('z: The log-learned measure length scale is: ', np.exp(log_alpha_z))
+
+    theta_x = theta_z[[0]]
+    theta_y = theta_z[[1]]
+
+    mu_x = bake.infer.embedding(w, x, bake.kernels.gaussian, theta_x)
     mu_y = bake.infer.embedding(w, y, bake.kernels.gaussian, theta_y)
 
-    print('y: The learned length scale is: ', theta_y)
-    print('y: The learned standard deviation is: ', np.sqrt(var_y))
-    print('y: The learned measure length scale is: ', alpha_y)
+    log_theta_x = log_theta_z[[0]]
+    log_theta_y = log_theta_z[[1]]    
 
-    log_theta_y, log_var_y, log_alpha_y = bake.learn.log_hyperparameters(y, np.log(theta_y_0), log_var_init = None, log_alpha_init = None)
+    mu_x_log = bake.infer.embedding(w, x, bake.kernels.gaussian, np.exp(log_theta_x))
     mu_y_log = bake.infer.embedding(w, y, bake.kernels.gaussian, np.exp(log_theta_y))
-
-    print('y: The log-learned length scale is: ', np.exp(log_theta_y))
-    print('y: The log-learned standard deviation is: ', np.sqrt(np.exp(log_var_y)))
-    print('y: The log-learned measure length scale is: ', np.exp(log_alpha_y))
 
     epsil = 1e-10
     delta = 1e-8
-    mu_yx = bake.infer.posterior_embedding(mu_y_log, x, y, bake.kernels.gaussian, bake.kernels.gaussian, np.exp(log_theta_x), np.exp(log_theta_y), epsil, delta)
-
+    mu_yx = bake.infer.posterior_embedding(mu_y, x, y, bake.kernels.gaussian, bake.kernels.gaussian, theta_x, theta_y, epsil, delta)
+    mu_yx_log = bake.infer.posterior_embedding(mu_y_log, x, y, bake.kernels.gaussian, bake.kernels.gaussian, np.exp(log_theta_x), np.exp(log_theta_y), epsil, delta)
 
 
 
@@ -125,24 +125,57 @@ def main():
     xq_array = np.linspace(-x_lim, x_lim, 150)
     yq_array = np.linspace(-y_lim, y_lim, 150)
     xv, yv = np.meshgrid(xq_array, yq_array)
-    # Z = np.vstack((xv.ravel(), yv.ravel())).T
-    # xq = Z[:, [0]]
-    # yq = Z[:, [1]]
+
     xq = xq_array[:, np.newaxis]
     yq = yq_array[:, np.newaxis]
-    mu_yqxq = mu_yx(yq, xq)
 
-    print(xv.shape)
+    zq = np.vstack((xv.ravel(), yv.ravel())).T
+
+    mu_yqxq = mu_yx(yq, xq)
+    mu_yqxq_log = mu_yx_log(yq, xq)
+
+    mu_zq = mu_z(zq)
+    mu_zq_log = mu_z_log(zq)
+
     plt.figure(3)
-    plt.pcolormesh(xv, yv, mu_yqxq, label = 'Log-Learned Embedding')
+
+    plt.subplot(221)
+    plt.pcolormesh(xv, yv, mu_yqxq, label = 'Learned Embedding')
     plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
     plt.xlim((-x_lim, x_lim))
     plt.ylim((-y_lim, y_lim))
     plt.xlabel('$x$')
     plt.ylabel('$y$')
-    plt.title('Bayesian Kernel Embedding Regression')
-    plt.show()
+    plt.title('Learned Conditional Embedding')
 
+    plt.subplot(222)
+    plt.pcolormesh(xv, yv, mu_yqxq_log, label = 'Log-Learned Embedding')
+    plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
+    plt.xlim((-x_lim, x_lim))
+    plt.ylim((-y_lim, y_lim))
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title('Log-Learned Conditional Embedding')
+
+    plt.subplot(223)
+    plt.scatter(zq[:, 0], zq[:, 1], s = 20, c = mu_zq, linewidths = 0, label = 'Learned Embedding')
+    plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
+    plt.xlim((-x_lim, x_lim))
+    plt.ylim((-y_lim, y_lim))
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title('Learned Joint Embedding')
+
+    plt.subplot(224)
+    plt.scatter(zq[:, 0], zq[:, 1], s = 20, c = mu_zq_log, linewidths = 0, label = 'Log-Learned Embedding')
+    plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
+    plt.xlim((-x_lim, x_lim))
+    plt.ylim((-y_lim, y_lim))
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title('Log-Learned Joint Embedding')
+
+    plt.show()
 
 def generate_data_random(n = 10, d = 1, loc = 1, scale = 1, seed = None):
 
