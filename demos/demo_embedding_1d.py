@@ -74,8 +74,7 @@ def generate_data_gaussian_mixture(n = 10, d = 1, locs = [], scales = [], seed =
     samples = []
 
     for i in range(n):
-        samples.append(scales[i % m] * np.random.randn(d) + locs[i % m])
-
+        samples.append(np.array(scales[i % m]) * np.random.randn(d) + np.array(locs[i % m]))
     return np.array(samples)
 
 

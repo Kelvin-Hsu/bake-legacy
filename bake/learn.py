@@ -52,7 +52,8 @@ def gp_kernel(x, theta, alpha, dxx):
     z_gp = x / theta_gp
 
     # This is the sensitivity of the gp kernel
-    s = (np.sqrt(2 * np.pi) ** theta.shape[0]) * np.prod(theta_gp)
+    d = x.shape[1]
+    s = (np.sqrt(2 * np.pi) ** d) * np.prod(theta_gp * np.ones(d))
 
     # This is the normalised squared distances of the gp features
     dzz = 0.25 * dxx + 0.125 * cdist(z_gp, -z_gp, 'sqeuclidean')
