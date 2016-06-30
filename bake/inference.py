@@ -4,6 +4,12 @@ Bayesian Inference for Kernel Embeddings Module.
 import numpy as np
 from .linalg import solve_posdef
 
+def embedding(w, x, k, theta):
+    return lambda xq: np.dot(k(xq, x, theta), w)
+
+def uniform_weights(x):
+    return np.ones(x.shape[0]) / x.shape[0]
+
 def posterior_weights(prior_embedding, k_xx, k_yy, epsil, delta):
     """
     Obtain the posterior weights involved in Kernel Bayes' Rule.
