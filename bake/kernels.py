@@ -59,6 +59,8 @@ def gaussian_norm(theta, m = 1):
     """
     return np.prod(np.sqrt(2 * np.pi) * theta) ** m
 
+
+
 def laplace(x_p, x_q, theta):
     """
     Defines the Laplace or exponential kernel.
