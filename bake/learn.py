@@ -19,7 +19,8 @@ def nlml_log(x, log_theta, log_var, log_alpha):
 def nlml(x, theta, var, alpha):
 
     # Compute the squared euclidean distance across the training data
-    dxx = cdist(x/theta, x/theta, 'sqeuclidean')
+    dx = x/theta
+    dxx = cdist(dx, dx, 'sqeuclidean')
 
     # Compute the gram matrix with the rkhs kernel
     kxx = np.exp(-0.5 * dxx)
@@ -63,8 +64,10 @@ def gp_kernel(x, theta, alpha, dxx):
 
 def hyperparameters(x, theta_init, var_init = None, alpha_init = None, var_fix = 1.0, alpha_fix = 1.0):
 
-    options = {'disp': True, 'maxls': 20, 'iprint': -1, 'gtol': 1e-05, 'eps': 1e-08, 'maxiter': 15000, 'ftol': 2.220446049250313e-09, 'maxcor': 10, 'maxfun': 15000}
-    method = 'L-BFGS-B'
+    # options = {'disp': True, 'maxls': 20, 'iprint': -1, 'gtol': 1e-05, 'eps': 1e-08, 'maxiter': 15000, 'ftol': 2.220446049250313e-09, 'maxcor': 10, 'maxfun': 15000}
+    method = 'SLSQP'
+
+    constraints = {'type': 'ineq', 'fun': lambda t: t - 1e-3}
 
     if var_init is None and alpha_init is None:
 
@@ -74,7 +77,8 @@ def hyperparameters(x, theta_init, var_init = None, alpha_init = None, var_fix =
         def objective(t):
             return nlml(x, t, var_init, alpha_init)
 
-        optimal_result = minimize(objective, theta_init, method = method, options = options)
+        optimal_result = minimize(objective, theta_init, method = method, constraints = constraints)
+
         return optimal_result.x, var_init, alpha_init
 
     elif alpha_init is None:
@@ -87,7 +91,7 @@ def hyperparameters(x, theta_init, var_init = None, alpha_init = None, var_fix =
             var = t[-1]
             return nlml(x, theta, var, alpha_init)
 
-        optimal_result = minimize(objective, t_init, method = method, options = options)
+        optimal_result = minimize(objective, t_init, method = method, constraints = constraints)
 
         return optimal_result.x[:-1], optimal_result.x[-1], alpha_init
 
@@ -101,7 +105,7 @@ def hyperparameters(x, theta_init, var_init = None, alpha_init = None, var_fix =
             alpha = t[-1]
             return nlml(x, theta, var_init, alpha)
 
-        optimal_result = minimize(objective, t_init, method = method, options = options)
+        optimal_result = minimize(objective, t_init, method = method, constraints = constraints)
 
         return optimal_result.x[:-1], var_init, optimal_result.x[-1]
 
@@ -115,7 +119,7 @@ def hyperparameters(x, theta_init, var_init = None, alpha_init = None, var_fix =
             alpha = t[-1]
             return nlml(x, theta, var, alpha)
 
-        optimal_result = minimize(objective, t_init, method = method, options = options)
+        optimal_result = minimize(objective, t_init, method = method, constraints = constraints)
 
         return optimal_result.x[:-2], optimal_result.x[-2], optimal_result.x[-1]
 
@@ -133,6 +137,7 @@ def log_hyperparameters(x, log_theta_init, log_var_init = None, log_alpha_init =
             return nlml_log(x, t, log_var_init, log_alpha_init)
 
         optimal_result = minimize(objective, log_theta_init, method = method, options = options)
+
         return optimal_result.x, log_var_init, log_alpha_init
 
     elif log_alpha_init is None:
@@ -175,4 +180,57 @@ def log_hyperparameters(x, log_theta_init, log_var_init = None, log_alpha_init =
 
         optimal_result = minimize(objective, t_init, method = method, options = options)
 
-        return optimal_result.x[:-2], optimal_result.x[-2], optimal_result.x[-1]            
+        return optimal_result.x[:-2], optimal_result.x[-2], optimal_result.x[-1]
+
+def optimal_hyperparameters(x, n = 20000):
+
+    m_x = x.shape[1]
+    m_total = m_x + 2
+
+    ind_total = np.arange(m_total)
+    ind_x = np.arange(m_x)
+    ind_var = ind_x + 1
+    ind_alpha = ind_var + 1
+
+    def objective(t):
+        theta = t[ind_x]
+        var = t[ind_var]
+        alpha = t[ind_alpha]
+        return nlml(x, theta, var, alpha)
+
+    t_opt, f_opt = brute_force_minimise(objective, m_total, n = n)
+    print(f_opt)
+
+    theta_opt = t_opt[ind_x]
+    var_opt = t_opt[ind_var]
+    alpha_opt = t_opt[ind_alpha]       
+    return theta_opt, var_opt, alpha_opt
+
+def brute_force_minimise(objective, m, n = 20000):
+
+    t_values = np.abs(np.random.rand(n, m)) + 1e-3
+
+    t_opt = np.abs(np.random.rand(m)) + 1e-3
+    f_opt = objective(t_opt)
+
+    i = 0
+
+    for t in t_values:
+
+        f = objective(t)
+
+        if f < f_opt:
+            t_opt = t
+            f_opt = f
+            print(i, ' : ', t_opt, f_opt)
+        i += 1
+
+    return t_opt, f_opt
+
+
+
+
+
+
+
+

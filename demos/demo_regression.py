@@ -2,7 +2,7 @@
 Demonstration of simple kernel embeddings.
 """
 import numpy as np
-import bake.infer, bake.learn, bake.kernels
+import bake.infer, bake.learn, bake.rlearn, bake.kernels
 import matplotlib.pyplot as plt
 
 def main():
@@ -11,17 +11,27 @@ def main():
 
     # Generate some data
     # x = generate_data(n = 20, d = 1, loc = 4, scale = 2, seed = 200)
-    n = 100
+    n = 40
     x = 10 * np.random.rand(n, 1) - 5
 
-    y1 = np.sin(x)
-    y2 = 2 * np.cos(x)
+    y1 = np.sin(x) + 1.0
+    y2 = 2 * np.cos(x) - 1.0
+    # y3 = 5 * np.sin(x + 1)
+    # y4 = 0.25 * x ** 2 - 3.0
+    # y5 = -0.4 * (x + 1) ** 2 + 2.0
 
-    ind = np.random.choice(np.arange(x.shape[0]), size = int(n/2))
-    print(ind)
+    y = 0 * x
 
-    y = y1.copy()
-    y[ind] = y2[ind]
+    ind = np.random.choice(np.arange(x.shape[0]), size = (2, 20), replace = False)
+
+    y[ind[0]] = y1[ind[0]]
+    y[ind[1]] = y2[ind[1]]
+
+    y = y + 0.2 * np.random.randn(*y.shape)
+
+    # plt.scatter(x.flatten(), y.flatten())
+    # plt.show()
+    # return
 
     z = np.vstack((x.ravel(), y.ravel())).T
 
@@ -29,12 +39,11 @@ def main():
     w = bake.infer.uniform_weights(x)
 
     # Initialise the hyperparameters of the kernel
-    theta_x_0 = np.array([1.0])
+    theta_x_0 = np.array([0.4])
     mu_x_0 = bake.infer.embedding(w, x, bake.kernels.gaussian, theta_x_0)
 
-
     # Initialise the hyperparameters of the kernel
-    theta_y_0 = np.array([0.4])
+    theta_y_0 = np.array([0.1])
     mu_y_0 = bake.infer.embedding(w, y, bake.kernels.gaussian, theta_y_0)
 
 
@@ -174,6 +183,63 @@ def main():
     plt.xlabel('$x$')
     plt.ylabel('$y$')
     plt.title('Log-Learned Joint Embedding')
+
+
+
+
+    ########
+
+    theta_x_opt, var_opt, alpha_opt = bake.learn.optimal_hyperparameters(x, n = 25000)
+
+    print('Optimal x theta: ', theta_x_opt)
+    print('Optimal var: ', var_opt)
+    print('Optimal alpha: ', alpha_opt)
+
+    theta_y_opt, var_opt, alpha_opt = bake.learn.optimal_hyperparameters(y, n = 25000)
+
+    print('Optimal y theta: ', theta_y_opt)
+    print('Optimal var: ', var_opt)
+    print('Optimal alpha: ', alpha_opt)
+
+    # Infer conditional posterior embedding
+    mu_y_optimal = bake.infer.embedding(w, y, bake.kernels.gaussian, theta_y_opt)
+    mu_yx_optimal = bake.infer.posterior_embedding(mu_y_optimal, x, y, bake.kernels.gaussian, bake.kernels.gaussian, theta_x_opt, theta_y_opt, epsil, delta)
+    mu_yqxq_optimal = mu_yx_optimal(yq, xq)
+
+    plt.figure(5)
+    plt.subplot(211)
+    plt.pcolormesh(xv, yv, mu_yqxq_optimal, label = 'Optimal Embedding')
+    plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
+    plt.xlim((-x_lim, x_lim))
+    plt.ylim((-y_lim, y_lim))
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title('Optimal Conditional Embedding (Separate)')
+
+
+
+    theta_x_opt, theta_y_opt, epsil_opt, delta_opt, var_opt, alpha_opt = bake.rlearn.optimal_hyperparameters(mu_y_0, x, y, n = 100000)
+
+    print('Optimal x theta: ', theta_x_opt)
+    print('Optimal y theta: ', theta_y_opt)
+    print('Optimal epsil: ', epsil_opt)
+    print('Optimal delta: ', delta_opt)
+    print('Optimal var: ', var_opt)
+    print('Optimal alpha: ', alpha_opt)
+
+    # Infer conditional posterior embedding
+    mu_y_optimal = bake.infer.embedding(w, y, bake.kernels.gaussian, theta_y_opt)
+    mu_yx_optimal = bake.infer.posterior_embedding(mu_y_optimal, x, y, bake.kernels.gaussian, bake.kernels.gaussian, theta_x_opt, theta_y_opt, epsil_opt, delta_opt)
+    mu_yqxq_optimal = mu_yx_optimal(yq, xq)
+
+    plt.subplot(212)
+    plt.pcolormesh(xv, yv, mu_yqxq_optimal, label = 'Optimal Embedding')
+    plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
+    plt.xlim((-x_lim, x_lim))
+    plt.ylim((-y_lim, y_lim))
+    plt.xlabel('$x$')
+    plt.ylabel('$y$')
+    plt.title('Optimal Conditional Embedding (My Method)')
 
     plt.show()
 

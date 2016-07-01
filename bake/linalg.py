@@ -142,3 +142,10 @@ def svd_solve(U, s, b):
         X = U2.dot(U2.T).dot(b)  # O(n^2 (m + n))
 
     return X, okind
+
+def diag_of_product(A, B):
+    """
+    Obtain the diagonal elements of A * B quickly
+    """
+
+    
