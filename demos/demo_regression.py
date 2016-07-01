@@ -11,7 +11,7 @@ def main():
 
     # Generate some data
     # x = generate_data(n = 20, d = 1, loc = 4, scale = 2, seed = 200)
-    n = 40
+    n = 100
     x = 10 * np.random.rand(n, 1) - 5
 
     y1 = np.sin(x) + 1.0
@@ -22,7 +22,7 @@ def main():
 
     y = 0 * x
 
-    ind = np.random.choice(np.arange(x.shape[0]), size = (2, 20), replace = False)
+    ind = np.random.choice(np.arange(x.shape[0]), size = (2, 50), replace = False)
 
     y[ind[0]] = y1[ind[0]]
     y[ind[1]] = y2[ind[1]]
