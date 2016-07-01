@@ -3,6 +3,7 @@ Bayesian Inference for Kernel Embeddings Module.
 """
 import numpy as np
 from .linalg import solve_posdef
+from scipy.signal import argrelextrema
 
 def embedding(w, x, k, theta):
     return lambda xq: np.dot(k(xq, x, theta), w)
@@ -108,6 +109,27 @@ def kernel_bayes_average(g, W, k_ygyg, k_yyg, k_xxq):
 
     # [Expectance of g(Y) under the posterior] (n_qx, )
     return np.dot(alpha_g, posterior_embedding_core(W, k_xxq, k_yyg))
+
+def regressor_mode(mu_yqxq, xq_array, yq_array):
+
+    # Assume xq_array and yq_array are just 1D arrays for now
+
+    n_y, n_x = mu_yqxq.shape
+
+    assert n_x == xq_array.shape[0]
+    assert n_y == yq_array.shape[0]
+
+    x_peaks = np.array([])
+    y_peaks = np.array([])
+
+    for i in range(n_x):
+        ind = argrelextrema(mu_yqxq[:, i], np.greater)
+        for j in ind[0]:
+            x_peaks = np.append(x_peaks, xq_array[i])
+            y_peaks = np.append(y_peaks, yq_array[j])
+
+    return x_peaks, y_peaks
+
 
 # def posterior_mode(w, ky, y, y0):
 

@@ -149,8 +149,10 @@ def main():
     plt.figure(3)
 
     plt.subplot(221)
+    x_peaks, y_peaks = bake.infer.regressor_mode(mu_yqxq, xq_array, yq_array)
     plt.pcolormesh(xv, yv, mu_yqxq, label = 'Learned Embedding')
     plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
+    plt.scatter(x_peaks, y_peaks, s = 1, edgecolor = 'face', c = 'w')
     plt.xlim((-x_lim, x_lim))
     plt.ylim((-y_lim, y_lim))
     plt.xlabel('$x$')
@@ -158,8 +160,10 @@ def main():
     plt.title('Learned Conditional Embedding')
 
     plt.subplot(222)
+    x_peaks, y_peaks = bake.infer.regressor_mode(mu_yqxq_log, xq_array, yq_array)
     plt.pcolormesh(xv, yv, mu_yqxq_log, label = 'Log-Learned Embedding')
     plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
+    plt.scatter(x_peaks, y_peaks, s = 1, edgecolor = 'face', c = 'w')
     plt.xlim((-x_lim, x_lim))
     plt.ylim((-y_lim, y_lim))
     plt.xlabel('$x$')
@@ -185,8 +189,6 @@ def main():
     plt.title('Log-Learned Joint Embedding')
 
 
-
-
     ########
 
     theta_x_opt, var_opt, alpha_opt = bake.learn.optimal_hyperparameters(x, n = 25000)
@@ -206,15 +208,18 @@ def main():
     mu_yx_optimal = bake.infer.posterior_embedding(mu_y_optimal, x, y, bake.kernels.gaussian, bake.kernels.gaussian, theta_x_opt, theta_y_opt, epsil, delta)
     mu_yqxq_optimal = mu_yx_optimal(yq, xq)
 
+    x_peaks, y_peaks = bake.infer.regressor_mode(mu_yqxq_optimal, xq_array, yq_array)
+
     plt.figure(5)
     plt.subplot(211)
     plt.pcolormesh(xv, yv, mu_yqxq_optimal, label = 'Optimal Embedding')
     plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
+    plt.scatter(x_peaks, y_peaks, s = 1, edgecolor = 'face', c = 'w')
     plt.xlim((-x_lim, x_lim))
     plt.ylim((-y_lim, y_lim))
     plt.xlabel('$x$')
     plt.ylabel('$y$')
-    plt.title('Optimal Conditional Embedding (Separate)')
+    plt.title('Optimal Conditional Embedding (Original Method)')
 
 
 
@@ -232,9 +237,12 @@ def main():
     mu_yx_optimal = bake.infer.posterior_embedding(mu_y_optimal, x, y, bake.kernels.gaussian, bake.kernels.gaussian, theta_x_opt, theta_y_opt, epsil_opt, delta_opt)
     mu_yqxq_optimal = mu_yx_optimal(yq, xq)
 
+    x_peaks, y_peaks = bake.infer.regressor_mode(mu_yqxq_optimal, xq_array, yq_array)
+
     plt.subplot(212)
     plt.pcolormesh(xv, yv, mu_yqxq_optimal, label = 'Optimal Embedding')
     plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
+    plt.scatter(x_peaks, y_peaks, s = 1, edgecolor = 'face', c = 'w')
     plt.xlim((-x_lim, x_lim))
     plt.ylim((-y_lim, y_lim))
     plt.xlabel('$x$')
