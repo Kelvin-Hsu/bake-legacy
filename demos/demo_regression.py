@@ -4,6 +4,7 @@ Demonstration of simple kernel embeddings.
 import numpy as np
 import bake.infer, bake.learn, bake.rlearn, bake.kernels
 import matplotlib.pyplot as plt
+import time
 
 def main():
 
@@ -249,8 +250,6 @@ def main():
     plt.ylabel('$y$')
     plt.title('Optimal Conditional Embedding (My Method)')
 
-    plt.show()
-
 def generate_data_random(n = 10, d = 1, loc = 1, scale = 1, seed = None):
 
     # Set seed
@@ -277,6 +276,14 @@ def generate_data_gaussian_mixture(n = 10, d = 1, locs = [], scales = [], seed =
         samples.append(np.array(scales[i % m]) * np.random.randn(d) + np.array(locs[i % m]))
     return np.array(samples)
 
+def time_module(module, args = ()):
+
+    t_start = time.clock()
+    output = module(*args)
+    t_finish = time.clock()
+    print(t_finish - t_start)
+    return output
 
 if __name__ == "__main__":
-    main()
+    time_module(main)
+    plt.show()
