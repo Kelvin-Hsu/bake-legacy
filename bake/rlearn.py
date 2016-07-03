@@ -4,7 +4,7 @@ Bayesian Learning for Kernel Embeddings Module.
 import numpy as np
 from .linalg import solve_posdef
 from .infer import posterior_weight_matrix
-from .learn import gp_kernel
+from .learn import nuclear_inferior_kernel
 from scipy.spatial.distance import cdist
 from scipy.optimize import minimize
 
@@ -60,7 +60,7 @@ def nlml(mu_y_prior_vector, x, y, theta_x, theta_y, epsil, delta, var, alpha):
     mu_yx = np.einsum('ij,ji->i', kyy, w)
 
     # Compute the gram matrix with the gp kernel
-    rxx = gp_kernel(y, theta_y, alpha, dyy)
+    rxx = nuclear_inferior_kernel(y, theta_y, alpha, dyy)
 
     # This is the regularised gram matrix with the gp kernel
     A = rxx + var * np.eye(y.shape[0])

@@ -11,34 +11,29 @@ def main():
     # x = generate_data(n = 20, d = 1, loc = 4, scale = 2, seed = 200)
     x = generate_data_gaussian_mixture(n = 50, d = 2, 
         locs = [[-6.0, 6.0], [1.0, 3.0], [4.0, -4.0], [-9.0, 2.0], [-5.0, -10.0]], 
-        scales = [0.5, 3.0, 0.5, 1.5, 1.0])
+        scales = [1.5, 4.0, 1.5, 2.5, 2.0], seed = 200)
 
     # Put uniform weights on the data
     w = bake.infer.uniform_weights(x)
 
     # Initialise the hyperparameters of the kernel
-    theta0 = np.array([0.5])
+    theta0 = np.array([0.4])
     mu0 = bake.infer.embedding(w, x, bake.kernels.gaussian, theta0)
 
-    var_init = None
-    alpha_init = None
-    log_var_init = None if var_init is None else np.log(var_init)
-    log_alpha_init = None if alpha_init is None else np.log(alpha_init)
-
     # Learn the hyperparameters of the kernel
-    theta, var, alpha = bake.learn.hyperparameters(x, theta0, var_init = var_init, alpha_init = alpha_init)
+    theta_iso, psi_iso, sigma_iso = bake.learn.learn_joint_embedding(x, ([0.1, 0.1], [0.1, 0.1], [0.1]), ([2., 2.], [2., 2.], [2.]), t_init_tuple = None, n = 2000)
+    mu_iso = bake.infer.embedding(w, x, bake.kernels.gaussian, theta_iso)
+
+    print('The learned length scale is: ', theta_iso)
+    print('The learned measure length scale is: ', psi_iso)
+    print('The learned standard deviation is: ', sigma_iso)
+
+    theta, psi, sigma = bake.learn.learn_joint_embedding(x, ([0.1, 0.1], [0.1, 0.1], [0.1]), ([2., 2.], [2., 2.], [2.]), t_init_tuple = None, n = 2000)
     mu = bake.infer.embedding(w, x, bake.kernels.gaussian, theta)
 
     print('The learned length scale is: ', theta)
-    print('The learned standard deviation is: ', np.sqrt(var))
-    print('The learned measure length scale is: ', alpha)
-
-    log_theta, log_var, log_alpha = bake.learn.log_hyperparameters(x, np.log(theta0), log_var_init = log_var_init, log_alpha_init = log_alpha_init)
-    mu_log = bake.infer.embedding(w, x, bake.kernels.gaussian, np.exp(log_theta))
-
-    print('The log-learned length scale is: ', np.exp(log_theta))
-    print('The log-learned standard deviation is: ', np.sqrt(np.exp(log_var)))
-    print('The log-learned measure length scale is: ', np.exp(log_alpha))
+    print('The learned measure length scale is: ', psi)
+    print('The learned standard deviation is: ', sigma)
 
     # Generate some query points and evaluate the embedding at those points
     x_lim = np.max(np.abs(x)) + 1.0
@@ -50,7 +45,7 @@ def main():
     # Evaluate the embedding at query points
     mu0_xq = mu0(xq)
     mu_xq = mu(xq)
-    mu_log_xq = mu_log(xq)
+    mu_iso_xq = mu_iso(xq)
 
     # Plot the query points
     plt.figure(1)
@@ -64,6 +59,16 @@ def main():
     plt.title('Bayesian Learning of Kernel Embedding: Initial Embedding')
 
     plt.figure(2)
+    plt.scatter(xq[:, 0], xq[:, 1], s = 20, c = mu_iso_xq, linewidths = 0, label = 'Learned Embedding')
+    plt_training_data = plt.scatter(x[:, 0], x[:, 1], c = 'k', label = 'Training Data')
+    plt.legend()
+    plt.xlabel('$x_{1}$')
+    plt.ylabel('$x_{2}$')
+    plt.xlim((-x_lim, x_lim))
+    plt.ylim((-x_lim, x_lim))
+    plt.title('Bayesian Learning of Kernel Embedding: Learned Isotropic Embedding')
+
+    plt.figure(3)
     plt.scatter(xq[:, 0], xq[:, 1], s = 20, c = mu_xq, linewidths = 0, label = 'Learned Embedding')
     plt_training_data = plt.scatter(x[:, 0], x[:, 1], c = 'k', label = 'Training Data')
     plt.legend()
@@ -71,17 +76,7 @@ def main():
     plt.ylabel('$x_{2}$')
     plt.xlim((-x_lim, x_lim))
     plt.ylim((-x_lim, x_lim))
-    plt.title('Bayesian Learning of Kernel Embedding: Learned Embedding')
-
-    plt.figure(3)
-    plt.scatter(xq[:, 0], xq[:, 1], s = 20, c = mu_log_xq, linewidths = 0, label = 'Log-Learned Embedding')
-    plt_training_data = plt.scatter(x[:, 0], x[:, 1], c = 'k', label = 'Training Data')
-    plt.legend()
-    plt.xlabel('$x_{1}$')
-    plt.ylabel('$x_{2}$')
-    plt.xlim((-x_lim, x_lim))
-    plt.ylim((-x_lim, x_lim))
-    plt.title('Bayesian Learning of Kernel Embedding: Log-Learned Embedding')
+    plt.title('Bayesian Learning of Kernel Embedding: Learned Anisotropic Embedding')
 
     plt.show()
 

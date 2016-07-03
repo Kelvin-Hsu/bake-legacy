@@ -2,39 +2,53 @@
 Bayesian Learning for Kernel Embeddings Module.
 """
 import numpy as np
-from .linalg import solve_posdef
 from scipy.spatial.distance import cdist
-from scipy.optimize import minimize
+from .linalg import solve_posdef
+from .optimize import multi_pack, local_optimisation, explore_optimisation
 
-def nlml_log(x, log_theta, log_var, log_alpha):
+def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
 
-    # Convert the hyperparameters back to its original scale
-    theta = np.exp(log_theta)
-    var = np.exp(log_var)
-    alpha = np.exp(log_alpha)
-
-    # Compute the negative log marginal likelihood
-    return nlml(x, theta, var, alpha)
-
-def nlml(x, theta, var, alpha):
-
-    # Compute the squared euclidean distance across the training data
+    # Compute the normalised squared distance for the dominant kernel
     dx = x/theta
     dxx = cdist(dx, dx, 'sqeuclidean')
 
-    # Compute the gram matrix with the rkhs kernel
+    # Compute the dominant kernel gramix
     kxx = np.exp(-0.5 * dxx)
 
-    # Compute the mean embedding at the training points
+    # Compute the length scale of the inferior kernel
+    theta_inferior = np.sqrt(0.5 * theta ** 2 + psi ** 2)
+
+    # Compute the normalised distance for the inferior kernel
+    dz = x / theta_inferior
+
+    # Compute the normalised squared distance for the inferior kernel
+    dzz = 0.25 * dxx + 0.125 * cdist(dz, -dz, 'sqeuclidean')
+
+    # Compute the sensitivity of the inferior kernel
+    d = x.shape[1]
+    s = (np.sqrt(2 * np.pi) ** d) * np.prod(theta_inferior * np.ones(d))
+
+    # Compute the dominant kernel gramix
+    kxx = np.exp(-0.5 * dxx)
+
+    # Compute the inferior kernel gramix
+    rxx = s * np.exp(-dzz)
+
+    # Return the nuclear dominant and inferior kernel pair
+    return kxx, rxx
+
+def joint_nlml(x, theta, psi, sigma):
+
+    # Compute the dominant and inferior kernel gramices
+    kxx, rxx = nuclear_dominant_inferior_kernel_pair(x, theta, psi)
+
+    # Compute the empirical embedding evaluated at the training points
     mu = kxx.mean(axis = 0)
 
-    # Compute the gram matrix with the gp kernel
-    rxx = gp_kernel(x, theta, alpha, dxx)
+    # Compute the regularised inferior kernel gramix
+    A = rxx + (sigma ** 2) * np.eye(x.shape[0])
 
-    # This is the regularised gram matrix with the gp kernel
-    A = rxx + var * np.eye(x.shape[0])
-
-    # Solve the regularised gp kernel matrix against the mean embedding
+    # Solve the regularised inferior kernel gramix against the embedding
     b, logdetA = solve_posdef(A, mu)
 
     # Compute the correction factor for the log marginal likelihood
@@ -44,188 +58,30 @@ def nlml(x, theta, var, alpha):
     # Compute the negative log marginal likelihood
     return 0.5 * (np.dot(mu, b) + logdetA) - log_gamma
 
-def gp_kernel(x, theta, alpha, dxx):
+def learn_joint_embedding(x, t_min_tuple, t_max_tuple, t_init_tuple = None, n = 1000):
 
-    # This is the length scale hyperparameters of the gp
-    theta_gp = np.sqrt(0.5 * theta ** 2 + alpha ** 2)
+    t_min_tuple = tuple([np.array(a) for a in t_min_tuple])
+    t_max_tuple = tuple([np.array(a) for a in t_max_tuple])
 
-    # This is the normalised feature vector for the gp
-    z_gp = x / theta_gp
-
-    # This is the sensitivity of the gp kernel
-    d = x.shape[1]
-    s = (np.sqrt(2 * np.pi) ** d) * np.prod(theta_gp * np.ones(d))
-
-    # This is the normalised squared distances of the gp features
-    dzz = 0.25 * dxx + 0.125 * cdist(z_gp, -z_gp, 'sqeuclidean')
-
-    # This is the resulting gram matrix
-    return s * np.exp(-dzz)
-
-def hyperparameters(x, theta_init, var_init = None, alpha_init = None, var_fix = 1.0, alpha_fix = 1.0):
-
-    # options = {'disp': True, 'maxls': 20, 'iprint': -1, 'gtol': 1e-05, 'eps': 1e-08, 'maxiter': 15000, 'ftol': 2.220446049250313e-09, 'maxcor': 10, 'maxfun': 15000}
-    method = 'SLSQP'
-
-    constraints = {'type': 'ineq', 'fun': lambda t: t - 1e-3}
-
-    if var_init is None and alpha_init is None:
-
-        var_init = var_fix
-        alpha_init = alpha_fix
-
-        def objective(t):
-            return nlml(x, t, var_init, alpha_init)
-
-        optimal_result = minimize(objective, theta_init, method = method, constraints = constraints)
-
-        return optimal_result.x, var_init, alpha_init
-
-    elif alpha_init is None:
-
-        alpha_init = alpha_fix
-        t_init = np.append(theta_init, var_init)
-
-        def objective(t):
-            theta = t[:-1]
-            var = t[-1]
-            return nlml(x, theta, var, alpha_init)
-
-        optimal_result = minimize(objective, t_init, method = method, constraints = constraints)
-
-        return optimal_result.x[:-1], optimal_result.x[-1], alpha_init
-
-    elif var_init is None:
-
-        var_init = var_fix
-        t_init = np.append(theta_init, alpha_init)
-
-        def objective(t):
-            theta = t[:-1]
-            alpha = t[-1]
-            return nlml(x, theta, var_init, alpha)
-
-        optimal_result = minimize(objective, t_init, method = method, constraints = constraints)
-
-        return optimal_result.x[:-1], var_init, optimal_result.x[-1]
-
+    if t_init_tuple is None:
+        t_min, t_max, t_indices = multi_pack(t_min_tuple, t_max_tuple)
     else:
+        t_init_tuple = tuple([np.array(a) for a in t_init_tuple])
+        t_min, t_max, t_init, t_indices = multi_pack(t_min_tuple, t_max_tuple, t_init_tuple)
+        assert t_init.shape == t_min.shape
 
-        t_init = np.append(np.append(theta_init, var_init), alpha_init)
-
-        def objective(t):
-            theta = t[:-2]
-            var = t[-2]
-            alpha = t[-1]
-            return nlml(x, theta, var, alpha)
-
-        optimal_result = minimize(objective, t_init, method = method, constraints = constraints)
-
-        return optimal_result.x[:-2], optimal_result.x[-2], optimal_result.x[-1]
-
-def log_hyperparameters(x, log_theta_init, log_var_init = None, log_alpha_init = None, log_var_fix = 0.0, log_alpha_fix = 0.0):
-
-    options = {'disp': False, 'maxls': 20, 'iprint': -1, 'gtol': 1e-05, 'eps': 1e-08, 'maxiter': 15000, 'ftol': 2.220446049250313e-09, 'maxcor': 10, 'maxfun': 15000}
-    method = 'L-BFGS-B'
-
-    if log_var_init is None and log_alpha_init is None:
-
-        log_var_init = log_var_fix
-        log_alpha_init = log_alpha_fix
-
-        def objective(t):
-            return nlml_log(x, t, log_var_init, log_alpha_init)
-
-        optimal_result = minimize(objective, log_theta_init, method = method, options = options)
-
-        return optimal_result.x, log_var_init, log_alpha_init
-
-    elif log_alpha_init is None:
-
-        log_alpha_init = log_alpha_fix
-        t_init = np.append(log_theta_init, log_var_init)
-
-        def objective(t):
-            log_theta = t[:-1]
-            log_var = t[-1]
-            return nlml_log(x, log_theta, log_var, log_alpha_init)
-
-        optimal_result = minimize(objective, t_init, method = method, options = options)
-
-        return optimal_result.x[:-1], optimal_result.x[-1], log_alpha_init
-
-    elif log_var_init is None:
-
-        log_var_init = log_var_fix
-        t_init = np.append(log_theta_init, log_alpha_init)
-
-        def objective(t):
-            log_theta = t[:-1]
-            log_alpha = t[-1]
-            return nlml_log(x, log_theta, log_var_init, log_alpha)
-
-        optimal_result = minimize(objective, t_init, method = method, options = options)
-
-        return optimal_result.x[:-1], log_var_init, optimal_result.x[-1]
-
-    else:
-
-        t_init = np.append(np.append(log_theta_init, log_var_init), log_alpha_init)
-
-        def objective(t):
-            log_theta = t[:-2]
-            log_var = t[-2]
-            log_alpha = t[-1]
-            return nlml_log(x, log_theta, log_var, log_alpha)
-
-        optimal_result = minimize(objective, t_init, method = method, options = options)
-
-        return optimal_result.x[:-2], optimal_result.x[-2], optimal_result.x[-1]
-
-def optimal_hyperparameters(x, n = 20000):
-
-    m_x = x.shape[1]
-    m_total = m_x + 2
-
-    ind_total = np.arange(m_total)
-    ind_x = np.arange(m_x)
-    ind_var = ind_x + 1
-    ind_alpha = ind_var + 1
+    assert t_min.shape == t_max.shape
+    # assert t_min_tuple[0].shape[0] == x.shape[1]
 
     def objective(t):
-        theta = t[ind_x]
-        var = t[ind_var]
-        alpha = t[ind_alpha]
-        return nlml(x, theta, var, alpha)
+        return joint_nlml(x, *tuple([t[i] for i in t_indices]))
 
-    t_opt, f_opt = brute_force_minimise(objective, m_total, n = n)
-    print(f_opt)
+    if t_init_tuple is None:
+        t_opt, f_opt = explore_optimisation(objective, t_min, t_max, n = n)
+    else:
+        t_opt, f_opt = local_optimisation(objective, t_min, t_max, t_init)
 
-    theta_opt = t_opt[ind_x]
-    var_opt = t_opt[ind_var]
-    alpha_opt = t_opt[ind_alpha]       
-    return theta_opt, var_opt, alpha_opt
-
-def brute_force_minimise(objective, m, n = 20000):
-
-    t_values = np.abs(np.random.rand(n, m)) + 1e-3
-
-    t_opt = np.abs(np.random.rand(m)) + 1e-3
-    f_opt = objective(t_opt)
-
-    i = 0
-
-    for t in t_values:
-
-        f = objective(t)
-
-        if f < f_opt:
-            t_opt = t
-            f_opt = f
-            print(i, ' : ', t_opt, f_opt)
-        i += 1
-
-    return t_opt, f_opt
+    return tuple([t_opt[i] for i in t_indices])
 
 
 

@@ -78,8 +78,8 @@ def main():
     mu_x_log = bake.infer.embedding(w, x, bake.kernels.gaussian, np.exp(log_theta_x))
     mu_y_log = bake.infer.embedding(w, y, bake.kernels.gaussian, np.exp(log_theta_y))
 
-    epsil = 1e-10
-    delta = 1e-8
+    epsil = 1.0
+    delta = 1.0
     mu_yx = bake.infer.posterior_embedding(mu_y, x, y, bake.kernels.gaussian, bake.kernels.gaussian, theta_x, theta_y, epsil, delta)
     mu_yx_log = bake.infer.posterior_embedding(mu_y_log, x, y, bake.kernels.gaussian, bake.kernels.gaussian, np.exp(log_theta_x), np.exp(log_theta_y), epsil, delta)
 
@@ -192,14 +192,11 @@ def main():
 
     ########
 
-    theta_x_opt, var_opt, alpha_opt = bake.learn.optimal_hyperparameters(x, n = 25000)
+    theta_z_opt, var_opt, alpha_opt = bake.learn.optimal_hyperparameters(z, n = 3000)
+    theta_x_opt = theta_z_opt[[0]]
+    theta_y_opt = theta_z_opt[[1]]
 
     print('Optimal x theta: ', theta_x_opt)
-    print('Optimal var: ', var_opt)
-    print('Optimal alpha: ', alpha_opt)
-
-    theta_y_opt, var_opt, alpha_opt = bake.learn.optimal_hyperparameters(y, n = 25000)
-
     print('Optimal y theta: ', theta_y_opt)
     print('Optimal var: ', var_opt)
     print('Optimal alpha: ', alpha_opt)
@@ -211,7 +208,7 @@ def main():
 
     x_peaks, y_peaks = bake.infer.regressor_mode(mu_yqxq_optimal, xq_array, yq_array)
 
-    plt.figure(5)
+    plt.figure(4)
     plt.subplot(211)
     plt.pcolormesh(xv, yv, mu_yqxq_optimal, label = 'Optimal Embedding')
     plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
@@ -224,7 +221,14 @@ def main():
 
 
 
-    theta_x_opt, theta_y_opt, epsil_opt, delta_opt, var_opt, alpha_opt = bake.rlearn.optimal_hyperparameters(mu_y_0, x, y, n = 100000)
+    # theta_x_opt, theta_y_opt, epsil_opt, delta_opt, var_opt, alpha_opt = bake.rlearn.optimal_hyperparameters(mu_y_0, x, y, n = 50000)
+    
+    theta_x_opt = np.array([ 0.90526188])
+    theta_y_opt = np.array([ 0.59128312])
+    epsil_opt = 0.0017126168322
+    delta_opt = 0.00245513059366
+    var_opt = 0.309978440749
+    alpha_opt = 0.543129143229
 
     print('Optimal x theta: ', theta_x_opt)
     print('Optimal y theta: ', theta_y_opt)
