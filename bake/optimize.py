@@ -43,6 +43,8 @@ def local_optimisation(objective, t_min, t_max, t_init):
     optimal_result = minimize(objective, t_init, method = method, bounds = bounds, options = options)
     t_opt, f_opt = optimal_result.x, optimal_result.fun
 
+    print('Optimisation Completed || Hyperparameters: %s | Objective: %f' % (str(t_opt), f_opt))
+
     return t_opt, f_opt
 
 def explore_optimisation(objective, t_min, t_max, n = 1000):
@@ -60,7 +62,7 @@ def explore_optimisation(objective, t_min, t_max, n = 1000):
 def multi_explore_optimisation(objective, t_min, t_max, n = 1000, repeat = 10):
 
     results = [explore_optimisation(objective, t_min, t_max, n = n) for i in range(repeat)]
-    results = map(list, zip(*results))
+    results = list(map(list, zip(*results)))
 
     t_list = results[0]
     f_list = results[1]
@@ -71,7 +73,7 @@ def multi_explore_optimisation(objective, t_min, t_max, n = 1000, repeat = 10):
     i_opt = np.argmin(f_list)
     t_opt, f_opt = t_list[i_opt], f_list[i_opt]
 
-    print('Optimisation Finalised || yperparameters: %s | Objective: %f' % (str(t_opt), f_opt))
+    print('Optimisation Finalised || Hyperparameters: %s | Objective: %f' % (str(t_opt), f_opt))
 
     return t_opt, f_opt
 

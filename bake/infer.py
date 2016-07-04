@@ -3,6 +3,8 @@ Bayesian Inference for Kernel Embeddings Module.
 """
 import numpy as np
 from .linalg import solve_posdef
+from .kbr import posterior_weight_matrix
+from .optimize import local_optimisation
 from scipy.signal import argrelextrema
 
 def embedding(w, x, k, theta):
@@ -11,76 +13,17 @@ def embedding(w, x, k, theta):
 def uniform_weights(x):
     return np.ones(x.shape[0]) / x.shape[0]
 
-def posterior_weight_matrix(prior_embedding, k_xx, k_yy, epsil, delta):
-    """
-    Obtain the posterior weights involved in Kernel Bayes' Rule.
+def conditional_embedding(mu_prior, x, y, k_x, k_y, theta_x, theta_y, zeta, k_xx = None):
 
-    The posterior refers to the posterior distribution of y given x.
+    k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
+    k_xx_reg = k_xx + zeta ** 2 * np.eye(x.shape[0])
 
-    Parameters
-    ----------
-    prior_embedding : numpy.ndarray
-        The kernel embedding of the prior probability measure
-    k_xx : numpy.ndarray
-        The gram matrix on the observed input variables (n x n)
-    k_yy : numpy.ndarray
-        The gram matrix on the observed output variables (n x n)
-    epsil : numpy.float64
-        The regularisation parameter for the prior effect
-    delta : numpy.float64
-        The reguarlisation parameter for the kernel Bayes' rule
-    Returns
-    -------
-    numpy.ndarray
-        The posterior weights ready to be conditioned on arbitrary 
-        input x values and queried at arbitrary output y values (n x n) 
-    """
-    # [Data Size] n: scalar
-    n = prior_embedding.shape[0]
+    return lambda yq, xq: np.dot(k_y(yq, y, theta_y), solve_posdef(k_xx_reg, k_x(x, xq, theta_x))[0])
 
-    # [Identity] I: (n x n)
-    I = np.eye(n)
+def posterior_embedding(mu_prior, x, y, k_x, k_y, theta_x, theta_y, epsil, delta, k_xx = None, k_yy = None):
 
-    # [Prior Effect] prior_effect: (n x n)
-    prior_effect = np.diag(solve_posdef(k_yy + n * epsil * I, prior_embedding)[0])
-
-    # [Observation Prior] obs_prior: (n x n)
-    obs_prior = np.dot(prior_effect, k_xx)
-
-    # [Regularised Squared Observation Prior] obs_prior_sq: (n x n)
-    reg_sq_obs_prior = np.linalg.matrix_power(obs_prior, 2) + delta * I
-
-    # [Posterior Weights] (n x n)
-    return np.dot(obs_prior, solve_posdef(reg_sq_obs_prior, prior_effect)[0])
-
-def posterior_embedding_core(W, k_xxq, k_yyq):
-    """
-    Obtain the posterior embedding involved in Kernel Bayes' Rule.
-
-    The posterior refers to the posterior distribution of y given x.
-
-    Parameters
-    ----------
-    W : numpy.ndarray
-        The posterior weights ready to be conditioned on arbitrary 
-        input x values and queried at arbitrary output y values (n x n)
-    k_xxq : numpy.ndarray
-        The gram matrix between the observed and query input (n x n_qx)
-    k_yyq : numpy.ndarray
-        The gram matrix between the observed and query output (n x n_qy)
-    Returns
-    -------
-    numpy.ndarray
-        The posterior embeddings conditioned on each x and evaluated at each y
-        (n_qy x n_qx)
-    """
-    # [Posterior Embedding] (n_qy x n_qx)
-    return np.dot(k_yyq.T, np.dot(W, k_xxq))
-
-def posterior_embedding(mu_prior, x, y, k_x, k_y, theta_x, theta_y, epsil, delta):
-
-    k_xx = k_x(x, x, theta_x)
-    k_yy = k_y(y, y, theta_y)
+    k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
+    k_yy = k_y(y, y, theta_y) if not k_yy else k_yy
 
     W = posterior_weight_matrix(mu_prior(y), k_xx, k_yy, epsil, delta)
 
@@ -131,11 +74,28 @@ def regressor_mode(mu_yqxq, xq_array, yq_array):
     return x_peaks, y_peaks
 
 
-# def posterior_mode(w, ky, y, y0):
+def mode(mu, xvs, xv_min, xv_max, k, theta):
 
-#     Requires flattening...
-#     def objective(yq):
-#         return -2 * np.dot(ky(yq, np.array([y])).flatten(), w) + ky(yq, yq)
+    def objective(xvq):
+        xq = np.array([xvq])
+        uq = mu(xq)
+        kqq = k(xq, xq, theta)
+        return (-2 * uq + kqq)[0][0]
+
+    x_mode, f_mode = local_optimisation(objective, xv_min, xv_max, xvs)
+    print('The embedding has mode at %s with a objective value of %f' % (str(x_mode), f_mode))
+    return x_mode
+
+def multiple_modes(mu, xv_min, xv_max, k, theta, n_modes = 6):
+
+    xv_min = np.array(xv_min)
+    xv_max = np.array(xv_max)
+
+    m = xv_min.shape[0]
+    standard_range = np.random.rand(n_modes, m)
+    xvs_list = (xv_max - xv_min) * standard_range + xv_min
+    return np.array([mode(mu, xvs, xv_min, xv_max, k, theta) for xvs in xvs_list])
+
 
 # def kernel_herding():
 

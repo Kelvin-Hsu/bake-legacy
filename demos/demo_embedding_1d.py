@@ -21,7 +21,7 @@ def main():
     mu0 = bake.infer.embedding(w, x, bake.kernels.gaussian, theta0)
 
     # Learn the hyperparameters of the kernel
-    theta, psi, sigma = bake.learn.learn_joint_embedding(x, ([0.1], [0.1], [0.1]), ([2.], [2.], [2.]), t_init_tuple = None, n = 2000)
+    theta, psi, sigma = bake.learn.embedding(x, ([0.1], [0.1], [0.1]), ([2.], [2.], [2.]), t_init_tuple = None, n = 500)
     mu = bake.infer.embedding(w, x, bake.kernels.gaussian, theta)
 
     print('The learned length scale is: ', theta)
@@ -29,15 +29,19 @@ def main():
     print('The learned standard deviation is: ', sigma)
 
     # Generate some query points and evaluate the embedding at those points
-    xq = np.linspace(x.min() - 2.0, x.max() + 2.0, 1000)[:, np.newaxis]
+    x_lim = (x.min() - 2.0, x.max() + 2.0)
+    xq = np.linspace(*x_lim, 1000)[:, np.newaxis]
     mu0_xq = mu0(xq)
     mu_xq = mu(xq)
 
+    x_modes = bake.infer.multiple_modes(mu, [x_lim[0]], [x_lim[1]], bake.kernels.gaussian, theta, n_modes = 20)
+
     # Plot the query points
-    plt_initial_embedding = plt.plot(xq.flatten(), mu0_xq, 'r', label = 'Initial Embedding')
-    plt_learned_embedding = plt.plot(xq.flatten(), mu_xq, 'g', label = 'Learned Embedding')
-    plt_training_data = plt.scatter(x.flatten(), np.zeros(x.shape[0]), label = 'Training Data')
-    plt.xlim((x.min() - 2.0, x.max() + 2.0))
+    plt.plot(xq.flatten(), mu0_xq, 'r', label = 'Initial Embedding')
+    plt.plot(xq.flatten(), mu_xq, 'g', label = 'Learned Embedding')
+    plt.scatter(x.flatten(), np.zeros(x.shape[0]), label = 'Training Data')
+    [plt.axvline(x = x_mode[0], linewidth = 2, color = 'k') for x_mode in x_modes]
+    plt.xlim(x_lim)
     plt.xlabel('$x$')
     plt.ylabel('$\mu_{\mathbb{P}}(x)$')
     plt.title('Bayesian Learning of Kernel Embedding')
