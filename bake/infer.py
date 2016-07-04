@@ -79,6 +79,16 @@ def multiple_modes(mu, xv_min, xv_max, k, theta, n_modes = 6):
     xvs_list = (xv_max - xv_min) * standard_range + xv_min
     return np.array([mode(mu, xvs, xv_min, xv_max, k, theta) for xvs in xvs_list])
 
+def conditional_modes(mu_yx, xq, yv_min, yv_max, k, theta_y, n_modes = 10):
+
+    y_modes = np.zeros((n_modes, xq.shape[0]))
+    for i in np.arange(xq.shape[0]):
+        xqv = xq[i]
+        mu_yxq = lambda yq: mu_yx(yq, np.array([xqv]))
+        y_modes[:, [i]] = multiple_modes(mu_yxq, yv_min, yv_max, k, theta_y, n_modes = n_modes)
+    return y_modes
+
+
 
 # def kernel_herding():
 
