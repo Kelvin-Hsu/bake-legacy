@@ -3,6 +3,7 @@ Kernel Bayes Rule.
 """
 import numpy as np
 from .linalg import solve_posdef
+
 def posterior_weight_matrix(prior_embedding_vector, k_xx, k_yy, epsil, delta):
     """
     Obtain the posterior weights involved in Kernel Bayes' Rule.

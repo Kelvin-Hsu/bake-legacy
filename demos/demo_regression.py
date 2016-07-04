@@ -87,32 +87,6 @@ def main(place_prior = False):
     else:
         plt.title('Optimal Conditional Embedding')
 
-def generate_data_random(n = 10, d = 1, loc = 1, scale = 1, seed = None):
-
-    # Set seed
-    if seed:
-        np.random.seed(seed)
-
-    # Generate some data
-    # Note that data must come in 2D Arrays
-    return scale * np.exp(np.random.rand(n, d))* np.random.randn(n, d) - \
-             np.sin(loc * np.random.rand(n, d))
-
-def generate_data_gaussian_mixture(n = 10, d = 1, locs = [], scales = [], seed = None):
-
-    # Set seed
-    if seed:
-        np.random.seed(seed)
-
-    m = len(locs)
-    assert m == len(scales)
-
-    samples = []
-
-    for i in range(n):
-        samples.append(np.array(scales[i % m]) * np.random.randn(d) + np.array(locs[i % m]))
-    return np.array(samples)
-
 def time_module(module, *args, **kwargs):
 
     t_start = time.clock()

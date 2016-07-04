@@ -13,7 +13,7 @@ def embedding(w, x, k, theta):
 def uniform_weights(x):
     return np.ones(x.shape[0]) / x.shape[0]
 
-def conditional_embedding(mu_prior, x, y, k_x, k_y, theta_x, theta_y, zeta, k_xx = None):
+def conditional_embedding(x, y, k_x, k_y, theta_x, theta_y, zeta, k_xx = None):
 
     k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
     k_xx_reg = k_xx + zeta ** 2 * np.eye(x.shape[0])
@@ -30,23 +30,7 @@ def posterior_embedding(mu_prior, x, y, k_x, k_y, theta_x, theta_y, epsil, delta
     return lambda yq, xq: np.dot(k_y(yq, y, theta_y), np.dot(W, k_x(x, xq, theta_x)))
 
 def kernel_bayes_average(g, W, k_ygyg, k_yyg, k_xxq):
-    """
-    Obtain the expectance of a function g under the posterior.
 
-    This function is vectorised over the input variable being conditioned on.
-
-    Parameters
-    ----------
-    posterior_weights : numpy.ndarray
-        The posterior weights ready to be conditioned on arbitrary 
-        input x values and queried at arbitrary output y values (n x n)
-    k_ygyg : numpy.ndarray
-        The gram matrix on the output basis for function evaluation
-    k_yyg : numpy.ndarray
-        The gram matrix between the observed and basis output (n x m)
-    k_xxq : numpy.ndarray
-        The gram matrix between the observed and query input (n x n_qx)           
-    """
     # [Weights of projection of g on the RKHS on y] alpha_g: (m, )
     alpha_g = solve_posdef(k_ygyg, g)
 
@@ -72,7 +56,6 @@ def regressor_mode(mu_yqxq, xq_array, yq_array):
             y_peaks = np.append(y_peaks, yq_array[j])
 
     return x_peaks, y_peaks
-
 
 def mode(mu, xvs, xv_min, xv_max, k, theta):
 

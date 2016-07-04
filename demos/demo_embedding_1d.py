@@ -46,18 +46,6 @@ def main():
     plt.ylabel('$\mu_{\mathbb{P}}(x)$')
     plt.title('Bayesian Learning of Kernel Embedding')
     plt.legend()
-    plt.show()
-
-def generate_data_random(n = 10, d = 1, loc = 1, scale = 1, seed = None):
-
-    # Set seed
-    if seed:
-        np.random.seed(seed)
-
-    # Generate some data
-    # Note that data must come in 2D Arrays
-    return scale * np.exp(np.random.rand(n, d))* np.random.randn(n, d) - \
-             np.sin(loc * np.random.rand(n, d))
 
 def generate_data_gaussian_mixture(n = 10, d = 1, locs = [], scales = [], seed = None):
 
@@ -77,3 +65,4 @@ def generate_data_gaussian_mixture(n = 10, d = 1, locs = [], scales = [], seed =
 
 if __name__ == "__main__":
     main()
+    plt.show()
