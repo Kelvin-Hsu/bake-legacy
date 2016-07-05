@@ -2,25 +2,25 @@
 Bayesian Inference for Kernel Embeddings Module.
 """
 import numpy as np
+from .kernels import gaussian
 from .linalg import solve_posdef
 from .kbr import posterior_weight_matrix
 from .optimize import local_optimisation
-from scipy.signal import argrelextrema
 
-def embedding(w, x, k, theta):
+def embedding(w, x, theta, k = gaussian):
     return lambda xq: np.dot(k(xq, x, theta), w)
 
 def uniform_weights(x):
     return np.ones(x.shape[0]) / x.shape[0]
 
-def conditional_embedding(x, y, k_x, k_y, theta_x, theta_y, zeta, k_xx = None):
+def conditional_embedding(x, y, theta_x, theta_y, zeta, k_x = gaussian, k_y = gaussian, k_xx = None):
 
     k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
     k_xx_reg = k_xx + zeta ** 2 * np.eye(x.shape[0])
 
     return lambda yq, xq: np.dot(k_y(yq, y, theta_y), solve_posdef(k_xx_reg, k_x(x, xq, theta_x))[0])
 
-def posterior_embedding(mu_prior, x, y, k_x, k_y, theta_x, theta_y, epsil, delta, k_xx = None, k_yy = None):
+def posterior_embedding(mu_prior, x, y, theta_x, theta_y, epsil, delta, k_x = gaussian, k_y = gaussian, k_xx = None, k_yy = None):
 
     k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
     k_yy = k_y(y, y, theta_y) if not k_yy else k_yy
@@ -37,7 +37,41 @@ def kernel_bayes_average(g, W, k_ygyg, k_yyg, k_xxq):
     # [Expectance of g(Y) under the posterior] (n_qx, )
     return np.dot(alpha_g, posterior_embedding_core(W, k_xxq, k_yyg))
 
+def mode(mu, xvs, xv_min, xv_max, theta, k = gaussian):
+
+    def objective(xvq):
+        xq = np.array([xvq])
+        uq = mu(xq)
+        kqq = k(xq, xq, theta)
+        return (-2 * uq + kqq)[0][0]
+
+    x_mode, f_mode = local_optimisation(objective, xv_min, xv_max, xvs)
+    print('The embedding has mode at %s with a objective value of %f' % (str(x_mode), f_mode))
+    return x_mode
+
+def multiple_modes(mu, xv_min, xv_max, theta, k = gaussian, n_modes = 6):
+
+    xv_min = np.array(xv_min)
+    xv_max = np.array(xv_max)
+
+    m = xv_min.shape[0]
+    standard_range = np.random.rand(n_modes, m)
+    xvs_list = (xv_max - xv_min) * standard_range + xv_min
+    return np.array([mode(mu, xvs, xv_min, xv_max, k, theta) for xvs in xvs_list])
+
+def conditional_modes(mu_yx, xq, yv_min, yv_max, theta_y, k = gaussian, n_modes = 10):
+
+    y_modes = np.zeros((n_modes, xq.shape[0]))
+    for i in np.arange(xq.shape[0]):
+        xqv = xq[i]
+        mu_yxq = lambda yq: mu_yx(yq, np.array([xqv]))
+        y_modes[:, [i]] = multiple_modes(mu_yxq, yv_min, yv_max, k, theta_y, n_modes = n_modes)
+    return y_modes
+
+
 def regressor_mode(mu_yqxq, xq_array, yq_array):
+
+    from scipy.signal import argrelextrema
 
     # Assume xq_array and yq_array are just 1D arrays for now
 
@@ -56,38 +90,6 @@ def regressor_mode(mu_yqxq, xq_array, yq_array):
             y_peaks = np.append(y_peaks, yq_array[j])
 
     return x_peaks, y_peaks
-
-def mode(mu, xvs, xv_min, xv_max, k, theta):
-
-    def objective(xvq):
-        xq = np.array([xvq])
-        uq = mu(xq)
-        kqq = k(xq, xq, theta)
-        return (-2 * uq + kqq)[0][0]
-
-    x_mode, f_mode = local_optimisation(objective, xv_min, xv_max, xvs)
-    print('The embedding has mode at %s with a objective value of %f' % (str(x_mode), f_mode))
-    return x_mode
-
-def multiple_modes(mu, xv_min, xv_max, k, theta, n_modes = 6):
-
-    xv_min = np.array(xv_min)
-    xv_max = np.array(xv_max)
-
-    m = xv_min.shape[0]
-    standard_range = np.random.rand(n_modes, m)
-    xvs_list = (xv_max - xv_min) * standard_range + xv_min
-    return np.array([mode(mu, xvs, xv_min, xv_max, k, theta) for xvs in xvs_list])
-
-def conditional_modes(mu_yx, xq, yv_min, yv_max, k, theta_y, n_modes = 10):
-
-    y_modes = np.zeros((n_modes, xq.shape[0]))
-    for i in np.arange(xq.shape[0]):
-        xqv = xq[i]
-        mu_yxq = lambda yq: mu_yx(yq, np.array([xqv]))
-        y_modes[:, [i]] = multiple_modes(mu_yxq, yv_min, yv_max, k, theta_y, n_modes = n_modes)
-    return y_modes
-
 
 
 # def kernel_herding():

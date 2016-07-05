@@ -2,7 +2,7 @@
 Demonstration of simple kernel embeddings.
 """
 import numpy as np
-import bake.infer, bake.learn, bake.kernels
+import bake.infer, bake.learn
 import matplotlib.pyplot as plt
 
 def main():
@@ -18,11 +18,11 @@ def main():
     theta0 = np.array([0.1])
     psi0 = np.array([0.1])
     sigma0 = np.array([0.1])
-    mu0 = bake.infer.embedding(w, x, bake.kernels.gaussian, theta0)
+    mu0 = bake.infer.embedding(w, x, theta0)
 
     # Learn the hyperparameters of the kernel
     theta, psi, sigma = bake.learn.embedding(x, ([0.1], [0.1], [0.1]), ([2.], [2.], [2.]), t_init_tuple = None, n = 500)
-    mu = bake.infer.embedding(w, x, bake.kernels.gaussian, theta)
+    mu = bake.infer.embedding(w, x, theta)
 
     print('The learned length scale is: ', theta)
     print('The learned measure length scale is: ', psi)
@@ -34,7 +34,7 @@ def main():
     mu0_xq = mu0(xq)
     mu_xq = mu(xq)
 
-    x_modes = bake.infer.multiple_modes(mu, [x_lim[0]], [x_lim[1]], bake.kernels.gaussian, theta, n_modes = 20)
+    x_modes = bake.infer.multiple_modes(mu, [x_lim[0]], [x_lim[1]], theta, n_modes = 20)
 
     # Plot the query points
     plt.plot(xq.flatten(), mu0_xq, 'r', label = 'Initial Embedding')

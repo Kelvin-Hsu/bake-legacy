@@ -2,7 +2,7 @@
 Demonstration of simple kernel embeddings.
 """
 import numpy as np
-import bake.infer, bake.learn, bake.kernels
+import bake.infer, bake.learn
 import matplotlib.pyplot as plt
 
 def main():
@@ -18,18 +18,18 @@ def main():
 
     # Initialise the hyperparameters of the kernel
     theta_init = np.array([0.4])
-    mu_init = bake.infer.embedding(w, x, bake.kernels.gaussian, theta_init)
+    mu_init = bake.infer.embedding(w, x, theta_init)
 
     # Learn the hyperparameters of the kernel
     theta_iso, psi_iso, sigma_iso = bake.learn.embedding(x, ([0.1], [0.1], [0.1]), ([2.], [2.], [2.]), t_init_tuple = None, n = 2000)
-    mu_iso = bake.infer.embedding(w, x, bake.kernels.gaussian, theta_iso)
+    mu_iso = bake.infer.embedding(w, x, theta_iso)
 
     print('The learned length scale is: ', theta_iso)
     print('The learned measure length scale is: ', psi_iso)
     print('The learned standard deviation is: ', sigma_iso)
 
     theta, psi, sigma = bake.learn.embedding(x, ([0.1, 0.1], [0.1, 0.1], [0.1]), ([2., 2.], [2., 2.], [2.]), t_init_tuple = None, n = 2000)
-    mu = bake.infer.embedding(w, x, bake.kernels.gaussian, theta)
+    mu = bake.infer.embedding(w, x, theta)
 
     print('The learned length scale is: ', theta)
     print('The learned measure length scale is: ', psi)
@@ -42,9 +42,9 @@ def main():
     xv1, xv2 = np.meshgrid(xq1, xq2)
     xq = np.vstack((xv1.ravel(), xv2.ravel())).T
 
-    x_modes_init = bake.infer.multiple_modes(mu_init, [-x_lim, -x_lim], [x_lim, x_lim], bake.kernels.gaussian, theta_init, n_modes = 150)
-    x_modes_iso = bake.infer.multiple_modes(mu_iso, [-x_lim, -x_lim], [x_lim, x_lim], bake.kernels.gaussian, theta_iso, n_modes = 50)
-    x_modes = bake.infer.multiple_modes(mu, [-x_lim, -x_lim], [x_lim, x_lim], bake.kernels.gaussian, theta, n_modes = 50)
+    x_modes_init = bake.infer.multiple_modes(mu_init, [-x_lim, -x_lim], [x_lim, x_lim], theta_init, n_modes = 150)
+    x_modes_iso = bake.infer.multiple_modes(mu_iso, [-x_lim, -x_lim], [x_lim, x_lim], theta_iso, n_modes = 50)
+    x_modes = bake.infer.multiple_modes(mu, [-x_lim, -x_lim], [x_lim, x_lim], theta, n_modes = 50)
 
     # Evaluate the embedding at query points
     mu_init_xq = mu_init(xq)

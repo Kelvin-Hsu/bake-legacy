@@ -2,7 +2,7 @@
 Demonstration of simple kernel embeddings.
 """
 import numpy as np
-import bake.infer, bake.learn, bake.kernels
+import bake.infer, bake.learn
 import matplotlib.pyplot as plt
 import time
 
@@ -28,8 +28,8 @@ def main():
     theta_x = theta[[0]]
     theta_y = theta[[1]]
 
-    mu_z_optimal = bake.infer.embedding(w, z, bake.kernels.gaussian, theta)
-    mu_yx_optimal = bake.infer.conditional_embedding(x, y, bake.kernels.gaussian, bake.kernels.gaussian, theta_x, theta_y, 0.0)
+    mu_z_optimal = bake.infer.embedding(w, z, theta)
+    mu_yx_optimal = bake.infer.conditional_embedding(x, y, theta_x, theta_y, 0.0)
 
     x_lim = np.max(np.abs(x))
     y_lim = np.max(np.abs(y)) + 1.0
