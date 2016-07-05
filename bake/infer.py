@@ -39,14 +39,13 @@ def kernel_bayes_average(g, W, k_ygyg, k_yyg, k_xxq):
 
 def mode(mu, xvs, xv_min, xv_max, theta, k = gaussian):
 
+    # For stationary kernels, the objective to optimise can be reduced to simply
+    # the embedding
     def objective(xvq):
-        xq = np.array([xvq])
-        uq = mu(xq)
-        kqq = k(xq, xq, theta)
-        return (-2 * uq + kqq)[0][0]
+        return (-mu(np.array([xvq])))[0][0]
 
     x_mode, f_mode = local_optimisation(objective, xv_min, xv_max, xvs)
-    print('The embedding has mode at %s with a objective value of %f' % (str(x_mode), f_mode))
+    print('The embedding has mode at %s with an embedding value of %f' % (str(x_mode), -f_mode))
     return x_mode
 
 def multiple_modes(mu, xv_min, xv_max, theta, k = gaussian, n_modes = 6):
