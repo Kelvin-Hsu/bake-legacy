@@ -1,6 +1,9 @@
 import numpy as np
 
-def generate_two_waves(n = 80, noise_level = 0.2, seed = 100):
+def generate_two_waves(n = 80, noise_level = 0.2, seed = None):
+
+    if seed:
+        np.random.seed(seed)
 
     n = 80
     x = 10 * np.random.rand(n, 1) - 5
@@ -11,6 +14,18 @@ def generate_two_waves(n = 80, noise_level = 0.2, seed = 100):
     y[ind[0]] = y1[ind[0]]
     y[ind[1]] = y2[ind[1]]
     y = y + noise_level * np.random.randn(*y.shape)
+    return x, y
+
+def generate_one_wave(n = 80, noise_level = 0.2, seed = None):
+
+    if seed:
+        np.random.seed(seed)
+
+    # Generate some data
+    n = 80
+    x = 10 * np.random.rand(n, 1) - 5
+    y = np.sin(x) + 1.0
+    y = y + noise_level * np.random.randn(*y.shape) 
     return x, y
 
 def joint_data(x, y):

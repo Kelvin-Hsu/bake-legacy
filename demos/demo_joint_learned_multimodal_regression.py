@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 def main():
 
     # Generate regression data
-    x, y = utils.data.generate_two_waves(n = 80, noise_level = 0.2, seed = 100)
+    # Change the noise level here
+    x, y = utils.data.generate_two_waves(n = 80, noise_level = 0.0, seed = 100)
 
     # Create joint data
     z = utils.data.joint_data(x, y)
@@ -16,7 +17,7 @@ def main():
     # Learn the embedding using the joint samples
     hyper_min = ([0.01, 0.01], [0.01, 0.01], [0.00000001])
     hyper_max = ([5., 2.], [20., 20.], [0.1])
-    theta, _, _ = bake.learn.embedding(z, hyper_min, hyper_max, n = 2000)
+    theta, _, _ = bake.learn.embedding(z, hyper_min, hyper_max, n = 1500)
     theta_x, theta_y = theta[[0]], theta[[1]]
 
     # This is the optimal joint embedding
@@ -28,11 +29,11 @@ def main():
     # Create a origin-centered uniform query space for visualisation
     xq, yq, xq_grid, yq_grid, x_lim, y_lim = \
         utils.visuals.centred_uniform_query(x, y, 
-            x_margin = 0, y_margin = 1, x_query = 250, y_query = 250)
+            x_margin = 0, y_margin = 1, x_query = 150, y_query = 150)
 
     # Find the modes of the conditional embedding
     x_modes, y_modes = bake.infer.conditional_modes(mu_yx_optimal, xq, 
-        [-y_lim], [+y_lim], n_modes = 5)
+        [-y_lim], [+y_lim], n_modes = 3)
 
     # Create joint query points from the query space
     zq = utils.data.joint_data(xq_grid, yq_grid)
