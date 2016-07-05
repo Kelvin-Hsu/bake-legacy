@@ -43,7 +43,7 @@ def local_optimisation(objective, t_min, t_max, t_init):
     optimal_result = minimize(objective, t_init, method = method, bounds = bounds, options = options)
     t_opt, f_opt = optimal_result.x, optimal_result.fun
 
-    print('Optimisation Completed || Hyperparameters: %s | Objective: %f' % (str(t_opt), f_opt))
+    # print('Optimisation Completed || Hyperparameters: %s | Objective: %f' % (str(t_opt), f_opt))
 
     return t_opt, f_opt
 

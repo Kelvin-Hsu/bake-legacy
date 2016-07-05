@@ -4,7 +4,7 @@ Bayesian Learning for Kernel Embeddings Module.
 import numpy as np
 from scipy.spatial.distance import cdist
 from .linalg import solve_posdef
-from .optimize import multi_pack, unpack, local_optimisation, multi_explore_optimisation
+from .optimize import multi_pack, unpack, local_optimisation, multi_explore_optimisation, sample_optimisation
 from .kbr import posterior_weight_matrix
 
 def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
@@ -207,7 +207,8 @@ def conditional_embedding(x, y, t_min_tuple, t_max_tuple, t_init_tuple = None, n
         return conditional_nlml(x, y, *tuple([t[i] for i in t_indices]))
 
     if t_init_tuple is None:
-        t_opt, f_opt = multi_explore_optimisation(objective, t_min, t_max, n = n, repeat = repeat)
+        t_opt, f_opt = sample_optimisation(objective, t_min, t_max, n = n)
+        # t_opt, f_opt = multi_explore_optimisation(objective, t_min, t_max, n = n, repeat = repeat)
     else:
         t_opt, f_opt = local_optimisation(objective, t_min, t_max, t_init)
 
