@@ -1,79 +1,71 @@
 """
 Demonstration of simple kernel embeddings.
 """
-import numpy as np
-import bake.infer, bake.learn
+import bake
+import utils
 import matplotlib.pyplot as plt
-import time
 
 def main():
 
-    np.random.seed(100)
+    # Generate regression data
+    x, y = utils.data.generate_two_waves(n = 80, noise_level = 0.2, seed = 100)
 
-    # Generate some data
-    n = 80
-    x = 10 * np.random.rand(n, 1) - 5
-    y1 = np.sin(x) + 1.0
-    y2 = 1.2 * np.cos(x) - 2.0
-    y = 0 * x
-    ind = np.random.choice(np.arange(x.shape[0]), size = (2, 40), replace = False)
-    y[ind[0]] = y1[ind[0]]
-    y[ind[1]] = y2[ind[1]]
-    # y = y + 0.2 * np.random.randn(*y.shape)
-    z = np.vstack((x.ravel(), y.ravel())).T
+    # Create joint data
+    z = utils.data.joint_data(x, y)
 
-    w = bake.infer.uniform_weights(z)
+    # Learn the embedding using the joint samples
+    hyper_min = ([0.01, 0.01], [0.01, 0.01], [0.00000001])
+    hyper_max = ([5., 2.], [20., 20.], [0.1])
+    theta, _, _ = bake.learn.embedding(z, hyper_min, hyper_max, n = 2000)
+    theta_x, theta_y = theta[[0]], theta[[1]]
 
-    theta, psi, sigma = bake.learn.embedding(z, ([0.01, 0.01], [0.01, 0.01], [0.00000001]), ([5., 2.], [20., 20.], [0.1]), t_init_tuple = None, n = 2000)
-    theta_x = theta[[0]]
-    theta_y = theta[[1]]
+    # This is the optimal joint embedding
+    mu_z_optimal = bake.infer.embedding(z, theta)
 
-    mu_z_optimal = bake.infer.embedding(w, z, theta)
-    mu_yx_optimal = bake.infer.conditional_embedding(x, y, theta_x, theta_y, 0.0)
+    # This is the corresponding conditional embedding
+    mu_yx_optimal = bake.infer.conditional_embedding(x, y, theta_x, theta_y)
 
-    x_lim = np.max(np.abs(x))
-    y_lim = np.max(np.abs(y)) + 1.0
-    xq_array = np.linspace(-x_lim, x_lim, 150)
-    yq_array = np.linspace(-y_lim, y_lim, 150)
-    xv, yv = np.meshgrid(xq_array, yq_array)
+    # Create a origin-centered uniform query space for visualisation
+    xq, yq, xq_grid, yq_grid, x_lim, y_lim = \
+        utils.visuals.centred_uniform_query(x, y, 
+            x_margin = 0, y_margin = 1, x_query = 250, y_query = 250)
 
-    xq = xq_array[:, np.newaxis]
-    yq = yq_array[:, np.newaxis]
+    # Find the modes of the conditional embedding
+    x_modes, y_modes = bake.infer.conditional_modes(mu_yx_optimal, xq, 
+        [-y_lim], [+y_lim], n_modes = 5)
 
-    zq = np.vstack((xv.ravel(), yv.ravel())).T
+    # Create joint query points from the query space
+    zq = utils.data.joint_data(xq_grid, yq_grid)
 
+    # Evaluate the joint and conditional embeddings at the query points
     mu_zq_optimal = mu_z_optimal(zq)
     mu_yqxq_optimal = mu_yx_optimal(yq, xq)
 
-    x_peaks, y_peaks = bake.infer.regressor_mode(mu_yqxq_optimal, xq_array, yq_array)
-
+    # Plot the joint embedding
     plt.figure(1)
-    plt.scatter(xv.ravel(), yv.ravel(), s = 20, c = mu_zq_optimal, linewidths = 0, label = 'Learned Embedding')
-    plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
+    plt.scatter(xq_grid.ravel(), yq_grid.ravel(), c = mu_zq_optimal.ravel(), 
+        s = 20, linewidths = 0)
+    plt.scatter(x.ravel(), y.ravel(), c = 'k', label = 'Training Data')
     plt.xlim((-x_lim, x_lim))
     plt.ylim((-y_lim, y_lim))
     plt.xlabel('$x$')
     plt.ylabel('$y$')
+    plt.legend()
     plt.title('Optimal Joint Embedding')
 
+    # Plot the conditional embedding
     plt.figure(2)
-    plt.pcolormesh(xv, yv, mu_yqxq_optimal, label = 'Optimal Embedding')
-    plt.scatter(x.flatten(), y.flatten(), c = 'k', label = 'Training Data')
-    plt.scatter(x_peaks, y_peaks, s = 1, edgecolor = 'face', c = 'w')
+    plt.pcolormesh(xq_grid, yq_grid, mu_yqxq_optimal)
+    plt.scatter(x.ravel(), y.ravel(), c = 'k', label = 'Training Data')
+    plt.scatter(x_modes.ravel(), y_modes.ravel(), 
+        s = 20, c = 'w', edgecolor = 'face', label = 'Mode Predictions')
     plt.xlim((-x_lim, x_lim))
     plt.ylim((-y_lim, y_lim))
     plt.xlabel('$x$')
     plt.ylabel('$y$')
+    plt.legend()
     plt.title('Optimal Conditional Embedding')
 
-def time_module(module, *args, **kwargs):
-
-    t_start = time.clock()
-    output = module(*args, **kwargs)
-    t_finish = time.clock()
-    print('Module finished in: %f seconds' % (t_finish - t_start))
-    return output
-
 if __name__ == "__main__":
-    time_module(main)
+    utils.misc.time_module(main)
     plt.show()

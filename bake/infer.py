@@ -7,13 +7,14 @@ from .linalg import solve_posdef
 from .kbr import posterior_weight_matrix
 from .optimize import local_optimisation
 
-def embedding(w, x, theta, k = gaussian):
+def embedding(x, theta, w = None, k = gaussian):
+    w = uniform_weights(x) if w is None else w
     return lambda xq: np.dot(k(xq, x, theta), w)
 
 def uniform_weights(x):
-    return np.ones(x.shape[0]) / x.shape[0]
+    return np.ones((x.shape[0], 1)) / x.shape[0]
 
-def conditional_embedding(x, y, theta_x, theta_y, zeta, k_x = gaussian, k_y = gaussian, k_xx = None):
+def conditional_embedding(x, y, theta_x, theta_y, zeta = 0, k_x = gaussian, k_y = gaussian, k_xx = None):
 
     k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
     k_xx_reg = k_xx + zeta ** 2 * np.eye(x.shape[0])
@@ -37,35 +38,55 @@ def kernel_bayes_average(g, W, k_ygyg, k_yyg, k_xxq):
     # [Expectance of g(Y) under the posterior] (n_qx, )
     return np.dot(alpha_g, posterior_embedding_core(W, k_xxq, k_yyg))
 
-def mode(mu, xvs, xv_min, xv_max, theta, k = gaussian):
+def mode(mu, xv_start, xv_min, xv_max):
 
+    # Define the objective to be minimised
     # For stationary kernels, the objective to optimise can be reduced to simply
     # the embedding
     def objective(xvq):
-        return (-mu(np.array([xvq])))[0][0]
+        return -mu(np.array([xvq]))[0][0]
 
-    x_mode, f_mode = local_optimisation(objective, xv_min, xv_max, xvs)
-    print('The embedding has mode at %s with an embedding value of %f' % (str(x_mode), -f_mode))
+    # Find the mode
+    x_mode, f_mode = local_optimisation(objective, xv_min, xv_max, xv_start)
+
+    # Size: (n_dims)
     return x_mode
 
-def multiple_modes(mu, xv_min, xv_max, theta, k = gaussian, n_modes = 6):
+def multiple_modes(mu, xv_min, xv_max, n_modes = 10):
 
+    # Make sure these are arrays
     xv_min = np.array(xv_min)
     xv_max = np.array(xv_max)
 
-    m = xv_min.shape[0]
-    standard_range = np.random.rand(n_modes, m)
-    xvs_list = (xv_max - xv_min) * standard_range + xv_min
-    return np.array([mode(mu, xvs, xv_min, xv_max, k, theta) for xvs in xvs_list])
+    # Generate a list of starting points
+    n_dims, = xv_min.shape
+    standard_range = np.random.rand(n_modes, n_dims)
+    xv_start_list = (xv_max - xv_min) * standard_range + xv_min
 
-def conditional_modes(mu_yx, xq, yv_min, yv_max, theta_y, k = gaussian, n_modes = 10):
+    # Compute the modes
+    # Size: (n_modes x n_dims)
+    return np.array([mode(mu, xv_start, xv_min, xv_max) for xv_start in xv_start_list])
 
-    y_modes = np.zeros((n_modes, xq.shape[0]))
-    for i in np.arange(xq.shape[0]):
-        xqv = xq[i]
-        mu_yxq = lambda yq: mu_yx(yq, np.array([xqv]))
-        y_modes[:, [i]] = multiple_modes(mu_yxq, yv_min, yv_max, k, theta_y, n_modes = n_modes)
-    return y_modes
+def conditional_modes(mu_yx, xq, yv_min, yv_max, n_modes = 10):
+
+    # This finds the modes of a given embedding
+    modes_of = lambda mu: multiple_modes(mu, yv_min, yv_max, n_modes = n_modes)
+
+    # This finds the modes at the embedding conditioned at x
+    modes_at = lambda x: modes_of(lambda yq: mu_yx(yq, x))
+
+    # This computes the modes at all query points
+    # Size: (n_query x n_modes x n_dims)
+    y_modes = np.array([modes_at(x) for x in xq[:, np.newaxis]])
+
+    # This returns the corresponding input coordinates for each mode
+    # Size: (n_query x n_modes x n_dims)
+    x_modes = np.repeat(xq[:, np.newaxis], n_modes, axis = 1)
+
+    # Return the modes
+    # Size: (n_query x n_modes x n_dims)
+    # Size: (n_query x n_modes x n_dims)
+    return x_modes, y_modes
 
 
 def regressor_mode(mu_yqxq, xq_array, yq_array):
