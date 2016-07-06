@@ -2,35 +2,36 @@
 Demonstration of simple kernel embeddings.
 """
 import numpy as np
-import bake.infer, bake.learn
+import bake
+import utils
 import matplotlib.pyplot as plt
 
 def main():
 
     # Generate some data
-    # x = generate_data(n = 20, d = 1, loc = 4, scale = 2, seed = 200)
-    x = generate_data_gaussian_mixture(n = 50, d = 2, 
-        locs = [[-6.0, 6.0], [1.0, 3.0], [4.0, -4.0], [-9.0, 2.0], [-5.0, -10.0]], 
+    x = utils.data.generate_gaussian_mixture(n = 50, d = 2, 
+        locs = [[-6., 6.], [1., 3.], [4., -4.], [-9., 2.], [-5., -10.]], 
         scales = [1.5, 4.0, 1.5, 2.5, 2.0], seed = 200)
 
-    # Put uniform weights on the data
-    w = bake.infer.uniform_weights(x)
-
-    # Initialise the hyperparameters of the kernel
+    # Initialise an embedding
     theta_init = np.array([0.4])
-    mu_init = bake.infer.embedding(w, x, theta_init)
+    mu_init = bake.infer.embedding(x, theta_init)
 
-    # Learn the hyperparameters of the kernel
-    theta_iso, psi_iso, sigma_iso = bake.learn.embedding(x, ([0.1], [0.1], [0.1]), ([2.], [2.], [2.]), t_init_tuple = None, n = 2000)
-    mu_iso = bake.infer.embedding(w, x, theta_iso)
-
+    # Learn the embedding with an isotropic kernel
+    hyper_min = ([0.1], [0.1], [0.1])
+    hyper_max = ([2.], [2.], [2.])
+    theta_iso, psi_iso, sigma_iso = bake.learn.embedding(x, 
+        hyper_min, hyper_max, n = 2000)
+    mu_iso = bake.infer.embedding(x, theta_iso)
     print('The learned length scale is: ', theta_iso)
     print('The learned measure length scale is: ', psi_iso)
     print('The learned standard deviation is: ', sigma_iso)
 
-    theta, psi, sigma = bake.learn.embedding(x, ([0.1, 0.1], [0.1, 0.1], [0.1]), ([2., 2.], [2., 2.], [2.]), t_init_tuple = None, n = 2000)
-    mu = bake.infer.embedding(w, x, theta)
-
+    # Learn the embedding with an anisotropic kernel
+    hyper_min = ([0.1, 0.1], [0.1, 0.1], [0.1])
+    hyper_max = ([2., 2.], [2., 2.], [2.])
+    theta, psi, sigma = bake.learn.embedding(x, hyper_min, hyper_max, n = 2000)
+    mu = bake.infer.embedding(x, theta)
     print('The learned length scale is: ', theta)
     print('The learned measure length scale is: ', psi)
     print('The learned standard deviation is: ', sigma)
@@ -42,9 +43,9 @@ def main():
     xv1, xv2 = np.meshgrid(xq1, xq2)
     xq = np.vstack((xv1.ravel(), xv2.ravel())).T
 
-    x_modes_init = bake.infer.multiple_modes(mu_init, [-x_lim, -x_lim], [x_lim, x_lim], theta_init, n_modes = 150)
-    x_modes_iso = bake.infer.multiple_modes(mu_iso, [-x_lim, -x_lim], [x_lim, x_lim], theta_iso, n_modes = 50)
-    x_modes = bake.infer.multiple_modes(mu, [-x_lim, -x_lim], [x_lim, x_lim], theta, n_modes = 50)
+    x_modes_init = bake.infer.multiple_modes(mu_init, [-x_lim, -x_lim], [x_lim, x_lim], n_modes = 150)
+    x_modes_iso = bake.infer.multiple_modes(mu_iso, [-x_lim, -x_lim], [x_lim, x_lim], n_modes = 50)
+    x_modes = bake.infer.multiple_modes(mu, [-x_lim, -x_lim], [x_lim, x_lim], n_modes = 50)
 
     # Evaluate the embedding at query points
     mu_init_xq = mu_init(xq)
@@ -84,23 +85,6 @@ def main():
     plt.xlim((-x_lim, x_lim))
     plt.ylim((-x_lim, x_lim))
     plt.title('Bayesian Learning of Kernel Embedding: Learned Anisotropic Embedding')
-
-def generate_data_gaussian_mixture(n = 10, d = 1, locs = [], scales = [], seed = None):
-
-    # Set seed
-    if seed:
-        np.random.seed(seed)
-
-    m = len(locs)
-    assert m == len(scales)
-
-    samples = []
-
-    for i in range(n):
-        samples.append(np.array(scales[i % m]) * np.random.randn(d) + np.array(locs[i % m]))
-
-    return np.array(samples)
-
 
 if __name__ == "__main__":
     main()
