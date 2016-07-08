@@ -4,7 +4,7 @@ Bayesian Inference for Kernel Embeddings Module.
 import numpy as np
 from .kernels import gaussian
 from .linalg import solve_posdef
-from .kbr import posterior_weight_matrix
+from .kbr import posterior_weights_quadratic
 from .optimize import local_optimisation
 
 def embedding(x, theta, w = None, k = gaussian):
@@ -26,7 +26,7 @@ def posterior_embedding(mu_prior, x, y, theta_x, theta_y, epsil, delta, k_x = ga
     k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
     k_yy = k_y(y, y, theta_y) if not k_yy else k_yy
 
-    W = posterior_weight_matrix(mu_prior(y), k_xx, k_yy, epsil, delta)
+    W = posterior_weights_quadratic(mu_prior(y), k_xx, k_yy, epsil, delta)
 
     return lambda yq, xq: np.dot(k_y(yq, y, theta_y), np.dot(W, k_x(x, xq, theta_x)))
 

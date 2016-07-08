@@ -5,7 +5,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from .linalg import solve_posdef
 from .optimize import multi_pack, unpack, local_optimisation, multi_explore_optimisation, sample_optimisation
-from .kbr import posterior_weight_matrix
+from .kbr import posterior_weights_quadratic
 
 def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
 
@@ -69,7 +69,7 @@ def posterior_nlml(mu_y, x, y, theta_x, theta_y, psi, sigma, epsil, delta):
     kxx = np.exp(-0.5 * cdist(dx, dx, 'sqeuclidean'))
 
     # Compute the posterior weight matrix
-    v = posterior_weight_matrix(mu_y, kxx, kyy, epsil, delta)
+    v = posterior_weights_quadratic(mu_y, kxx, kyy, epsil, delta)
 
     # Condition the posterior weight matrix on the training data
     w = np.dot(v, kxx)
