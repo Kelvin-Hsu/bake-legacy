@@ -111,7 +111,10 @@ def conditional_nlml(x, y, theta_x, theta_y, psi, sigma, zeta):
     kxx = np.exp(-0.5 * cdist(dx, dx, 'sqeuclidean'))
 
     # Condition the posterior weight matrix on the training data
-    w = solve_posdef(kxx + (zeta ** 2) * np.eye(x.shape[0]), kxx)[0]
+    if zeta == 0:
+        w = np.eye(x.shape[0])
+    else:
+        w = solve_posdef(kxx + (zeta ** 2) * np.eye(x.shape[0]), kxx)[0]
 
     # Compute the empirical conditional embedding at the training points
     mu_yx = np.einsum('ij,ji->i', kyy, w)

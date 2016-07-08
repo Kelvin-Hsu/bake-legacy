@@ -15,7 +15,7 @@ def main():
     z = utils.data.joint_data(x, y)
 
     # Learn the embedding using the joint samples
-    hyper_min = ([0.01, 0.01], [0.01, 0.01], [0.00000001])
+    hyper_min = ([0.01, 0.01], [0.01, 0.01], [0.0])
     hyper_max = ([5., 2.], [20., 20.], [0.1])
     theta, _, _ = bake.learn.embedding(z, hyper_min, hyper_max, n = 1500)
     theta_x, theta_y = theta[[0]], theta[[1]]
