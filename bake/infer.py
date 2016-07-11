@@ -4,7 +4,7 @@ Bayesian Inference for Kernel Embeddings Module.
 import numpy as np
 from .kernels import gaussian
 from .linalg import solve_posdef
-from .kbr import posterior_weights_quadratic
+from .kbr import posterior_weights_tikhonov
 from .optimize import local_optimisation
 
 
@@ -30,7 +30,7 @@ def posterior_embedding(mu_prior, x, y, theta_x, theta_y, epsil, delta, k_x = ga
     k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
     k_yy = k_y(y, y, theta_y) if not k_yy else k_yy
 
-    W = posterior_weights_quadratic(mu_prior(y), k_xx, k_yy, epsil, delta)
+    W = posterior_weights_tikhonov(mu_prior(y), k_xx, k_yy, epsil, delta)
 
     return lambda yq, xq: np.dot(k_y(yq, y, theta_y), np.dot(W, k_x(x, xq, theta_x)))
 
@@ -41,7 +41,7 @@ def kernel_bayes_average(g, W, k_ygyg, k_yyg, k_xxq):
     alpha_g = solve_posdef(k_ygyg, g)
 
     # [Expectance of g(Y) under the posterior] (n_qx, )
-    return np.dot(alpha_g, posterior_embedding_core(W, k_xxq, k_yyg))
+    return np.dot(alpha_g, posterior_weights_tikhonov(W, k_xxq, k_yyg))
 
 
 def mode(mu, xv_start, xv_min, xv_max):
