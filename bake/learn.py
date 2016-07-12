@@ -120,8 +120,35 @@ def approx_conditional_nlml(x, y, theta_x, theta_y, zeta):
 
     # Compute the empirical conditional embedding at the training points
     mu_yx = np.einsum('ij,ji->i', kyy, w)
-    print(w)
+
     return -np.sum(np.log(mu_yx))
+
+
+def latent_conditional_nlml(x, y, theta_x, theta_y, zeta_x, zeta_y, sigma):
+
+    identity = np.eye(x.shape[0])
+
+    dx = x/theta_x
+    dxx = cdist(dx, dx, 'sqeuclidean')
+    kxx = np.exp(-0.5 * dxx)
+
+    kxx_reg = kxx + (zeta_x ** 2) * identity
+
+    dy = y/theta_y
+    dyy = cdist(dy, dy, 'sqeuclidean')
+    kyy = np.exp(-0.5 * dyy)
+
+    kyy_reg = kyy + (zeta_y ** 2) * identity
+
+    lik = np.exp(-0.5 * cdist(y, y, 'sqeuclidean') / (sigma ** 2) / (sigma * np.sqrt(2 * np.pi)))
+
+    w = solve_posdef(kyy_reg, np.dot(kyy, solve_posdef(kxx_reg, kxx)[0]))[0]
+
+    # Compute the empirical conditional embedding at the training points
+    evidence = np.einsum('ij,ji->i', lik, w)
+
+    return -np.prod(evidence)
+
 
 def embedding(x, t_min_tuple, t_max_tuple, t_init_tuple = None, n = 1000, repeat = 1):
 
@@ -215,6 +242,31 @@ def approx_conditional_embedding(x, y, t_min_tuple, t_max_tuple, t_init_tuple = 
 
     def objective(t):
         return approx_conditional_nlml(x, y, *tuple([t[i] for i in t_indices]))
+
+    if t_init_tuple is None:
+        t_opt, f_opt = sample_optimisation(objective, t_min, t_max, n = n)
+        # t_opt, f_opt = multi_explore_optimisation(objective, t_min, t_max, n = n, repeat = repeat)
+    else:
+        t_opt, f_opt = local_optimisation(objective, t_min, t_max, t_init)
+
+    return unpack(t_opt, t_indices)
+
+def latent_conditional_embedding(x, y, t_min_tuple, t_max_tuple, t_init_tuple = None, n = 1000, repeat = 1):
+
+    t_min_tuple = tuple([np.array(a) for a in t_min_tuple])
+    t_max_tuple = tuple([np.array(a) for a in t_max_tuple])
+
+    if t_init_tuple is None:
+        t_min, t_max, t_indices = multi_pack(t_min_tuple, t_max_tuple)
+    else:
+        t_init_tuple = tuple([np.array(a) for a in t_init_tuple])
+        t_min, t_max, t_init, t_indices = multi_pack(t_min_tuple, t_max_tuple, t_init_tuple)
+        assert t_init.shape == t_min.shape
+
+    assert t_min.shape == t_max.shape
+
+    def objective(t):
+        return latent_conditional_nlml(x, y, *tuple([t[i] for i in t_indices]))
 
     if t_init_tuple is None:
         t_opt, f_opt = sample_optimisation(objective, t_min, t_max, n = n)

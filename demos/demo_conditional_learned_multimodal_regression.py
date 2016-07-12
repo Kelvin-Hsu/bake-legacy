@@ -10,16 +10,16 @@ def main():
 
     # Generate regression data
     # Change the noise level here
-    x, y = utils.data.generate_two_waves(n = 80, noise_level = 0.2, seed = 100)
+    x, y = utils.data.generate_two_waves(n = 80, noise_level = 0.0, seed = 100)
 
     # Create joint data
     z = utils.data.joint_data(x, y)
 
     # Learn the embedding using the joint samples
-    hyper_min = ([1.0], [0.2], [0.00000001])
-    hyper_max = ([1.5], [1.0], [0.1])
-    theta_x, theta_y, zeta = bake.learn.approx_conditional_embedding(x, y,
-        hyper_min, hyper_max, n = 100)
+    hyper_min = ([0.05], [0.02], [1e-8], [1e-8], [1e-8])
+    hyper_max = ([2.5], [2.0], [1e-5], [1e-5], [1e-5])
+    theta_x, theta_y, zeta_x, zeta_y, sigma = bake.learn.latent_conditional_embedding(x, y,
+        hyper_min, hyper_max, n = 1000)
     theta = append(theta_x, theta_y)
 
     # This is the optimal joint embedding
@@ -27,7 +27,7 @@ def main():
 
     # This is the corresponding conditional embedding
     mu_yx_optimal = bake.infer.conditional_embedding(x, y, theta_x, theta_y,
-        zeta = zeta)
+        zeta = zeta_x)
 
     # Create a origin-centered uniform query space for visualisation
     xq, yq, xq_grid, yq_grid, x_lim, y_lim = \
