@@ -8,6 +8,10 @@ import numpy as np
 from scipy.linalg import cholesky, cho_solve, svd, LinAlgError
 
 
+def dist(x_1, x_2):
+    return x_1[:, None] - x_2[None, :]
+
+
 def cho_log_det(L):
     """
     Compute the log of the determinant of :math:`A`, given its (upper or lower)
@@ -61,9 +65,9 @@ def solve_posdef(A, b, cholthresh=1e-5):
     overhead.
     Parameters
     ----------
-    A: ndarray
+    A: numpy.ndarray
         A positive semi-definite matrix.
-    b: ndarray
+    b: numpy.ndarray
         An array or matrix
     Returns
     -------

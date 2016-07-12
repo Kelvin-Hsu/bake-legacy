@@ -3,18 +3,16 @@ Bayesian Learning for Kernel Embeddings Module.
 """
 import numpy as np
 from scipy.spatial.distance import cdist
-from .linalg import solve_posdef
+from .linalg import solve_posdef, dist
 from .optimize import multi_pack, unpack, local_optimisation, multi_explore_optimisation, sample_optimisation
-from .kbr import posterior_weights_quadratic
+from .kbr import posterior_weights_tikhonov
+
 
 def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
 
     # Compute the normalised squared distance for the dominant kernel
     dx = x/theta
     dxx = cdist(dx, dx, 'sqeuclidean')
-
-    # Compute the dominant kernel gramix
-    kxx = np.exp(-0.5 * dxx)
 
     # Compute the length scale of the inferior kernel
     theta_inferior = np.sqrt(0.5 * theta ** 2 + psi ** 2)
@@ -38,6 +36,7 @@ def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
     # Return the nuclear dominant and inferior kernel pair
     return kxx, rxx
 
+
 def joint_nlml(x, theta, psi, sigma):
 
     # Compute the dominant and inferior kernel gramices
@@ -59,6 +58,7 @@ def joint_nlml(x, theta, psi, sigma):
     # Compute the negative log marginal likelihood
     return 0.5 * (np.dot(mu, b) + logdetA) - log_gamma
 
+
 def posterior_nlml(mu_y, x, y, theta_x, theta_y, psi, sigma, epsil, delta):
 
     # Compute the dominant and inferior kernel gramices in y
@@ -69,7 +69,7 @@ def posterior_nlml(mu_y, x, y, theta_x, theta_y, psi, sigma, epsil, delta):
     kxx = np.exp(-0.5 * cdist(dx, dx, 'sqeuclidean'))
 
     # Compute the posterior weight matrix
-    v = posterior_weights_quadratic(mu_y, kxx, kyy, epsil, delta)
+    v = posterior_weights_tikhonov(mu_y, kxx, kyy, epsil, delta)
 
     # Condition the posterior weight matrix on the training data
     w = np.dot(v, kxx)
@@ -101,6 +101,7 @@ def posterior_nlml(mu_y, x, y, theta_x, theta_y, psi, sigma, epsil, delta):
     # Compute the negative log marginal likelihood
     return 0.5 * (np.dot(mu_yx, b) + logdetA) - log_gamma
 
+
 def conditional_nlml(x, y, theta_x, theta_y, psi, sigma, zeta):
 
     # Compute the dominant and inferior kernel gramices in y
@@ -111,10 +112,7 @@ def conditional_nlml(x, y, theta_x, theta_y, psi, sigma, zeta):
     kxx = np.exp(-0.5 * cdist(dx, dx, 'sqeuclidean'))
 
     # Condition the posterior weight matrix on the training data
-    if zeta == 0:
-        w = np.eye(x.shape[0])
-    else:
-        w = solve_posdef(kxx + (zeta ** 2) * np.eye(x.shape[0]), kxx)[0]
+    w = solve_posdef(kxx + (zeta ** 2) * np.eye(x.shape[0]), kxx)[0]
 
     # Compute the empirical conditional embedding at the training points
     mu_yx = np.einsum('ij,ji->i', kyy, w)
@@ -135,13 +133,28 @@ def conditional_nlml(x, y, theta_x, theta_y, psi, sigma, zeta):
     # 
     # Sum up each component across j
     # log_gamma = 0.5 * np.sum([sum_di for j in np.arange(y.shape[0])])
-    log_gamma = 0.5 * np.sum([np.sum((np.sum(
-        w[:, [j]] * kyy[:, [j]] * (y - y[j, :]),
-        axis = 0) / (theta_y ** 2)) ** 2)
-        for j in np.arange(y.shape[0])])
+    log_gamma = conditional_log_gamma(x, y, theta_x, theta_y, kxx, kyy, zeta)
 
     # Compute the negative log marginal likelihood
     return 0.5 * (np.dot(mu_yx, b) + logdetA) - log_gamma
+
+
+def conditional_log_gamma(x, y, theta_x, theta_y, kxx, kyy, zeta):
+
+    # (n x n x d)
+    dxx = dist(x, x) / (theta_x)**2
+    dyy = dist(y, y) / (theta_y)**2
+
+    dkxx = - dxx * kxx[:, :, None]
+    dkyy = - dyy * kyy[:, :, None]
+
+    identity = np.eye(x.shape[0])
+    kxx_reg = kxx + (zeta ** 2) * identity
+
+    v = solve_posdef(kxx_reg, identity)[0]
+
+    
+
 
 def embedding(x, t_min_tuple, t_max_tuple, t_init_tuple = None, n = 1000, repeat = 1):
 
@@ -167,6 +180,7 @@ def embedding(x, t_min_tuple, t_max_tuple, t_init_tuple = None, n = 1000, repeat
 
     return unpack(t_opt, t_indices)
 
+
 def posterior_embedding(mu, x, y, t_min_tuple, t_max_tuple, t_init_tuple = None, n = 1000, repeat = 1):
 
     t_min_tuple = tuple([np.array(a) for a in t_min_tuple])
@@ -191,6 +205,7 @@ def posterior_embedding(mu, x, y, t_min_tuple, t_max_tuple, t_init_tuple = None,
         t_opt, f_opt = local_optimisation(objective, t_min, t_max, t_init)
 
     return unpack(t_opt, t_indices)
+
 
 def conditional_embedding(x, y, t_min_tuple, t_max_tuple, t_init_tuple = None, n = 1000, repeat = 1):
 

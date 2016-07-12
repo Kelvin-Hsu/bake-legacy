@@ -21,7 +21,6 @@ def generate_one_wave(n=80, noise_level=0.2, seed=None):
         np.random.seed(seed)
 
     # Generate some data
-    n = 80
     x = 10 * np.random.rand(n, 1) - 5
     y = np.sin(x) + 1.0
     y = y + noise_level * np.random.randn(*y.shape)
