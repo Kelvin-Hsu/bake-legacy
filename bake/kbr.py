@@ -31,23 +31,23 @@ def posterior_weights_tikhonov(mu_y_prior, k_xx, k_yy, epsil, delta):
         The posterior weights ready to be conditioned on arbitrary 
         input x values and queried at arbitrary output y values (n x n) 
     """
-    # [Data Size] n: scalar
-    n = mu_y_prior.shape[0]
+    # [Data Size] scalar
+    n, = mu_y_prior.shape
 
-    # [Identity] I: (n x n)
+    # [Identity] (n x n)
     identity = np.eye(n)
 
-    # [Prior Effect] prior_effect: (n x n)
-    prior_effect = np.diag(solve_posdef(k_yy + n * epsil * identity, mu_y_prior)[0])
+    # [Prior Effect] (n x n)
+    d = np.diag(solve_posdef(k_yy + epsil * identity, mu_y_prior)[0])
 
-    # [Observation Prior] obs_prior: (n x n)
-    obs_prior = np.dot(prior_effect, k_xx)
+    # [Prior Effect on Input Variables] (n x n)
+    d_kxx = np.dot(d, k_xx)
 
-    # [Regularised Squared Observation Prior] obs_prior_sq: (n x n)
-    reg_sq_obs_prior = np.linalg.matrix_power(obs_prior, 2) + delta * identity
+    # [Regularised Squared Prior Effect on Input Variables] (n x n)
+    d_kxx_sq_reg = np.linalg.matrix_power(d_kxx, 2) + delta * identity
 
     # [Posterior Weights] (n x n)
-    return np.dot(obs_prior, solve(reg_sq_obs_prior, prior_effect))
+    return np.dot(d_kxx, solve(d_kxx_sq_reg, d))
 
 
 def posterior_weights_linear(mu_y_prior, k_xx, k_yy, epsil, delta):
@@ -74,20 +74,17 @@ def posterior_weights_linear(mu_y_prior, k_xx, k_yy, epsil, delta):
         The posterior weights ready to be conditioned on arbitrary 
         input x values and queried at arbitrary output y values (n x n) 
     """
-    # [Data Size] n: scalar
+    # [Data Size] scalar
     n, = mu_y_prior.shape
 
-    # [Identity] I: (n x n)
+    # [Identity] (n x n)
     identity = np.eye(n)
 
-    # [Prior Effect] d_y_prior: (n x n)
-    d_y_prior = np.diag(solve_posdef(k_yy + epsil * identity, mu_y_prior)[0])
+    # [Prior Effect] (n x n)
+    d = np.diag(solve_posdef(k_yy + epsil * identity, mu_y_prior)[0])
 
-    # [Posterior Weights] v: (n x n)
-    v = solve(np.dot(d_y_prior, k_xx) + (delta / n) * identity, d_y_prior)
-
-    # Return the posterior weights
-    return v
+    # [Posterior Weights] (n x n)
+    return solve(np.dot(d, k_xx) + (delta / n) * identity, d)
 
 
 def posterior_weights_moore_penrose(mu_y_prior, k_xx, k_yy):
@@ -114,11 +111,8 @@ def posterior_weights_moore_penrose(mu_y_prior, k_xx, k_yy):
         The posterior weights ready to be conditioned on arbitrary
         input x values and queried at arbitrary output y values (n x n)
     """
-    # [Prior Effect] d_y_prior: (n x n)
-    d_y_prior = np.diag(np.dot(pinv(k_yy), mu_y_prior))
+    # [Prior Effect] (n x n)
+    d = np.diag(np.dot(pinv(k_yy), mu_y_prior))
 
-    # [Posterior Weights] v: (n x n)
-    v = np.dot(pinv(np.dot(d_y_prior, k_xx)), d_y_prior)
-
-    # Return the posterior weights
-    return v
+    # [Posterior Weights] (n x n)
+    return np.dot(pinv(np.dot(d, k_xx)), d)
