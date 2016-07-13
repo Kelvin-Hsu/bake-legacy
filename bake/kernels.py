@@ -107,13 +107,13 @@ def dist(x_1, x_2):
     Parameters
     ----------
     x_1 : numpy.ndarray
-        A collection of data points (n_1 x p)
+        A collection of data points (n_1 x m) [2D Array]
     x_2 : numpy.ndarray
-        A collection of data points (n_2 x p)
+        A collection of data points (n_2 x m) [2D Array]
     Returns
     -------
     numpy.ndarray
-        A collection of difference vectors (n_1 x n_2 x p)
+        A collection of difference vectors (n_1 x n_2 x p) [3D Array]
     """
     return x_1[:, np.newaxis] - x_2[np.newaxis, :]
 
@@ -133,5 +133,9 @@ def gaussian_norm(theta, m = 1):
         Hyperparameters that parametrises the kernel [1D Array]
     m : int
         Dimensionality of the input
+    Returns
+    -------
+    float
+        The normalising constant
     """
     return np.prod(np.sqrt(2 * np.pi) * np.ones(m) * theta)

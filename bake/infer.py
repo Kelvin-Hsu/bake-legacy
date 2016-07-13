@@ -1,5 +1,10 @@
 """
 Bayesian Inference for Kernel Embeddings Module.
+
+In the inference module, kernel functions are by default the Gaussian kernel
+unless otherwise specified through a keyword argument, since the learning that
+is implemented in the learning module is done with the Gaussian kernel only for
+the time being.
 """
 import numpy as np
 from .kernels import gaussian
@@ -9,11 +14,43 @@ from .optimize import local_optimisation
 
 
 def embedding(x, theta, w = None, k = gaussian):
+    """
+    Obtain empirical embedding on a given dataset.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The dataset to be used for generating the embedding (n x m)
+    theta : numpy.ndarray
+        Hyperparameters of the kernel (m)
+    w : numpy.ndarray, optional
+        Weights on each data point. Default weights are uniform weights (n)
+    k : function
+        Kernel functions from the kernels module. Default is a Gaussian kernel
+
+    Returns
+    -------
+    function
+        The empirical embedding with feature maps on each data point.
+    """
     w = uniform_weights(x) if w is None else w
     return lambda xq: np.dot(k(xq, x, theta), w)
 
 
 def uniform_weights(x):
+    """
+    Obtain uniform weights on a given dataset.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The dataset to place the uniform weights on (n x m)
+
+    Returns
+    -------
+    numpy.ndarray
+        Weights on each data point. Default weights are uniform weights (n)
+    """
     return np.ones((x.shape[0], 1)) / x.shape[0]
 
 

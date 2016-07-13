@@ -1,5 +1,5 @@
 """
-Kernel Bayes Rule.
+Kernel Bayes Rule Module.
 """
 import numpy as np
 from .linalg import solve_posdef
