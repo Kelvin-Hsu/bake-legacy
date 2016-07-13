@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def centred_uniform_query(x, y, x_margin = 0, y_margin = 0, x_query = 250, y_query = 250):
+def centred_uniform_query(x, y, x_margin=0, y_margin=0, x_query=250, y_query=250):
 
     x_lim = np.max(np.abs(x)) + x_margin
     y_lim = np.max(np.abs(y)) + y_margin

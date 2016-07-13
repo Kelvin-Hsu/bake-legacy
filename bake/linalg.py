@@ -8,17 +8,13 @@ import numpy as np
 from scipy.linalg import cholesky, cho_solve, svd, LinAlgError
 
 
-def dist(x_1, x_2):
-    return x_1[:, None] - x_2[None, :]
-
-
 def cho_log_det(L):
     """
     Compute the log of the determinant of :math:`A`, given its (upper or lower)
     Cholesky factorization :math:`LL^T`.
     Parameters
     ----------
-    L: ndarray
+    L: numpy.ndarray
         an upper or lower Cholesky factor
     Examples
     --------
@@ -41,7 +37,7 @@ def svd_log_det(s):
     from an SVD factorisation (i.e. :code:`s` from :code:`U, s, Ut = svd(A)`).
     Parameters
     ----------
-    s: ndarray
+    s: numpy.ndarray
         the singular values from an SVD decomposition
     Examples
     --------
@@ -71,7 +67,7 @@ def solve_posdef(A, b, cholthresh=1e-5):
         An array or matrix
     Returns
     -------
-    X: ndarray
+    X: numpy.ndarray
         The result of :math:`X = A^-1 b`
     logdet: float
         The log-determinant of :math:`A`
@@ -104,25 +100,25 @@ def svd_solve(U, s, V, b, s_tol=1e-15):
     sufficiently large singular values are used.
     Parameters
     ----------
-    U: ndarray
+    U: numpy.ndarray
         The :code:`U` factor of :code:`U, s, V = svd(A)` positive
         semi-definite matrix.
-    s: ndarray
+    s: numpy.ndarray
         The :code:`s` factor of :code:`U, s, V = svd(A)` positive
         semi-definite matrix.
-    V: ndarray
+    V: numpy.ndarray
         The :code:`V` factor of :code:`U, s, V = svd(A)` positive
         semi-definite matrix.
-    b: ndarray
+    b: numpy.ndarray
         An array or matrix
     s_tol: float
         Cutoff for small singular values. Singular values smaller than
         :code:`s_tol` are clamped to :code:`s_tol`.
     Returns
     -------
-    X: ndarray
+    X: numpy.ndarray
         The result of :math:`X = A^-1 b`
-    okind: ndarray
+    okind: numpy.ndarray
         The indices of :code:`s` that are kept in the factorisation
     """
 
