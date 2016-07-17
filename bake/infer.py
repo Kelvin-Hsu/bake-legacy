@@ -9,11 +9,11 @@ the time being.
 import numpy as np
 from .kernels import gaussian
 from .linalg import solve_posdef
-from .kbr import posterior_weights_tikhonov
+from .kbr import posterior_fields
 from .optimize import local_optimisation
 
 
-def embedding(x, theta, w = None, k = gaussian):
+def embedding(x, theta, w=None, k=gaussian):
     """
     Obtain empirical embedding on a given dataset.
 
@@ -54,31 +54,111 @@ def uniform_weights(x):
     return np.ones((x.shape[0], 1)) / x.shape[0]
 
 
-def conditional_embedding(x, y, theta_x, theta_y, zeta = 0, k_x = gaussian, k_y = gaussian, k_xx = None):
+def conditional_embedding(x, y, theta_x, theta_y,
+                          zeta=0, k_x=gaussian, k_y=gaussian, k_xx=None):
+    """
+    Obtain the empirical conditional embedding on a given dataset.
 
+    Here y is the target output to be modelled and x is the input covariate.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The collected dataset of the input covariates (n)
+    y : numpy.ndarray
+        The collected dataset of the output targets (n)
+    theta_x : numpy.ndarray
+        Hyperparameters that parametrises the kernel on x (m)
+    theta_y : numpy.ndarray
+        Hyperparameters that parametrises the kernel on y (m)
+    zeta : float
+        The regularisation parameter, interpreted as the likelihood noise level
+    k_x : function, optional
+        The kernel on x [Default is the Gaussian kernel]
+    k_y : function, optional
+        The kernel on y [Default is the Gaussian kernel]
+    k_xx : numpy.ndarray, optional
+        The gramix on x cached beforehand to avoid recomputation
+
+    Returns
+    -------
+    function
+        The conditional embedding of Y | X, to be evaluated at (y, x)
+    """
     k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
     k_xx_reg = k_xx + zeta ** 2 * np.eye(x.shape[0])
-
-    return lambda yq, xq: np.dot(k_y(yq, y, theta_y), solve_posdef(k_xx_reg, k_x(x, xq, theta_x))[0])
-
-
-def posterior_embedding(mu_prior, x, y, theta_x, theta_y, epsil, delta, k_x = gaussian, k_y = gaussian, k_xx = None, k_yy = None):
-
-    k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
-    k_yy = k_y(y, y, theta_y) if not k_yy else k_yy
-
-    W = posterior_weights_tikhonov(mu_prior(y), k_xx, k_yy, epsil, delta)
-
-    return lambda yq, xq: np.dot(k_y(yq, y, theta_y), np.dot(W, k_x(x, xq, theta_x)))
+    return lambda yq, xq: np.dot(k_y(yq, y, theta_y),
+                                 solve_posdef(k_xx_reg, k_x(x, xq, theta_x))[0])
 
 
-def kernel_bayes_average(g, W, k_ygyg, k_yyg, k_xxq):
+def posterior_embedding(prior_embedding, x, y, theta_x, theta_y,
+                        epsil=0, delta=0,
+                        kbr='tikhonov',
+                        k_x=gaussian, k_y=gaussian,
+                        k_xx=None, k_yy=None,
+                        v=None):
+    """
+    Obtain the empirical posterior embedding using KBR on a given dataset.
 
-    # [Weights of projection of g on the RKHS on y] alpha_g: (m, )
-    alpha_g = solve_posdef(k_ygyg, g)
+    Parameters
+    ----------
+    prior_embedding : function
+        The prior embedding on y
+    x : numpy.ndarray
+        The collected dataset of the input covariates (n)
+    y : numpy.ndarray
+        The collected dataset of the output targets (n)
+    theta_x : numpy.ndarray
+        Hyperparameters that parametrises the kernel on x (m)
+    theta_y : numpy.ndarray
+        Hyperparameters that parametrises the kernel on y (m)
+    epsil : float, optional
+        The regularisation parameter for the prior
+        This is not needed if v is already supplied
+    delta : float, optional
+        The regularisation parameter for the likelihood
+        This is not needed if v is already supplied
+    kbr : str
+        A string denoting the type of Kernels Bayes Rule to be applied
+        This is not needed if v is already supplied
+    k_x : function, optional
+        The kernel on x [Default is the Gaussian kernel]
+    k_y : function, optional
+        The kernel on y [Default is the Gaussian kernel]
+    k_xx : numpy.ndarray, optional
+        The gramix on x if cached beforehand to avoid recomputation
+        This is not needed if v is already supplied
+    k_yy : numpy.ndarray, optional
+        The gramix on y if cached beforehand to avoid recomputation
+        This is not needed if v is already supplied
+    v : numpy.ndarray, optional
+        The posterior weight matrix if cached before to avoid recomputation
+    Returns
+    -------
+    function
+        The posterior embedding of Y | X, to be evaluated at (y, x)
+    """
+    if v is None:
+        k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
+        k_yy = k_y(y, y, theta_y) if not k_yy else k_yy
+        v = posterior_fields[kbr](prior_embedding(y), k_xx, k_yy, epsil, delta)
+    return lambda yq, xq: np.dot(k_y(yq, y, theta_y),
+                                 np.dot(v, k_x(x, xq, theta_x)))
 
-    # [Expectance of g(Y) under the posterior] (n_qx, )
-    return np.dot(alpha_g, posterior_weights_tikhonov(W, k_xxq, k_yyg))
+
+def kernel_bayes_average(g, y, w):
+    """
+    Compute the kernel Bayes average of a given function g
+    Parameters
+    ----------
+    g
+    w
+
+    Returns
+    -------
+
+    """
+    return np.dot(g, w)
 
 
 def mode(mu, xv_start, xv_min, xv_max):
@@ -132,16 +212,6 @@ def conditional_modes(mu_yx, xq, yv_min, yv_max, n_modes = 10):
     # Size: (n_query x n_modes x n_dims)
     # Size: (n_query x n_modes x n_dims)
     return x_modes, y_modes
-
-
-# def kernel_herding():
-
-
-# def embedding_to_density():
-
-
-
-
 
 
 
