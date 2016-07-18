@@ -133,6 +133,7 @@ def posterior_embedding(prior_embedding, x, y, theta_x, theta_y,
         This is not needed if v is already supplied
     v : numpy.ndarray, optional
         The posterior weight matrix if cached before to avoid recomputation
+
     Returns
     -------
     function
@@ -146,23 +147,29 @@ def posterior_embedding(prior_embedding, x, y, theta_x, theta_y,
                                  np.dot(v, k_x(x, xq, theta_x)))
 
 
-def kernel_bayes_average(g, y, w):
+def mode(mu, xv_start, xv_min, xv_max):
     """
-    Compute the kernel Bayes average of a given function g
+    Determine a density mode (peak), given its kernel embedding representation.
+
+    Note that for stationary kernels, the peak of the density is located at the
+    same places as the peak of the kernel embedding.
+
     Parameters
     ----------
-    g
-    w
+    mu : function
+        The kernel embedding
+    xv_start : numpy.ndarray
+        The starting location for which mode searching begins (n_dims)
+    xv_min : numpy.ndarray
+        The lower bound of the rectangular search region (n_dims)
+    xv_max : numpy.ndarray
+        The upper bound of the rectangular search region (n_dims)
 
     Returns
     -------
-
+    numpy.ndarray
+        The mode location (n_dims)
     """
-    return np.dot(g, w)
-
-
-def mode(mu, xv_start, xv_min, xv_max):
-
     # Define the objective to be minimised
     # For stationary kernels, the objective to optimise can be reduced to simply
     # the embedding
@@ -177,7 +184,28 @@ def mode(mu, xv_start, xv_min, xv_max):
 
 
 def multiple_modes(mu, xv_min, xv_max, n_modes = 10):
+    """
+    Determine density modes (peaks), given its kernel embedding representation.
 
+    Note that for stationary kernels, the peak of the density is located at the
+    same places as the peak of the kernel embedding.
+
+    Parameters
+    ----------
+    mu : function
+        The kernel embedding
+    xv_min : numpy.ndarray
+        The lower bound of the rectangular search region (n_dims)
+    xv_max : numpy.ndarray
+        The upper bound of the rectangular search region (n_dims)
+    n_modes : int, optional
+        The number of modes to search for (some of them will converge together)
+
+    Returns
+    -------
+    numpy.ndarray
+        The mode locations (n_modes x n_dims)
+    """
     # Make sure these are arrays
     xv_min = np.array(xv_min)
     xv_max = np.array(xv_max)
@@ -189,11 +217,37 @@ def multiple_modes(mu, xv_min, xv_max, n_modes = 10):
 
     # Compute the modes
     # Size: (n_modes x n_dims)
-    return np.array([mode(mu, xv_start, xv_min, xv_max) for xv_start in xv_start_list])
+    return np.array([mode(mu, xv_start, xv_min, xv_max)
+                     for xv_start in xv_start_list])
 
 
 def conditional_modes(mu_yx, xq, yv_min, yv_max, n_modes = 10):
+    """
+    Determine a conditional density mode (peak), given its kernel embedding.
 
+    Note that for stationary kernels, the peak of the density is located at the
+    same places as the peak of the kernel embedding.
+
+    Parameters
+    ----------
+    mu : function
+        The kernel embedding
+    xq : numpy.ndarray
+        The query points (n_query, n_x_dims)
+    yv_min : numpy.ndarray
+        The lower bound of the rectangular search region (n_y_dims)
+    yv_max : numpy.ndarray
+        The upper bound of the rectangular search region (n_y_dims)
+    n_modes : int, optional
+        The number of modes to search for at each query point
+
+    Returns
+    -------
+    numpy.ndarray
+        The x coordinates of the mode locations (n_query x n_modes x n_x_dims)
+    numpy.ndarray
+        The y coordinates of the mode locations (n_query x n_modes x n_y_dims)
+    """
     # This finds the modes of a given embedding
     modes_of = lambda mu: multiple_modes(mu, yv_min, yv_max, n_modes = n_modes)
 
@@ -209,8 +263,8 @@ def conditional_modes(mu_yx, xq, yv_min, yv_max, n_modes = 10):
     x_modes = np.repeat(xq[:, np.newaxis], n_modes, axis = 1)
 
     # Return the modes
-    # Size: (n_query x n_modes x n_dims)
-    # Size: (n_query x n_modes x n_dims)
+    # Size: (n_query x n_modes x n_x_dims)
+    # Size: (n_query x n_modes x n_y_dims)
     return x_modes, y_modes
 
 
