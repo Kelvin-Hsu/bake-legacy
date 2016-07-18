@@ -9,7 +9,7 @@ def main():
 
     # Generate regression data
     # Change the noise level here
-    x, y = utils.data.generate_one_wave(n = 80, noise_level = 0.2, seed = 100)
+    x, y = utils.data.generate_one_wave(n = 80, noise_level = 0.0, seed = 100)
 
     # Create joint data
     z = utils.data.joint_data(x, y)
@@ -27,7 +27,7 @@ def main():
     mu_yx_optimal = bake.infer.conditional_embedding(x, y, theta_x, theta_y)
 
     # Create a origin-centered uniform query space for visualisation
-    x_margin = 0.5
+    x_margin = 0.1
     xq, yq, xq_grid, yq_grid, x_lim, y_lim = \
         utils.visuals.centred_uniform_query(x, y, 
             x_margin = x_margin, y_margin = 1, x_query = 150, y_query = 150)

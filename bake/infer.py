@@ -400,7 +400,7 @@ def expectance(y, w):
     return np.dot(y.T, w)
 
 
-def covariance(y, w):
+def variance(y, w):
     """
 
     Parameters
@@ -413,14 +413,24 @@ def covariance(y, w):
     Returns
     -------
     numpy.ndarray
-        The conditional covariance value of the output (n_y_dims x n_query x n_query)
+        The conditional covariance value of the output (n_y_dims x n_query)
     """
+    # w = normalise_weights(w)
+
     # Compute the expectance (n_y_dims x n_query)
     yq_exp = np.dot(y.T, w)
 
-    # Take the squared difference (n x n_query x n_y_dims)
-    cov_form = (y[:, np.newaxis] - yq_exp.T[np.newaxis, :]) ** 2
+    # Compute the expectance of squares (n_y_dims x n_query)
+    yq_exp_sq = np.dot((y ** 2).T, w)
 
-    # (n_y_dims x n_query x n) x (n x n_query)
-    # (n_y_dims x n_query x n_query)
-    return np.dot(cov_form.T, w)
+    # Compute the variance (n_y_dims x n_query)
+    return yq_exp_sq - (yq_exp ** 2)
+
+
+def normalise_weights(w):
+
+    w_clip = np.clip(w, 0, np.inf)
+
+    w_clip_sum = np.sum(w_clip, axis = 0)
+
+    return w_clip / w_clip_sum
