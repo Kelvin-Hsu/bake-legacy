@@ -239,6 +239,10 @@ def posterior_embedding(prior_embedding, x, y, theta_x, theta_y,
     return lambda yq, xq: np.dot(k_y(yq, y, theta_y), w_func(xq))
 
 
+def evaluate_embedding(zq, z, theta, w, k=gaussian):
+    return np.dot(k(zq, z, theta), w)
+
+
 def mode(mu, xv_start, xv_min, xv_max):
     """
     Determine a density mode (peak), given its kernel embedding representation.
