@@ -5,7 +5,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from .linalg import solve_posdef
 from .optimize import multi_pack, unpack, local_optimisation, multi_explore_optimisation, sample_optimisation
-from .kbr import posterior_weights_tikhonov
+# from .kbr import posterior_weights_tikhonov
 
 
 def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
