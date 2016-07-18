@@ -115,6 +115,7 @@ def dist(x_1, x_2):
     numpy.ndarray
         A collection of difference vectors (n_1 x n_2 x p) [3D Array]
     """
+    # (n_1 x 1 x m) - (1 x n_2, m)
     return x_1[:, np.newaxis] - x_2[np.newaxis, :]
 
 

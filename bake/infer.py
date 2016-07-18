@@ -359,5 +359,64 @@ def conditional_modes(mu_yx, xq, yv_min, yv_max, n_modes = 10):
     # Size: (n_query x n_modes x n_y_dims)
     return x_modes, y_modes
 
-# def kernels_bayes_average():
-#
+def kernels_bayes_average(g_y, w):
+    """
+    Obtain the conditional kernels Bayes average of a function g.
+
+    Parameters
+    ----------
+    g_y : numpy.ndarray
+        The function realisations at training outputs (n)
+    w : numpy.ndarray
+        The conditional or posterior weight matrix (n x n_query)
+
+    Returns
+    -------
+    numpy.ndarray
+        The average of the function at the query points (n_query)
+    """
+    return np.dot(g_y, w)
+
+
+def expectance(y, w):
+    """
+
+    Parameters
+    ----------
+    y : numpy.ndarray
+        The training outputs (n x n_y_dims)
+    w : numpy.ndarray
+        The conditional or posterior weight matrix (n x n_query)
+
+    Returns
+    -------
+    numpy.ndarray
+        The conditional expected value of the output (n_y_dims x n_query)
+    """
+    return np.dot(y.T, w)
+
+
+def covariance(y, w):
+    """
+
+    Parameters
+    ----------
+    y : numpy.ndarray
+        The training outputs (n x n_y_dims)
+    w : numpy.ndarray
+        The conditional or posterior weight matrix (n x n_query)
+
+    Returns
+    -------
+    numpy.ndarray
+        The conditional covariance value of the output (n_y_dims x n_query x n_query)
+    """
+    # Compute the expectance (n_y_dims x n_query)
+    yq_exp = np.dot(y.T, w)
+
+    # Take the squared difference (n x n_query x n_y_dims)
+    cov_form = (y[:, np.newaxis] - yq_exp.T[np.newaxis, :]) ** 2
+
+    # (n_y_dims x n_query x n) x (n x n_query)
+    # (n_y_dims x n_query x n_query)
+    return np.dot(cov_form.T, w)
