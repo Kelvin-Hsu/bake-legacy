@@ -4,23 +4,27 @@ Demonstration of simple kernel embeddings.
 import bake
 import utils
 import matplotlib.pyplot as plt
-from numpy import append
+import numpy as np
 
 def main():
 
     # Generate regression data
     # Change the noise level here
-    x, y = utils.data.generate_one_wave(n = 40, noise_level = 0.0, seed = 200)
+    n = 80
+    x, y = utils.data.generate_two_waves(n = n, noise_level = 0.1, seed = 200)
 
     # Create joint data
     z = utils.data.joint_data(x, y)
 
     # Learn the embedding using the joint samples
-    hyper_min = ([0.01], [0.01], [0.00000001])
-    hyper_max = ([5.], [2.], [0.1])
-    theta_x, theta_y, zeta = bake.learn.approx_conditional_embedding(x, y,
-        hyper_min, hyper_max, n = 20000)
-    theta = append(theta_x, theta_y)
+    hyper_min = ([0.01], [0.01], [0.00], [0.00])
+    hyper_max = ([7.00], [5.00], [1e-7], [1e-4])
+    hyper_init = None # ([2.0], [0.5], [1e-8], [1e-8])
+    yx = utils.data.joint_data(y, x)
+    theta_x, theta_y, zeta, sigma = bake.learn.conditional_embedding(x, y, yx,
+        bake.kernels.dist(y, y),
+        hyper_min, hyper_max, t_init_tuple = hyper_init, n = 2500)
+    theta = np.append(theta_x, theta_y)
 
     # This is the optimal joint embedding
     mu_z_optimal = bake.infer.embedding(z, theta)
@@ -37,7 +41,7 @@ def main():
 
     # Find the modes of the conditional embedding
     x_modes, y_modes = bake.infer.conditional_modes(mu_yx_optimal, xq, 
-        [-y_lim], [+y_lim], n_modes = 2)
+        [-y_lim], [+y_lim], n_modes = 4)
 
     # Create joint query points from the query space
     zq = utils.data.joint_data(xq_grid, yq_grid)
@@ -71,7 +75,7 @@ def main():
     plt.figure(2)
     plt.pcolormesh(xq_grid, yq_grid, mu_yqxq_optimal, vmin = vmin, vmax = vmax)
     plt.scatter(x.ravel(), y.ravel(), c = 'k', label = 'Training Data')
-    plt.scatter(x_modes_points, y_modes_points, 
+    plt.scatter(x_modes_points, y_modes_points,
         s = 20, c = 'w', edgecolor = 'face', label = 'Mode Predictions')
     plt.xlim((-x_lim, x_lim))
     plt.ylim((-y_lim, y_lim))

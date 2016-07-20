@@ -75,7 +75,7 @@ def solve_posdef(A, b, cholthresh=1e-5):
 
     # Try cholesky for speed
     try:
-        lower = False
+        lower = True
         L = cholesky(A, lower=lower)
         if np.any(L.diagonal() < cholthresh):
             raise LinAlgError("Unstable cholesky factor detected")
