@@ -8,6 +8,13 @@ import numpy as np
 from scipy.linalg import cholesky, cho_solve, svd, LinAlgError
 
 
+def log_gaussian_density(x, mu, sigma):
+
+    b, log_det_sigma = solve_posdef(sigma, x - mu)
+    const = x.shape[0] * np.log(2 * np.pi) # Can remove if needed
+    return -0.5 * (np.dot(x - mu, b) + log_det_sigma + const)
+
+
 def cho_log_det(L):
     """
     Compute the log of the determinant of :math:`A`, given its (upper or lower)

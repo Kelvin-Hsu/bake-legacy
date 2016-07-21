@@ -17,13 +17,18 @@ def main():
     z = utils.data.joint_data(x, y)
 
     # Learn the embedding using the joint samples
-    hyper_min = ([0.01], [0.01], [0.00], [0.00])
-    hyper_max = ([7.00], [5.00], [1e-7], [1e-4])
-    hyper_init = None # ([2.0], [0.5], [1e-8], [1e-8])
-    yx = utils.data.joint_data(y, x)
-    theta_x, theta_y, zeta, sigma = bake.learn.conditional_embedding(x, y, yx,
-        bake.kernels.dist(y, y),
-        hyper_min, hyper_max, t_init_tuple = hyper_init, n = 2500)
+    # hyper_min = ([0.01], [0.01], [0.08], [1e-3])
+    # hyper_max = ([7.00], [5.00], [0.08], [1e-3])
+    # hyper_init = None # ([2.0], [0.5], [1e-8], [1e-8])
+    # yx = utils.data.joint_data(y, x)
+    # theta_x, theta_y, zeta, sigma = bake.learn.conditional_embedding(x, y, yx,
+    #     bake.kernels.dist(y, y),
+    #     hyper_min, hyper_max, t_init_tuple = hyper_init, n = 2500)
+    theta_x = np.array([3.0])
+    theta_y = np.array([0.6])
+    zeta = 0.1
+    for sigma in np.logspace(-10, 2, 100):
+        print(bake.learn.conditional_nlml(x, y, utils.data.joint_data(y, x), bake.kernels.dist(y, y), theta_x, theta_y, zeta, np.array([sigma])))
     theta = np.append(theta_x, theta_y)
 
     # This is the optimal joint embedding
@@ -41,7 +46,7 @@ def main():
 
     # Find the modes of the conditional embedding
     x_modes, y_modes = bake.infer.conditional_modes(mu_yx_optimal, xq, 
-        [-y_lim], [+y_lim], n_modes = 4)
+        [-y_lim], [+y_lim], n_modes = 3)
 
     # Create joint query points from the query space
     zq = utils.data.joint_data(xq_grid, yq_grid)
@@ -74,6 +79,7 @@ def main():
     # Plot the conditional embedding
     plt.figure(2)
     plt.pcolormesh(xq_grid, yq_grid, mu_yqxq_optimal, vmin = vmin, vmax = vmax)
+    plt.colorbar()
     plt.scatter(x.ravel(), y.ravel(), c = 'k', label = 'Training Data')
     plt.scatter(x_modes_points, y_modes_points,
         s = 20, c = 'w', edgecolor = 'face', label = 'Mode Predictions')

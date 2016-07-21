@@ -10,7 +10,7 @@ import numpy as np
 from .kernels import gaussian
 from .linalg import solve_posdef
 from .kbr import posterior_fields
-from .optimize import local_optimisation
+from .optimize import local_optimization
 
 
 def uniform_weights(x):

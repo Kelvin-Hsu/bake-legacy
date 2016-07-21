@@ -6,8 +6,8 @@ def generate_two_waves(n=80, noise_level=0.2, seed=None):
         np.random.seed(seed)
 
     x = 10 * np.random.rand(n, 1) - 5
-    y1 = np.sin(x) + 1.0
-    y2 = 1.2 * np.cos(x) - 2.0
+    y1 = np.sin(x/3) + 1.0
+    y2 = 1.2 * np.cos(x/3) - 2.0
     y = 0 * x
     ind = np.random.choice(np.arange(x.shape[0]), size=(2, int(n / 2)), replace=False)
     y[ind[0]] = y1[ind[0]]
