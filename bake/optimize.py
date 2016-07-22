@@ -15,16 +15,16 @@ def sample_optimization(objective, t_min, t_max, n_samples=1000):
     objective : callable
         The objective function to be minimized
     t_min : numpy.ndarray
-        The minimum bound on the input (m,)
+        The minimum bound on the input (d,)
     t_max : numpy.ndarray
-        The maximum bound on the input (m,)
+        The maximum bound on the input (d,)
     n_samples : int, optional
         The number of sample points to use
 
     Returns
     -------
     numpy.ndarray
-        The optimal input parameters (m,)
+        The optimal input parameters (d,)
     float
         The optimal objective value
     """
@@ -65,16 +65,16 @@ def local_optimization(objective, t_min, t_max, t_init):
     objective : callable
         The objective function to be minimized
     t_min : numpy.ndarray
-        The minimum bound on the input (m,)
+        The minimum bound on the input (d,)
     t_max : numpy.ndarray
-        The maximum bound on the input (m,)
+        The maximum bound on the input (d,)
     t_init : numpy.ndarray
-        The initial value of the input (m,)
+        The initial value of the input (d,)
 
     Returns
     -------
     numpy.ndarray
-        The optimal input parameters (m,)
+        The optimal input parameters (d,)
     float
         The optimal objective value
     """
@@ -107,16 +107,16 @@ def explore_optimization(objective, t_min, t_max, n_samples=1000):
     objective : callable
         The objective function to be minimized
     t_min : numpy.ndarray
-        The minimum bound on the input (m,)
+        The minimum bound on the input (d,)
     t_max : numpy.ndarray
-        The maximum bound on the input (m,)
+        The maximum bound on the input (d,)
     n_samples : int, optional
         The number of sample points to use
 
     Returns
     -------
     numpy.ndarray
-        The optimal input parameters (m,)
+        The optimal input parameters (d,)
     float
         The optimal objective value
     """
@@ -140,9 +140,9 @@ def multi_explore_optimization(objective, t_min, t_max,
     objective : callable
         The objective function to be minimized
     t_min : numpy.ndarray
-        The minimum bound on the input (m,)
+        The minimum bound on the input (d,)
     t_max : numpy.ndarray
-        The maximum bound on the input (m,)
+        The maximum bound on the input (d,)
     n_samples : int, optional
         The number of sample points to use
     n_repeat : int, optional
@@ -151,7 +151,7 @@ def multi_explore_optimization(objective, t_min, t_max,
     Returns
     -------
     numpy.ndarray
-        The optimal input parameters (m,)
+        The optimal input parameters (d,)
     float
         The optimal objective value
     """
@@ -192,7 +192,7 @@ def pack(t_tuple):
         The locations of where the array is to be split when unpacking
     """
     t = np.concatenate(t_tuple)
-    t_sizes = [t_.shape[0] for t_ in t_tuple]
+    t_sizes = [len(t_) for t_ in t_tuple]
     t_breaks = np.cumsum(t_sizes)
     t_indices = np.split(np.arange(t_breaks[-1]), t_breaks)[:-1] # list
     return t, t_indices
@@ -268,17 +268,16 @@ def hyper_opt(f, data, hyper_min, hyper_max,
         A tuple of arrays or lists representing the hyper upper bound
     hyper_init : tuple, optional
         A tuple of arrays or lists representing the initial hyperparameters
-    n_samples :
-    n_repeat
+    n_samples : int, optional
+        The number of sample points to use if sample optimization is involved
+    n_repeat : int, optional
+        The number of multiple explore optimisation to be performed if involved
 
     Returns
     -------
-
+    tuple
+        A tuple of arrays representing the optimal hyperparameters
     """
-    # Make sure the hyper tuples are in the correct format
-    hyper_min = tuple([np.array(a) for a in hyper_min])
-    hyper_max = tuple([np.array(a) for a in hyper_max])
-
     # Pack the hyper tuples into hyper arrays for optimization
     if hyper_init is None:
         t_min, t_max, t_indices = multi_pack(hyper_min, hyper_max)

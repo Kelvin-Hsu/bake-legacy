@@ -10,7 +10,28 @@ from .optimize import hyper_opt as _hyper_opt
 
 
 def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
+    """
+    Compute the nuclear dominant and inferior gram matrices.
 
+    This implementation assumes a Gaussian kernel and a
+    Gaussian nuclear measure.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The collected data (n, d)
+    theta : numpy.ndarray
+        Hyperparameters of the dominant Gaussian kernel k [(d,), (1,), 1]
+    psi : numpy.ndarray
+        Hyperparameters of the nuclear Gaussian measure nu [(d,), (1,), 1]
+
+    Returns
+    -------
+    numpy.ndarray
+        The nuclear dominant gram matrix k (n, n)
+    numpy.ndarray
+        The nuclear inferior gram matrix r (n, n)
+    """
     # Compute the normalised squared distance for the dominant kernel
     dx = x/theta
     dxx = cdist(dx, dx, 'sqeuclidean')
@@ -42,7 +63,32 @@ def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
 
 
 def joint_nlml(theta, psi, sigma, data):
+    """
+    Compute the negative log marginal likelihood for a joint embedding.
 
+    This implementation assumes a Gaussian kernel and a
+    Gaussian nuclear measure.
+
+    Parameters
+    ----------
+    theta : numpy.ndarray
+        Hyperparameters of the Gaussian kernel k [(d,), (1,), 1]
+    psi : numpy.ndarray
+        Hyperparameters of the nuclear Gaussian measure nu [(d,), (1,), 1]
+    sigma : numpy.ndarray
+        Noise level in the embedding likelihood model [(n,), (1,), 1]
+        Use an array of n values to represent heteroscedasticity, or a single
+        value to represent homoscedasticity
+    data : tuple
+        Cached data that does not vary with the hyperparameters
+        Here the cache is (x,) where x is the collected data of size (n, d)
+
+    Returns
+    -------
+    float
+        The negative log marginal likelihood for a joint embedding.
+    """
+    # Obtain the data
     x, = data
 
     # Compute the dominant and inferior kernel gramices
@@ -52,68 +98,156 @@ def joint_nlml(theta, psi, sigma, data):
     mu = kxx.mean(axis = 0)
 
     # Compute the regularised inferior kernel gramix
-    rxx_reg = rxx + (sigma ** 2) * np.eye(x.shape[0])
+    n, = x.shape
+    rxx_reg = rxx + np.diag(sigma ** 2) * np.eye(n)
 
-    # Compute the correction factor for the log marginal likelihood
+    # Compute the final log correction factor for the log marginal likelihood
     log_gamma = 0.5 * np.sum([np.log(np.sum((np.sum(kxx[:, [j]] * (x - x[j, :]), 
-        axis = 0) / (theta ** 2)) ** 2)) for j in np.arange(x.shape[0])])
+        axis = 0) / (theta ** 2)) ** 2)) for j in np.arange(n)])
 
     # Compute the negative log marginal likelihood
     return - _log_gaussian_density(mu, 0, rxx_reg) - log_gamma
 
 
 def conditional_nlml(theta_x, theta_y, zeta, psi, sigma, data):
+    """
+    Compute the negative log marginal likelihood for a conditional embedding.
 
+    Parameters
+    ----------
+    theta_x : numpy.ndarray
+        Hyperparameters of the Gaussian kernel k on x [(d_x,), (1,), 1]
+    theta_y : numpy.ndarray
+        Hyperparameters of the Gaussian kernel k on y [(d_y,), (1,), 1]
+    zeta : float
+        The regularization parameter for the conditional embedding
+    psi : numpy.ndarray
+        Hyperparameters of the nuclear Gaussian measure nu
+        [(d_y + d_x,), (1,), 1]
+    sigma : numpy.ndarray
+        Noise level in the embedding likelihood model [(n,), (1,), 1]
+        Use an array of n values to represent heteroscedasticity, or a single
+        value to represent homoscedasticity
+     data : tuple
+        Cached data that does not vary with the hyperparameters
+        Here the cache is (x, y, yx, dist_y) where:
+        x is the collected data of size (n, d_x)
+        y is the collected data of size (n, d_y)
+        yx is the joint collected data of size (n, d_y + d_x)
+        dist_y is the collection of all paired differences in y
+        dist_y = bake.kernels.dist(y, y)
+
+    Returns
+    -------
+    float
+        The negative log marginal likelihood for a conditional embedding.
+    """
+    # Obtain the data and cache
     x, y, yx, dist_y = data
 
+    # Compute the identity
     n = yx.shape[0]
     identity = np.eye(n)
 
+    # Compute the gramix in x
     dx = x / theta_x
     dxx = cdist(dx, dx, 'sqeuclidean')
     kxx = np.exp(-0.5 * dxx)
 
+    # Compute teh gramix in y
     dy = y / theta_y
     dyy = cdist(dy, dy, 'sqeuclidean')
     kyy = np.exp(-0.5 * dyy)
 
+    # Define the kernel gradient for the i-th data point (d, n)
     def kernel_grad(i):
-        # m x n
         return (- dist_y[i] / (theta_y ** 2)).T * kyy[i, :]
 
+    # Compute the conditional embedding weights
     w, _ = _solve_posdef(kxx + (zeta ** 2) * identity, kxx)
 
+    # Define the conditional embedding gradient for the i-th data point (d, 1)
     def embedding_grad(i):
-        # m x 1
         return np.dot(kernel_grad(i), w[:, [i]])
 
-    # m x n
+    # Compute the embedding gradients over all data points (d, n)
     embedding_grads = np.array([embedding_grad(i).T[0] for i in np.arange(n)]).T
 
-    # n
+    # Sum over the component dimension of the squared embedding gradients (n,)
     sum_sq_embedding_grads = np.sum(embedding_grads ** 2, axis = 0)
 
-    # log gamma term!
+    # Compute the final log correction factor for the log marginal likelihood
     log_gamma =  0.5 * np.sum(np.log(sum_sq_embedding_grads))
 
+    # Compute the inferior kernel of the joint embedding
     _, rzz = nuclear_dominant_inferior_kernel_pair(yx,
                                                    np.append(theta_y, theta_x),
                                                    psi)
-    rzz_reg = rzz + np.diag(sigma ** 2) * identity
 
-    mu_yx = np.dot(kyy, w).diagonal() # np.einsum('ij,ji->i', kyy, w)
+    # Regularize the inferior kernel
+    rzz_reg = rzz + (sigma ** 2) * identity
 
+    # Compute the joint embedding at the data points
+    mu_yx = np.einsum('ij,ji->i', kyy, w)
+
+    # Compute the negative log marginal likelihood
     return - _log_gaussian_density(mu_yx, 0, rzz_reg) - log_gamma
 
 
-def embedding(x, hyper_min, hyper_max, **kwargs):
+def optimal_joint_embedding(x, hyper_min, hyper_max, **kwargs):
+    """
+    Learn the optimal hyperparameters for a joint embedding.
 
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The joint samples (n, d)
+    hyper_min : tuple
+        A tuple of arrays or lists representing the hyper lower bound
+    hyper_max : tuple
+        A tuple of arrays or lists representing the hyper upper bound
+    hyper_init : tuple, optional
+        A tuple of arrays or lists representing the initial hyperparameters
+    n_samples : int, optional
+        The number of sample points to use if sample optimization is involved
+    n_repeat : int, optional
+        The number of multiple explore optimisation to be performed if involved
+
+    Returns
+    -------
+    tuple
+        A tuple of arrays representing the optimal hyperparameters
+    """
     return _hyper_opt(joint_nlml, (x,), hyper_min, hyper_max, **kwargs)
 
 
-def conditional_embedding(x, y, hyper_min, hyper_max, **kwargs):
+def optimal_conditional_embedding(x, y, hyper_min, hyper_max, **kwargs):
+    """
+    Learn the optimal hyperparameters for a conditional embedding.
 
-    yx = np.vstack((x.ravel(), y.ravel())).T
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The input samples (n, d_x)
+    y : numpy.ndarray
+        The output samples (n, d_y)
+    hyper_min : tuple
+        A tuple of arrays or lists representing the hyper lower bound
+    hyper_max : tuple
+        A tuple of arrays or lists representing the hyper upper bound
+    hyper_init : tuple, optional
+        A tuple of arrays or lists representing the initial hyperparameters
+    n_samples : int, optional
+        The number of sample points to use if sample optimization is involved
+    n_repeat : int, optional
+        The number of multiple explore optimisation to be performed if involved
+
+    Returns
+    -------
+    tuple
+        A tuple of arrays representing the optimal hyperparameters
+    """
+    yx = np.vstack((y.ravel(), x.ravel())).T
     dist_y = _dist(y, y)
     return _hyper_opt(conditional_nlml, (x, y, yx, dist_y),
                       hyper_min, hyper_max, **kwargs)
