@@ -2,8 +2,8 @@
 Bayesian Learning for Kernel Embeddings Module.
 """
 import numpy as np
-from scipy.spatial.distance import cdist
-from .kernels import dist as _dist
+from scipy.spatial.distance import cdist as _cdist
+from .linalg import dist as _dist
 from .linalg import solve_posdef as _solve_posdef
 from .linalg import log_gaussian_density as _log_gaussian_density
 from .optimize import hyper_opt as _hyper_opt
@@ -33,8 +33,8 @@ def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
         The nuclear inferior gram matrix r (n, n)
     """
     # Compute the normalised squared distance for the dominant kernel
-    dx = x/theta
-    dxx = cdist(dx, dx, 'sqeuclidean')
+    d_x = x/theta
+    d_xx = _cdist(d_x, d_x, 'sqeuclidean')
 
     # Compute the length scale of the inferior kernel
     half_theta_sq = 0.5 * theta ** 2
@@ -42,10 +42,10 @@ def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
     theta_inferior = np.sqrt(half_theta_sq + psi_sq)
 
     # Compute the normalised distance for the inferior kernel
-    dz = x / theta_inferior
+    d_z = x / theta_inferior
 
     # Compute the normalised squared distance for the inferior kernel
-    dzz = 0.25 * dxx + 0.125 * cdist(dz, -dz, 'sqeuclidean')
+    d_zz = 0.25 * d_xx + 0.125 * _cdist(d_z, -d_z, 'sqeuclidean')
 
     # Compute the sensitivity of the inferior kernel
     d = x.shape[1]
@@ -53,13 +53,13 @@ def nuclear_dominant_inferior_kernel_pair(x, theta, psi):
     s = np.sqrt(((2 * np.pi) ** d) * det_theta_inf)
 
     # Compute the dominant kernel gramix
-    kxx = np.exp(-0.5 * dxx)
+    k_xx = np.exp(-0.5 * d_xx)
 
     # Compute the inferior kernel gramix
-    rxx = s * np.exp(-dzz)
+    r_xx = s * np.exp(-d_zz)
 
     # Return the nuclear dominant and inferior kernel pair
-    return kxx, rxx
+    return k_xx, r_xx
 
 
 def joint_nlml(theta, psi, sigma, data):
@@ -92,21 +92,21 @@ def joint_nlml(theta, psi, sigma, data):
     x, = data
 
     # Compute the dominant and inferior kernel gramices
-    kxx, rxx = nuclear_dominant_inferior_kernel_pair(x, theta, psi)
+    k_xx, r_xx = nuclear_dominant_inferior_kernel_pair(x, theta, psi)
 
     # Compute the empirical embedding evaluated at the training points
-    mu = kxx.mean(axis = 0)
+    mu = k_xx.mean(axis = 0)
 
     # Compute the regularised inferior kernel gramix
     n, = x.shape
-    rxx_reg = rxx + np.diag(sigma ** 2) * np.eye(n)
+    r_xx_reg = r_xx + np.diag(sigma ** 2) * np.eye(n)
 
     # Compute the final log correction factor for the log marginal likelihood
-    log_gamma = 0.5 * np.sum([np.log(np.sum((np.sum(kxx[:, [j]] * (x - x[j, :]), 
+    log_gamma = 0.5 * np.sum([np.log(np.sum((np.sum(k_xx[:, [j]] * (x - x[j, :]),
         axis = 0) / (theta ** 2)) ** 2)) for j in np.arange(n)])
 
     # Compute the negative log marginal likelihood
-    return - _log_gaussian_density(mu, 0, rxx_reg) - log_gamma
+    return - _log_gaussian_density(mu, 0, r_xx_reg) - log_gamma
 
 
 def conditional_nlml(theta_x, theta_y, zeta, psi, sigma, data):
@@ -128,7 +128,7 @@ def conditional_nlml(theta_x, theta_y, zeta, psi, sigma, data):
         Noise level in the embedding likelihood model [(n,), (1,), 1]
         Use an array of n values to represent heteroscedasticity, or a single
         value to represent homoscedasticity
-     data : tuple
+    data : tuple
         Cached data that does not vary with the hyperparameters
         Here the cache is (x, y, yx, dist_y) where:
         x is the collected data of size (n, d_x)
@@ -150,21 +150,21 @@ def conditional_nlml(theta_x, theta_y, zeta, psi, sigma, data):
     identity = np.eye(n)
 
     # Compute the gramix in x
-    dx = x / theta_x
-    dxx = cdist(dx, dx, 'sqeuclidean')
-    kxx = np.exp(-0.5 * dxx)
+    d_x = x / theta_x
+    d_xx = _cdist(d_x, d_x, 'sqeuclidean')
+    k_xx = np.exp(-0.5 * d_xx)
 
     # Compute teh gramix in y
-    dy = y / theta_y
-    dyy = cdist(dy, dy, 'sqeuclidean')
-    kyy = np.exp(-0.5 * dyy)
+    d_y = y / theta_y
+    d_yy = _cdist(d_y, d_y, 'sqeuclidean')
+    k_yy = np.exp(-0.5 * d_yy)
 
     # Define the kernel gradient for the i-th data point (d, n)
     def kernel_grad(i):
-        return (- dist_y[i] / (theta_y ** 2)).T * kyy[i, :]
+        return (- dist_y[i] / (theta_y ** 2)).T * k_yy[i, :]
 
     # Compute the conditional embedding weights
-    w, _ = _solve_posdef(kxx + (zeta ** 2) * identity, kxx)
+    w, _ = _solve_posdef(k_xx + (zeta ** 2) * identity, k_xx)
 
     # Define the conditional embedding gradient for the i-th data point (d, 1)
     def embedding_grad(i):
@@ -180,18 +180,18 @@ def conditional_nlml(theta_x, theta_y, zeta, psi, sigma, data):
     log_gamma =  0.5 * np.sum(np.log(sum_sq_embedding_grads))
 
     # Compute the inferior kernel of the joint embedding
-    _, rzz = nuclear_dominant_inferior_kernel_pair(yx,
-                                                   np.append(theta_y, theta_x),
-                                                   psi)
+    _, r_zz = nuclear_dominant_inferior_kernel_pair(yx,
+                                                    np.append(theta_y, theta_x),
+                                                    psi)
 
     # Regularize the inferior kernel
-    rzz_reg = rzz + (sigma ** 2) * identity
+    r_zz_reg = r_zz + (sigma ** 2) * identity
 
     # Compute the joint embedding at the data points
-    mu_yx = np.einsum('ij,ji->i', kyy, w)
+    mu_yx = np.einsum('ij,ji->i', k_yy, w)
 
     # Compute the negative log marginal likelihood
-    return - _log_gaussian_density(mu_yx, 0, rzz_reg) - log_gamma
+    return - _log_gaussian_density(mu_yx, 0, r_zz_reg) - log_gamma
 
 
 def optimal_joint_embedding(x, hyper_min, hyper_max, **kwargs):

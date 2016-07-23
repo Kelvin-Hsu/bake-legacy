@@ -7,55 +7,65 @@ is implemented in the learning module is done with the Gaussian kernel only for
 the time being.
 """
 import numpy as np
-from .kernels import gaussian
-from .linalg import solve_posdef
-from .kbr import posterior_fields
-from .optimize import local_optimization
+from .kernels import gaussian as _gaussian
+from .linalg import solve_posdef as _solve_posdef
+from .kbr import posterior_fields as _posterior_fields
+from .optimize import local_optimization as _local_optimization
 
 
-def uniform_weights(x):
+def uniform_weights(n):
     """
     Obtain uniform weights on a given dataset.
 
     Parameters
     ----------
-    x : numpy.ndarray
-        The dataset to place the uniform weights on (n x m)
+    n : int
+        The number of data points to place the uniform weights on
 
     Returns
     -------
     numpy.ndarray
-        Weights on each data point. Default weights are uniform weights (n)
+        Uniform weights on each data point
     """
-    return np.ones((x.shape[0], 1)) / x.shape[0]
+    return np.ones((n, 1)) / n
 
 
-def embedding(x, theta, w=None, k=gaussian):
+def embedding(x, theta, w=None, k=_gaussian):
     """
     Obtain empirical embedding on a given dataset.
 
     Parameters
     ----------
     x : numpy.ndarray
-        The dataset to be used for generating the embedding (n x m)
+        The dataset to be used for generating the embedding (n, d)
     theta : numpy.ndarray
-        Hyperparameters of the kernel (m)
+        Hyperparameters of the kernel (d,)
     w : numpy.ndarray, optional
-        Weights on each data point. Default weights are uniform weights (n)
-    k : function
+        Weights on each data point. Default weights are uniform weights (n,)
+    k : function, optional
         Kernel functions from the kernels module. Default is a Gaussian kernel
 
     Returns
     -------
-    function
-        The empirical embedding with feature maps on each data point.
+    callable
+        The empirical embedding with feature maps on each data point
+
+        Parameters
+        ----------
+        x_q : numpy.ndarray
+            The query points where the embedding is to be evaluated at (n_q, d)
+
+        Returns
+        -------
+        numpy.ndarray
+            The embedding evaluated at the query points (n_q, 1)
     """
     w = uniform_weights(x) if w is None else w
-    return lambda xq: np.dot(k(xq, x, theta), w)
+    return lambda x_q: np.dot(k(x_q, x, theta), w)
 
 
-def conditional_weights(x, y, theta_x, theta_y, xq,
-                        zeta=0, k_x=gaussian, k_xx=None):
+def conditional_weights(x, y, theta_x, theta_y, x_q,
+                        zeta=0, k_x=_gaussian, k_xx=None):
     """
     Obtain the empirical conditional embedding on a given dataset.
 
@@ -64,15 +74,15 @@ def conditional_weights(x, y, theta_x, theta_y, xq,
     Parameters
     ----------
     x : numpy.ndarray
-        The collected dataset of the input covariates (n x n_x_dims)
+        The collected dataset of the input covariates (n, d_x)
     y : numpy.ndarray
-        The collected dataset of the output targets (n x n_y_dims)
+        The collected dataset of the output targets (n, d_y)
     theta_x : numpy.ndarray
-        Hyperparameters that parametrises the kernel on x (n_x_dims)
+        Hyperparameters that parametrises the kernel on x (d_x,)
     theta_y : numpy.ndarray
-        Hyperparameters that parametrises the kernel on y (n_y_dims)
-    xq : numpy.ndarray
-        The query inputs (n_query x n_x_dims)
+        Hyperparameters that parametrises the kernel on y (d_y,)
+    x_q : numpy.ndarray
+        The query inputs (n_q, d_x)
     zeta : float
         The regularisation parameter, interpreted as the likelihood noise level
     k_x : function, optional
@@ -87,11 +97,11 @@ def conditional_weights(x, y, theta_x, theta_y, xq,
     """
     k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
     k_xx_reg = k_xx + zeta ** 2 * np.eye(x.shape[0])
-    return solve_posdef(k_xx_reg, k_x(x, xq, theta_x))[0]
+    return _solve_posdef(k_xx_reg, k_x(x, x_q, theta_x))[0]
 
 
 def conditional_embedding(x, y, theta_x, theta_y,
-                          zeta=0, k_x=gaussian, k_y=gaussian, k_xx=None):
+                          zeta=0, k_x=_gaussian, k_y=_gaussian, k_xx=None):
     """
     Obtain the empirical conditional embedding on a given dataset.
 
@@ -100,13 +110,13 @@ def conditional_embedding(x, y, theta_x, theta_y,
     Parameters
     ----------
     x : numpy.ndarray
-        The collected dataset of the input covariates (n x n_x_dims)
+        The collected dataset of the input covariates (n, d_x)
     y : numpy.ndarray
-        The collected dataset of the output targets (n x n_y_dims)
+        The collected dataset of the output targets (n, d_y)
     theta_x : numpy.ndarray
-        Hyperparameters that parametrises the kernel on x (n_x_dims)
+        Hyperparameters that parametrises the kernel on x (d_x,)
     theta_y : numpy.ndarray
-        Hyperparameters that parametrises the kernel on y (n_y_dims)
+        Hyperparameters that parametrises the kernel on y (d_y,)
     zeta : float
         The regularisation parameter, interpreted as the likelihood noise level
     k_x : function, optional
@@ -121,15 +131,15 @@ def conditional_embedding(x, y, theta_x, theta_y,
     function
         The conditional embedding of Y | X, to be evaluated at (y, x)
     """
-    w_func = lambda xq: conditional_weights(x, y, theta_x, theta_y, xq,
+    w_func = lambda x_q: conditional_weights(x, y, theta_x, theta_y, x_q,
                                             zeta=zeta, k_x=k_x, k_xx=k_xx)
-    return lambda yq, xq: np.dot(k_y(yq, y, theta_y), w_func(xq))
+    return lambda yq, x_q: np.dot(k_y(yq, y, theta_y), w_func(x_q))
 
 
-def posterior_weights(prior_embedding, x, y, theta_x, theta_y, xq,
+def posterior_weights(prior_embedding, x, y, theta_x, theta_y, x_q,
                       epsil=0, delta=0,
                       kbr='tikhonov',
-                      k_x=gaussian, k_y=gaussian,
+                      k_x=_gaussian, k_y=_gaussian,
                       k_xx=None, k_yy=None,
                       v=None):
     """
@@ -140,13 +150,13 @@ def posterior_weights(prior_embedding, x, y, theta_x, theta_y, xq,
     prior_embedding : function
         The prior embedding on y
     x : numpy.ndarray
-        The collected dataset of the input covariates (n)
+        The collected dataset of the input covariates (n,)
     y : numpy.ndarray
-        The collected dataset of the output targets (n)
+        The collected dataset of the output targets (n,)
     theta_x : numpy.ndarray
-        Hyperparameters that parametrises the kernel on x (m)
+        Hyperparameters that parametrises the kernel on x (d_x,)
     theta_y : numpy.ndarray
-        Hyperparameters that parametrises the kernel on y (m)
+        Hyperparameters that parametrises the kernel on y (d_y,)
     epsil : float, optional
         The regularisation parameter for the prior
         This is not needed if v is already supplied
@@ -177,14 +187,14 @@ def posterior_weights(prior_embedding, x, y, theta_x, theta_y, xq,
     if v is None:
         k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
         k_yy = k_y(y, y, theta_y) if not k_yy else k_yy
-        v = posterior_fields[kbr](prior_embedding(y), k_xx, k_yy, epsil, delta)
-    return np.dot(v, k_x(x, xq, theta_x))
+        v = _posterior_fields[kbr](prior_embedding(y), k_xx, k_yy, epsil, delta)
+    return np.dot(v, k_x(x, x_q, theta_x))
 
 
 def posterior_embedding(prior_embedding, x, y, theta_x, theta_y,
                         epsil=0, delta=0,
                         kbr='tikhonov',
-                        k_x=gaussian, k_y=gaussian,
+                        k_x=_gaussian, k_y=_gaussian,
                         k_xx=None, k_yy=None,
                         v=None):
     """
@@ -195,13 +205,13 @@ def posterior_embedding(prior_embedding, x, y, theta_x, theta_y,
     prior_embedding : function
         The prior embedding on y
     x : numpy.ndarray
-        The collected dataset of the input covariates (n)
+        The collected dataset of the input covariates (n,)
     y : numpy.ndarray
-        The collected dataset of the output targets (n)
+        The collected dataset of the output targets (n,)
     theta_x : numpy.ndarray
-        Hyperparameters that parametrises the kernel on x (m)
+        Hyperparameters that parametrises the kernel on x (d_x,)
     theta_y : numpy.ndarray
-        Hyperparameters that parametrises the kernel on y (m)
+        Hyperparameters that parametrises the kernel on y (d_y,)
     epsil : float, optional
         The regularisation parameter for the prior
         This is not needed if v is already supplied
@@ -229,18 +239,14 @@ def posterior_embedding(prior_embedding, x, y, theta_x, theta_y,
     function
         The posterior embedding of Y | X, to be evaluated at (y, x)
     """
-    w_func = lambda xq: posterior_weights(prior_embedding, x, y,
-                                          theta_x, theta_y, xq,
+    w_func = lambda x_q: posterior_weights(prior_embedding, x, y,
+                                          theta_x, theta_y, x_q,
                                           epsil=epsil, delta=delta,
                                           kbr=kbr,
                                           k_x=k_x, k_y=k_y,
                                           k_xx=k_xx, k_yy=k_yy,
                                           v=v)
-    return lambda yq, xq: np.dot(k_y(yq, y, theta_y), w_func(xq))
-
-
-def evaluate_embedding(zq, z, theta, w, k=gaussian):
-    return np.dot(k(zq, z, theta), w)
+    return lambda yq, x_q: np.dot(k_y(yq, y, theta_y), w_func(x_q))
 
 
 def mode(mu, xv_start, xv_min, xv_max):
@@ -255,16 +261,16 @@ def mode(mu, xv_start, xv_min, xv_max):
     mu : function
         The kernel embedding
     xv_start : numpy.ndarray
-        The starting location for which mode searching begins (n_dims)
+        The starting location for which mode searching begins (d_x,)
     xv_min : numpy.ndarray
-        The lower bound of the rectangular search region (n_dims)
+        The lower bound of the rectangular search region (d_x,)
     xv_max : numpy.ndarray
-        The upper bound of the rectangular search region (n_dims)
+        The upper bound of the rectangular search region (d_x,)
 
     Returns
     -------
     numpy.ndarray
-        The mode location (n_dims)
+        The mode location (n_dims,)
     """
     # Define the objective to be minimised
     # For stationary kernels, the objective to optimise can be reduced to simply
@@ -273,9 +279,9 @@ def mode(mu, xv_start, xv_min, xv_max):
         return -mu(np.array([xvq]))[0][0]
 
     # Find the mode
-    x_mode, f_mode = local_optimisation(objective, xv_min, xv_max, xv_start)
+    x_mode, f_mode = _local_optimization(objective, xv_min, xv_max, xv_start)
 
-    # Size: (n_dims)
+    # Size: (n_dims,)
     return x_mode
 
 
@@ -291,16 +297,16 @@ def multiple_modes(mu, xv_min, xv_max, n_modes = 10):
     mu : function
         The kernel embedding
     xv_min : numpy.ndarray
-        The lower bound of the rectangular search region (n_dims)
+        The lower bound of the rectangular search region (d_x,)
     xv_max : numpy.ndarray
-        The upper bound of the rectangular search region (n_dims)
+        The upper bound of the rectangular search region (d_x,)
     n_modes : int, optional
         The number of modes to search for (some of them will converge together)
 
     Returns
     -------
     numpy.ndarray
-        The mode locations (n_modes x n_dims)
+        The mode locations (n_modes, n_dims)
     """
     # Make sure these are arrays
     xv_min = np.array(xv_min)
@@ -312,12 +318,12 @@ def multiple_modes(mu, xv_min, xv_max, n_modes = 10):
     xv_start_list = (xv_max - xv_min) * standard_range + xv_min
 
     # Compute the modes
-    # Size: (n_modes x n_dims)
+    # Size: (n_modes, n_dims)
     return np.array([mode(mu, xv_start, xv_min, xv_max)
                      for xv_start in xv_start_list])
 
 
-def conditional_modes(mu_yx, xq, yv_min, yv_max, n_modes = 10):
+def conditional_modes(mu_yx, x_q, yv_min, yv_max, n_modes = 10):
     """
     Determine a conditional density mode (peak), given its kernel embedding.
 
@@ -328,21 +334,21 @@ def conditional_modes(mu_yx, xq, yv_min, yv_max, n_modes = 10):
     ----------
     mu : function
         The kernel embedding
-    xq : numpy.ndarray
-        The query points (n_query, n_x_dims)
+    x_q : numpy.ndarray
+        The query points (n_q, d_x)
     yv_min : numpy.ndarray
-        The lower bound of the rectangular search region (n_y_dims)
+        The lower bound of the rectangular search region (d_y,)
     yv_max : numpy.ndarray
-        The upper bound of the rectangular search region (n_y_dims)
+        The upper bound of the rectangular search region (d_y,)
     n_modes : int, optional
         The number of modes to search for at each query point
 
     Returns
     -------
     numpy.ndarray
-        The x coordinates of the mode locations (n_query x n_modes x n_x_dims)
+        The x coordinates of the mode locations (n_query, n_modes, n_x_dims)
     numpy.ndarray
-        The y coordinates of the mode locations (n_query x n_modes x n_y_dims)
+        The y coordinates of the mode locations (n_query, n_modes, n_y_dims)
     """
     # This finds the modes of a given embedding
     modes_of = lambda mu: multiple_modes(mu, yv_min, yv_max, n_modes = n_modes)
@@ -351,17 +357,18 @@ def conditional_modes(mu_yx, xq, yv_min, yv_max, n_modes = 10):
     modes_at = lambda x: modes_of(lambda yq: mu_yx(yq, x))
 
     # This computes the modes at all query points
-    # Size: (n_query x n_modes x n_dims)
-    y_modes = np.array([modes_at(x) for x in xq[:, np.newaxis]])
+    # Size: (n_query, n_modes, n_dims)
+    y_modes = np.array([modes_at(x) for x in x_q[:, np.newaxis]])
 
     # This returns the corresponding input coordinates for each mode
-    # Size: (n_query x n_modes x n_dims)
-    x_modes = np.repeat(xq[:, np.newaxis], n_modes, axis = 1)
+    # Size: (n_query, n_modes, n_dims)
+    x_modes = np.repeat(x_q[:, np.newaxis], n_modes, axis = 1)
 
     # Return the modes
-    # Size: (n_query x n_modes x n_x_dims)
-    # Size: (n_query x n_modes x n_y_dims)
+    # Size: (n_query, n_modes, n_x_dims)
+    # Size: (n_query, n_modes, n_y_dims)
     return x_modes, y_modes
+
 
 def kernels_bayes_average(g_y, w):
     """
@@ -370,67 +377,76 @@ def kernels_bayes_average(g_y, w):
     Parameters
     ----------
     g_y : numpy.ndarray
-        The function realisations at training outputs (n)
+        The function realisations at training outputs (n,)
     w : numpy.ndarray
-        The conditional or posterior weight matrix (n x n_query)
+        The conditional or posterior weight matrix (n, n_q)
 
     Returns
     -------
     numpy.ndarray
-        The average of the function at the query points (n_query)
+        The average of the function at the query points (n_q,)
     """
     return np.dot(g_y, w)
 
 
 def expectance(y, w):
     """
+    Obtain the expectance from an empirical embedding.
 
     Parameters
     ----------
     y : numpy.ndarray
-        The training outputs (n x n_y_dims)
+        The training outputs (n, d_y)
     w : numpy.ndarray
-        The conditional or posterior weight matrix (n x n_query)
+        The conditional or posterior weight matrix (n, n_q,)
 
     Returns
     -------
     numpy.ndarray
-        The conditional expected value of the output (n_y_dims x n_query)
+        The conditional expected value of the output (d_y, n_q,)
     """
     return np.dot(y.T, w)
 
 
 def variance(y, w):
     """
+    Obtain the variance from an empirical embedding.
 
     Parameters
     ----------
     y : numpy.ndarray
-        The training outputs (n x n_y_dims)
+        The training outputs (n, d_y)
     w : numpy.ndarray
-        The conditional or posterior weight matrix (n x n_query)
+        The conditional or posterior weight matrix (n, n_q)
 
     Returns
     -------
     numpy.ndarray
-        The conditional covariance value of the output (n_y_dims x n_query)
+        The conditional covariance value of the output (d_y, n_q)
     """
-    # w = normalise_weights(w)
-
-    # Compute the expectance (n_y_dims x n_query)
+    # Compute the expectance (d_y, n_q)
     yq_exp = np.dot(y.T, w)
 
-    # Compute the expectance of squares (n_y_dims x n_query)
+    # Compute the expectance of squares (d_y, n_q)
     yq_exp_sq = np.dot((y ** 2).T, w)
 
-    # Compute the variance (n_y_dims x n_query)
+    # Compute the variance (d_y, n_q)
     return yq_exp_sq - (yq_exp ** 2)
 
 
-def normalise_weights(w):
+def clip_normalise(w):
+    """
+    Use the clipping method to normalize weights.
 
+    Parameters
+    ----------
+    w : numpy.ndarray
+        The conditional or posterior weight matrix (n, n_q)
+
+    Returns
+    -------
+    numpy.ndarray
+        The clip-normalized conditional or posterior weight matrix (n, n_q)
+    """
     w_clip = np.clip(w, 0, np.inf)
-
-    w_clip_sum = np.sum(w_clip, axis = 0)
-
-    return w_clip / w_clip_sum
+    return w_clip / np.sum(w_clip, axis = 0)
