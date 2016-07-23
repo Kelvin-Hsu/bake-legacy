@@ -1,7 +1,7 @@
 """
 Linear Algebra Utility Module.
 
-.. note:: This is modified from revrand [http://github.com/nicta/revrand]
+.. note:: Initially modified from revrand [http://github.com/nicta/revrand]
 """
 
 import numpy as np

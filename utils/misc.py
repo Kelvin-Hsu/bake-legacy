@@ -1,7 +1,26 @@
+"""
+Miscellaneous Module.
+"""
 import time
 
-def time_module(module, *args, **kwargs):
 
+def time_module(module, *args, **kwargs):
+    """
+
+    Parameters
+    ----------
+    module : callable
+        The module to be timed.
+    args : args
+        The arguments of the module.
+    kwargs : kwargs
+        The keyword arguments of the module.
+
+    Returns
+    -------
+    tuple
+        The output(s) of the module and also the time taken to run the module
+    """
     t_start = time.clock()
     output = module(*args, **kwargs)
     t_finish = time.clock()

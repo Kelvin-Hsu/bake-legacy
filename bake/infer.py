@@ -11,6 +11,7 @@ from .kernels import gaussian as _gaussian
 from .linalg import solve_posdef as _solve_posdef
 from .kbr import posterior_fields as _posterior_fields
 from .optimize import local_optimization as _local_optimization
+from scipy.signal import argrelextrema as _argrelextrema
 
 
 def uniform_weights(n):
@@ -368,6 +369,41 @@ def conditional_modes(mu_yx, x_q, yv_min, yv_max, n_modes = 10):
     # Size: (n_query, n_modes, n_x_dims)
     # Size: (n_query, n_modes, n_y_dims)
     return x_modes, y_modes
+
+
+def search_modes_from_conditional_embedding(conditional_embedding_q, x_q, y_q):
+    """
+    Search for modes in the conditional density given a fully and densely
+    queried conditional embedding.
+
+    Parameters
+    ----------
+    conditional_embedding_q : numpy.ndarray
+        The fully and densely queried conditional embedding (n_y_q, n_x_q)
+    x_q : numpy.ndarray
+        The query points in x (n_x_q, d_x)
+    y_q : numpy.ndarray
+        The query points in y (n_y_q, d_y)
+
+    Returns
+    -------
+    list
+        The x locations of the modes in the conditional embedding
+        The y locations of the modes in the conditional embedding
+    """
+    n_y_q, n_x_q = conditional_embedding_q.shape
+    assert n_x_q == x_q.shape[0]
+    assert n_y_q == y_q.shape[0]
+    x_peaks = np.array([])
+    y_peaks = np.array([])
+
+    for i in range(n_x_q):
+        ind = _argrelextrema(conditional_embedding_q[:, i], np.greater)
+        for j in ind[0]:
+            x_peaks = np.append(x_peaks, x_q[i])
+            y_peaks = np.append(y_peaks, y_q[j])
+
+    return x_peaks, y_peaks
 
 
 def kernels_bayes_average(g_y, w):

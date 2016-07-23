@@ -1,69 +1,134 @@
+"""
+Data Module.
+
+Utility tools that deal with the generation and handling of data or its
+corresponding inferences.
+"""
 import numpy as np
 
 
-def generate_two_waves(n=80, noise_level=0.2, seed=None):
+def generate_uniform_data(n, d, l, u, seed=None):
+    """
+    Generate a uniformly distributed inputs.
+
+    Parameters
+    ----------
+    n : int
+        Number of points to generate
+    l : np.ndarray or float
+        The lower bound [(d,), (1,), 1]
+    u : np.ndarray or float
+        The upper bound [(d,), (1,), 1]
+    seed : int, optional
+        The randomization seed
+
+    Returns
+    -------
+    numpy.ndarray
+        The uniformly distributed data (n, d)
+    """
+    if seed:
+        np.random.seed(seed)
+    return (u - l) * np.random.rand(n, d) + l
+
+
+def generate_waves(x, w, p, a, b, noise_level=0.0, seed=None):
+    """
+    Generate functional realizations from multiple waves randomly.
+
+    This assumes that the input is 1 dimensional.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The input samples (n, 1)
+    w : numpy.ndarray
+        The frequencies of the waves [(n_waves,), (1,), 1]
+    p : numpy.ndarray
+        The phase shift of the waves [(n_waves,), (1,), 1]
+    a : numpy.ndarray
+        The magnitude of the waves [(n_waves,), (1,), 1]
+    b : numpy.ndarray
+        The bias of the waves [(n_waves,), (1,), 1]
+    noise_level : float, optional
+        The noise level to be applied
+    seed : int, optional
+        The randomization seed
+
+    Returns
+    -------
+    numpy.ndarray
+        The waves output (n, 1)
+    """
     if seed:
         np.random.seed(seed)
 
-    x = 10 * np.random.rand(n, 1) - 5
-    y1 = np.sin(x/3) + 1.0
-    y2 = 1.2 * np.cos(x/3) - 2.0
-    y = 0 * x
-    ind = np.random.choice(np.arange(x.shape[0]), size=(2, int(n / 2)), replace=False)
-    y[ind[0]] = y1[ind[0]]
-    y[ind[1]] = y2[ind[1]]
-    y += + noise_level * np.random.randn(*y.shape)
-    return x, y
+    w, p, a, b = np.array(w), np.array(p), np.array(a), np.array(b)
 
+    y = a * np.sin(w * x + p) + b
 
-def generate_one_wave(n=80, noise_level=0.2, seed=None):
-    if seed:
-        np.random.seed(seed)
-
-    # Generate some data
-    x = 10 * np.random.rand(n, 1) - 5
-    y = np.sin(x) + 1.0
-    y = y + noise_level * np.random.randn(*y.shape)
-    return x, y
+    n_waves, = w.shape if w.ndim == 1 else 1
+    n_points, _ = x.shape
+    pick = np.random.randint(0, n_waves, n_points)
+    y_true = y[np.arange(n_points), pick]
+    y_noise = (noise_level ** 2) * np.random.randn(n_points, 1)
+    return y_true + y_noise
 
 
 def joint_data(x, y):
+    """
+    Obtain joint data.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        Any form of collection of points in the x domain
+    y : numpy.ndarray
+        Any form of collection of points in the y domain
+
+    Returns
+    -------
+    numpy.ndarray
+        Joint data
+    """
     return np.vstack((x.ravel(), y.ravel())).T
 
 
-def generate_gaussian_mixture(n=10, d=1, locs=[], scales=[], seed=None):
-    # Set seed
+def generate_multiple_gaussian(n_each, d, locs, scales, seed=None):
+    """
+    Generate mixture data from a multiple Gaussians.
+
+    This is different to generating samples from a Gaussian mixture.
+
+    Parameters
+    ----------
+    n_each : int
+        Number of samples for each Gaussian
+    d : int
+        The dimensionality of the samples
+    locs : numpy.ndarray
+        The locations of the Gaussians (m, d); m is the number of Gaussians
+    scales : numpy.ndarray
+        The scales of the Gaussians (m, d); m is the number of Gaussians
+    seed : int, optional
+        The randomization seed
+
+    Returns
+    -------
+    numpy.ndarray
+        The resulting samples (n_each * m, d)
+    """
     if seed:
         np.random.seed(seed)
 
-    m = len(locs)
-    assert m == len(scales)
+    locs, scales = np.array(locs), np.array(scales)
+    assert locs.shape == scales.shape
+    assert d == locs.shape[1]
+    m, _= locs.shape
+    standard_sample = np.random.randn(n_each * m, d)
+    locs_apply = np.repeat(locs, n_each * np.ones(m).astype(int), axis=0)
+    scales_apply = np.repeat(scales, n_each * np.ones(m).astype(int), axis=0)
+    return scales_apply * standard_sample + locs_apply
 
-    samples = []
-
-    for i in range(n):
-        samples.append(np.array(scales[i % m]) * np.random.randn(d) + np.array(locs[i % m]))
-
-    return np.array(samples)
 
 
-def regressor_mode(mu_yqxq, xq_array, yq_array):
-    from scipy.signal import argrelextrema
-
-    # Assume xq_array and yq_array are just 1D arrays for now
-
-    n_y, n_x = mu_yqxq.shape
-
-    assert n_x == xq_array.shape[0]
-    assert n_y == yq_array.shape[0]
-
-    x_peaks = np.array([])
-    y_peaks = np.array([])
-
-    for i in range(n_x):
-        ind = argrelextrema(mu_yqxq[:, i], np.greater)
-        for j in ind[0]:
-            x_peaks = np.append(x_peaks, xq_array[i])
-            y_peaks = np.append(y_peaks, yq_array[j])
-
-    return x_peaks, y_peaks
