@@ -131,4 +131,12 @@ def generate_multiple_gaussian(n_each, d, locs, scales, seed=None):
     return scales_apply * standard_sample + locs_apply
 
 
+def generate_test_quadratic_problem(n, seed=None):
 
+    if seed:
+        np.random.seed(seed)
+
+    X = 10 * np.random.rand(n, n) - 5
+    A = np.dot(X.T, X)
+    b = 10 * np.random.rand(n) - 5
+    return A, b

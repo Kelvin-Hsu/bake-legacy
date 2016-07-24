@@ -5,7 +5,7 @@ Linear Algebra Utility Module.
 """
 
 import numpy as np
-from scipy.linalg import cholesky, cho_solve, svd, LinAlgError
+from scipy.linalg import cholesky, cho_solve, svd, solve_triangular, LinAlgError
 
 
 def dist(x_1, x_2):
@@ -191,3 +191,17 @@ def svd_solve(U, s, V, b, s_tol=1e-15):
         X = U2.dot(V2).dot(b)  # O(n^2 (m + n))
 
     return X
+
+
+def solve_unconstrained_quadratic(A, b):
+    return -solve_posdef(A, b)[0]
+
+def solve_positive_constrained_quadratic(A, b):
+    # THIS DOES NOT WORK
+    L = cholesky(A, lower=True)
+    v = -1 * solve_triangular(L, b, lower=True)
+    np.clip(v, 0, np.inf, out=v)
+    return solve_triangular(L.T, b, lower=False)
+
+
+

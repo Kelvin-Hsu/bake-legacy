@@ -1,1 +1,1 @@
-from . import learn, infer
+from . import learn, infer, kernels, kbr, linalg, optimize

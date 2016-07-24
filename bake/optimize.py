@@ -302,3 +302,14 @@ def hyper_opt(f, data, hyper_min, hyper_max,
 
     # Unpack the hyperparameters in the same format
     return unpack(t_opt, t_indices)
+
+
+def solve_positive_constrained_quadratic_iterative(A, b, x_init):
+
+    def objective(x):
+        return 0.5 * np.dot(x, np.dot(A, x)) + np.dot(b, x)
+
+    zeros = np.zeros(x_init.shape[0])
+    inf = np.inf * np.ones(x_init.shape[0])
+    x_opt, f_opt = local_optimization(objective, zeros, inf, x_init)
+    return x_opt

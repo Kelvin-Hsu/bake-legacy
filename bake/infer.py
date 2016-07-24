@@ -383,27 +383,10 @@ def conditional_modes(mu_yx, x_q, yv_min, yv_max, n_modes=10):
     Returns
     -------
     numpy.ndarray
-        The x coordinates of the mode locations (n_query, n_modes, n_x_dims)
+        The x coordinates of the mode locations (n_q, n_modes, d_x)
     numpy.ndarray
-        The y coordinates of the mode locations (n_query, n_modes, n_y_dims)
+        The y coordinates of the mode locations (n_q, n_modes, d_y)
     """
-    def modes_of(mu):
-        """
-        Find the modes of a given embedding.
-
-        Parameters
-        ----------
-        mu : callable
-            A given joint embedding.
-
-        Returns
-        -------
-        numpy.ndarray
-            The mode locations (n_modes, d_y)
-        """
-        return multiple_modes(mu, yv_min, yv_max, n_modes=n_modes)
-
-    # This finds the modes at the embedding conditioned at x
     def modes_at(x_query):
         """
         Find the modes at the embedding conditioned at x.
@@ -418,19 +401,20 @@ def conditional_modes(mu_yx, x_q, yv_min, yv_max, n_modes=10):
         numpy.ndarray
             The mode locations (n_modes, d_y)
         """
-        return modes_of(lambda y_q: mu_yx(y_q, x_query))
+        return multiple_modes(lambda y_q: mu_yx(y_q, x_query), yv_min, yv_max,
+                              n_modes=n_modes)
 
     # This computes the modes at all query points
-    # Size: (n_query, n_modes, n_dims)
+    # Size: (n_q, n_modes, n_dims)
     y_modes = np.array([modes_at(x) for x in x_q[:, np.newaxis]])
 
     # This returns the corresponding input coordinates for each mode
-    # Size: (n_query, n_modes, n_dims)
+    # Size: (n_q, n_modes, n_dims)
     x_modes = np.repeat(x_q[:, np.newaxis], n_modes, axis=1)
 
     # Return the modes
-    # Size: (n_query, n_modes, n_x_dims)
-    # Size: (n_query, n_modes, n_y_dims)
+    # Size: (n_q, n_modes, d_x)
+    # Size: (n_q, n_modes, d_y)
     return x_modes, y_modes
 
 
