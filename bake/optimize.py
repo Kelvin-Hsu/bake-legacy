@@ -304,39 +304,38 @@ def hyper_opt(f, data, hyper_min, hyper_max,
     return unpack(t_opt, t_indices)
 
 
-def solve_positive_constrained_quadratic_iterative(a, b, x_init):
-
+def solve_unit_constrained_quadratic_iterative(a, b, x_init):
+    # STILL UNDER TESTING
     def objective(x):
         return 0.5 * np.dot(x, np.dot(a, x)) + np.dot(b, x)
 
     zeros = np.zeros(x_init.shape[0])
-    inf = np.ones(x_init.shape[0])
-    x_opt, f_opt = local_optimization(objective, zeros, inf, x_init)
+    ones = np.ones(x_init.shape[0])
+    x_opt, f_opt = local_optimization(objective, zeros, ones, x_init)
     return x_opt
 
 
-def solve_normalized_positive_constrained_quadratic_iterative(a, b, x_init):
-    # NOT WORKING
+def solve_normalized_unit_constrained_quadratic_iterative(a, b, x_init):
+    # STILL UNDER TESTING
     def objective(x):
         return 0.5 * np.dot(x, np.dot(a, x)) + np.dot(b, x)
 
-    def lagrangian(z):
-        x = z[:-1]
-        t = z[-1]
-        return objective(x) + t * (np.sum(x) - 1)
+    def constraint(x):
+        return np.sum(x) - 1
 
-    zeros = np.zeros(x_init.shape[0])
-    inf = np.inf * np.ones(x_init.shape[0])
-    lb = np.append(zeros, 0)
-    ub = np.append(inf, np.inf)
-    z_init = np.append(x_init, 1)
-    z_opt, f_opt = local_optimization(lagrangian, lb, ub, z_init)
-    x_opt = z_opt[:-1]
-    return x_opt
+    constraints = {'type': 'eq', 'fun': constraint}
+    options = {'disp': False}
+    bounds = [(0.0, 1.0) for x in x_init]
+
+    optimal_result = minimize(objective, x_init,
+                              bounds=bounds,
+                              constraints=constraints,
+                              options=options)
+    return optimal_result.x
 
 
-def solve_normalized_positive_constrained_quadratic(a, b, x_init):
-
+def solve_normalized_unit_constrained_quadratic(a, b, x_init):
+    # STILL UNDER TESTING
     n, = x_init.shape
     a_matrix = a[:-1, :-1]
     a_vector = a[-1, :-1]
@@ -351,6 +350,6 @@ def solve_normalized_positive_constrained_quadratic(a, b, x_init):
 
     z_init = x_init[:-1]
 
-    z_opt = solve_positive_constrained_quadratic_iterative(a_new, b_new, z_init)
+    z_opt = solve_unit_constrained_quadratic_iterative(a_new, b_new, z_init)
     x_n_opt = 1 - np.sum(z_opt)
     return np.append(z_opt, x_n_opt)

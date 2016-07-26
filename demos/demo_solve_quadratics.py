@@ -3,22 +3,22 @@ import bake
 import utils
 
 def main():
-
+    # STILL UNDER TESTING
     def objective(A, b, x):
         return 0.5 * np.dot(x, np.dot(A, x)) + np.dot(b, x)
 
-    n = 100
+    n = 500
     A, b = utils.data.generate_test_quadratic_problem(n)
     print(A)
     print(b)
     x_init = 0.5 * np.ones(n)
-    x_opt_1 = bake.optimize.solve_normalized_positive_constrained_quadratic_iterative(A, b, x_init)
-    x_opt_2 = bake.optimize.solve_normalized_positive_constrained_quadratic(A, b, x_init)
+    x_opt_1, _ = utils.misc.time_module(bake.optimize.solve_normalized_unit_constrained_quadratic_iterative, A, b, x_init)
+    x_opt_2, _ = utils.misc.time_module(bake.optimize.solve_normalized_unit_constrained_quadratic, A, b, x_init)
 
     x_opt_1_clip = bake.infer.clip_normalise(x_opt_1)
     x_opt_2_clip = bake.infer.clip_normalise(x_opt_2)
 
-    print(utils.data.joint_data(x_opt_1, x_opt_2))
+    # print(utils.data.joint_data(x_opt_1, x_opt_2))
 
     print(objective(A, b, x_opt_1), objective(A, b, x_opt_1_clip))
     print(objective(A, b, x_opt_2), objective(A, b, x_opt_2_clip))

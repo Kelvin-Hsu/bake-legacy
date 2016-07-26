@@ -7,11 +7,14 @@ is implemented in the learning module is done with the Gaussian kernel only for
 the time being.
 """
 import numpy as np
+from scipy.signal import argrelextrema as _argrelextrema
+from scipy.special import erf as _erf
 from .kernels import gaussian as _gaussian
 from .linalg import solve_posdef as _solve_posdef
+from .linalg import dist as _dist
 from .kbr import posterior_fields as _posterior_fields
 from .optimize import local_optimization as _local_optimization
-from scipy.signal import argrelextrema as _argrelextrema
+
 
 
 def uniform_weights(n):
@@ -533,3 +536,96 @@ def clip_normalise(w):
     """
     w_clip = np.clip(w, 0, np.inf)
     return w_clip / np.sum(w_clip, axis=0)
+
+
+def _distribution_singular(y_eval, w, y, theta_y):
+    """
+
+    Parameters
+    ----------
+    y_eval : numpy.ndarray
+        The point to evaluate distribution (d_y,) [Not Vectorized]
+    w : numpy.ndarray
+        The normalized conditional or posterior weight matrix (n, n_q)
+    y : numpy.ndarray
+        The training outputs (n, d_y)
+    theta_y : numpy.ndarray
+        Hyperparameters that parametrises the kernel on y (d_y,)
+
+    Returns
+    -------
+    numpy.ndarray
+        The distribution evaluated at y for each query point (n_q,)
+    """
+    # (n, d_y)
+    all_cdf = _erf((y_eval - y) / (np.sqrt(2) * theta_y))
+
+    # (n,)
+    each_cdf = np.prod(all_cdf, axis=1)
+
+    # (n_q,)
+    return np.dot(w.T, each_cdf)
+
+
+def _distribution_vector(y_eval, w, y, theta_y):
+    """
+
+    Parameters
+    ----------
+    y_eval : numpy.ndarray
+        The point to evaluate distribution (n_eval, d_y) [Vectorized]
+    w : numpy.ndarray
+        The normalized conditional or posterior weight matrix (n, n_q)
+    y : numpy.ndarray
+        The training outputs (n, d_y)
+    theta_y : numpy.ndarray
+        Hyperparameters that parametrises the kernel on y (d_y,)
+
+    Returns
+    -------
+    numpy.ndarray
+        The distribution evaluated at y for each query point (n_q,)
+    """
+    # (n_eval, n, d_y)
+    y_dist = _dist(y_eval, y)
+
+    # (n_eval, n, d_y)
+    z = y_dist / (np.sqrt(2) * theta_y)
+
+    # (n_eval, n, d_y)
+    all_cdf = _erf(z)
+
+    # (n_eval, n)
+    each_cdf = np.prod(all_cdf, axis=-1)
+
+    # (n_eval, n_q)
+    return np.dot(each_cdf, w)
+
+
+def distribution(y_eval, w, y, theta_y):
+    """
+
+    Parameters
+    ----------
+    y_eval : numpy.ndarray
+        The point to evaluate distribution [(n_eval, d_y), (d_y,)]
+    w : numpy.ndarray
+        The normalized conditional or posterior weight matrix (n, n_q)
+    y : numpy.ndarray
+        The training outputs (n, d_y)
+    theta_y : numpy.ndarray
+        Hyperparameters that parametrises the kernel on y (d_y,)
+
+    Returns
+    -------
+    numpy.ndarray
+        The distribution evaluated at y for each query point (n_q,)
+    """
+    if y_eval.ndim == 1:
+        return _embedding_to_distribution_singular(y_eval, w, y, theta_y)
+    elif y_eval.ndim == 2:
+        return _embedding_to_distribution_vector(y_eval, w, y, theta_y)
+    else:
+        raise ValueError('y_eval not in the right dimensions')
+
+
