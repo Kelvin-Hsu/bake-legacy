@@ -304,12 +304,53 @@ def hyper_opt(f, data, hyper_min, hyper_max,
     return unpack(t_opt, t_indices)
 
 
-def solve_positive_constrained_quadratic_iterative(A, b, x_init):
+def solve_positive_constrained_quadratic_iterative(a, b, x_init):
 
     def objective(x):
-        return 0.5 * np.dot(x, np.dot(A, x)) + np.dot(b, x)
+        return 0.5 * np.dot(x, np.dot(a, x)) + np.dot(b, x)
+
+    zeros = np.zeros(x_init.shape[0])
+    inf = np.ones(x_init.shape[0])
+    x_opt, f_opt = local_optimization(objective, zeros, inf, x_init)
+    return x_opt
+
+
+def solve_normalized_positive_constrained_quadratic_iterative(a, b, x_init):
+    # NOT WORKING
+    def objective(x):
+        return 0.5 * np.dot(x, np.dot(a, x)) + np.dot(b, x)
+
+    def lagrangian(z):
+        x = z[:-1]
+        t = z[-1]
+        return objective(x) + t * (np.sum(x) - 1)
 
     zeros = np.zeros(x_init.shape[0])
     inf = np.inf * np.ones(x_init.shape[0])
-    x_opt, f_opt = local_optimization(objective, zeros, inf, x_init)
+    lb = np.append(zeros, 0)
+    ub = np.append(inf, np.inf)
+    z_init = np.append(x_init, 1)
+    z_opt, f_opt = local_optimization(lagrangian, lb, ub, z_init)
+    x_opt = z_opt[:-1]
     return x_opt
+
+
+def solve_normalized_positive_constrained_quadratic(a, b, x_init):
+
+    n, = x_init.shape
+    a_matrix = a[:-1, :-1]
+    a_vector = a[-1, :-1]
+    a_slider = np.tile(a_vector, (n - 1, 1))
+    a_number = a[-1, -1]
+    b_vector = b[:-1]
+    one_matrix = np.ones((n - 1, n - 1))
+    one_vector = np.ones(n - 1)
+
+    a_new = a_matrix - 2 * a_slider + a_number * one_matrix
+    b_new = a_vector + b_vector - (a_number + 1) * one_vector
+
+    z_init = x_init[:-1]
+
+    z_opt = solve_positive_constrained_quadratic_iterative(a_new, b_new, z_init)
+    x_n_opt = 1 - np.sum(z_opt)
+    return np.append(z_opt, x_n_opt)

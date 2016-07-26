@@ -138,5 +138,5 @@ def generate_test_quadratic_problem(n, seed=None):
 
     X = 10 * np.random.rand(n, n) - 5
     A = np.dot(X.T, X)
-    b = 10 * np.random.rand(n) - 5
+    b = -10 * np.random.rand(n)
     return A, b

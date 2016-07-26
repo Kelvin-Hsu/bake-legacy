@@ -12,18 +12,22 @@ def main():
     print(A)
     print(b)
     x_init = 0.5 * np.ones(n)
-    x_opt_1 = bake.optimize.solve_positive_constrained_quadratic_iterative(A, b, x_init)
-    print(x_opt_1)
-    x_opt_2 = bake.linalg.solve_positive_constrained_quadratic(A, b)
-    print(x_opt_2)
+    x_opt_1 = bake.optimize.solve_normalized_positive_constrained_quadratic_iterative(A, b, x_init)
+    x_opt_2 = bake.optimize.solve_normalized_positive_constrained_quadratic(A, b, x_init)
 
-    print(objective(A, b, x_opt_1))
-    print(objective(A, b, x_opt_2))
+    x_opt_1_clip = bake.infer.clip_normalise(x_opt_1)
+    x_opt_2_clip = bake.infer.clip_normalise(x_opt_2)
 
-    print(x_opt_1 - x_opt_2)
+    print(utils.data.joint_data(x_opt_1, x_opt_2))
 
-    print(np.any(x_opt_1 < 0))
-    print(np.any(x_opt_2 < 0))
+    print(objective(A, b, x_opt_1), objective(A, b, x_opt_1_clip))
+    print(objective(A, b, x_opt_2), objective(A, b, x_opt_2_clip))
 
+    print("Good" if not np.any(x_opt_1 < 0) else "Bad")
+    print("Good" if not np.any(x_opt_2 < 0) else "Bad")
+
+    print(np.sum(x_opt_1), np.sum(x_opt_2))
+
+    print(np.arange(x_opt_2.shape[0])[x_opt_2 < 0])
 if __name__ == "__main__":
     utils.misc.time_module(main)
