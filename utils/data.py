@@ -63,14 +63,15 @@ def generate_waves(x, w, p, a, b, noise_level=0.0, seed=None):
     if seed:
         np.random.seed(seed)
 
-    w, p, a, b = np.array(w), np.array(p), np.array(a), np.array(b)
+    w, p, a, b = np.array(w, ndmin=1), np.array(p, ndmin=1), \
+                 np.array(a, ndmin=1), np.array(b, ndmin=1)
 
     y = a * np.sin(w * x + p) + b
 
-    n_waves, = w.shape if w.ndim == 1 else 1
+    n_waves, = w.shape
     n_points, _ = x.shape
     pick = np.random.randint(0, n_waves, n_points)
-    y_true = y[np.arange(n_points), pick]
+    y_true = y[np.arange(n_points), pick][:, np.newaxis]
     y_noise = (noise_level ** 2) * np.random.randn(n_points, 1)
     return y_true + y_noise
 

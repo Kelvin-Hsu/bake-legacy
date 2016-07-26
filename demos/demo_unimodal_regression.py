@@ -8,54 +8,99 @@ import numpy as np
 
 def main():
 
-    # Generate regression data
-    # Change the noise level here
-    x, y = utils.data.generate_one_wave(n = 20, noise_level = 0.1, seed = 100)
+    # OBTAIN TRAINING DATA
 
-    i_keep = np.logical_or(x < -3, x > 0)
+    # Generate input data
+    seed = 200
+    n = 80
+    d = 1
+    x_min = -5
+    x_max = +5
+    x = utils.data.generate_uniform_data(n, d, x_min, x_max, seed=seed)
+
+    # Generate output data
+    # omega = np.array([1.0, 1.0])
+    # phase_shift = np.array([0.0, 0.5])
+    # amplitude = np.array([2.0, 1.0])
+    # bias = np.array([-3., 1.])
+    omega = 1.0
+    phase_shift = 0.0
+    amplitude = 2.0
+    bias = 1.0
+    noise_level = 0.4
+    y = utils.data.generate_waves(x, omega, phase_shift, amplitude, bias,
+                                  noise_level=noise_level, seed=seed)
+
+    # Artificially remove some data
+    i_keep = np.logical_or(x < -2, x > 1)
     x, y = x[i_keep, np.newaxis], y[i_keep, np.newaxis]
 
-    # Create joint data
-    z = utils.data.joint_data(x, y)
+    i_keep = np.logical_or(x < 2, x > 3)
+    x, y = x[i_keep, np.newaxis], y[i_keep, np.newaxis]
+
+    # HYPERPARAMETER LEARNING OR SETTING
 
     # Set the hyperparameters
-    theta = [4,   0.5]
+    theta = [3.0, 2.0]
     theta_x, theta_y = theta[0], theta[1]
 
-    # Create a origin-centered uniform query space for visualisation
-    x_margin = 0.5
-    xq, yq, xq_grid, yq_grid, x_lim, y_lim = \
-        utils.visuals.centred_uniform_query(x, y,
-            x_margin = x_margin, y_margin = 1, x_query = 300, y_query = 300)
+    # QUERY POINT GENERATION
 
-    # # Find the modes of the conditional embedding
-    # x_modes, y_modes = bake.infer.conditional_modes(mu_yx, xq,
-    #     [-y_lim], [+y_lim], n_modes = 2)
+    # Generate the query points
+    x_lim = (x_min - 2, x_max + 2)
+    y_lim = (y.min() - 3, y.max() + 3)
+    x_q, y_q, x_grid, y_grid = utils.visuals.uniform_query(x_lim, y_lim,
+                                                           n_x_query=250,
+                                                           n_y_query=250)
 
-    # Create joint query points from the query space
-    zq = utils.data.joint_data(xq_grid, yq_grid)
+    # COMPUTE CONDITIONAL EMBEDDING
 
     # Conditional weights
-    wq = bake.infer.conditional_weights(x, y, theta_x, theta_y, xq, zeta=0.01)
-    mu_yqxq = bake.infer.evaluate_embedding(yq, y, theta_y, wq)
+    w_q = bake.infer.conditional_weights(x, theta_x, x_q, zeta=0.01)
 
-    # Expectance and Covariance
-    yq_exp = bake.infer.expectance(y, wq)[0]
-    yq_var = bake.infer.variance(y, wq)[0]
-    yq_std = np.sqrt(yq_var)
+    # Conditional embedding
+    mu_y_xq = bake.infer.embedding(y, theta_y, w=w_q)
+    mu_yq_xq = mu_y_xq(y_q)
+
+    # Weights of the density
+    w_q_density= bake.infer.clip_normalise(w_q)
+
+    # QUANTILE REGRESSION
+
+    # Perform quantile regression
+    y_q_init = np.mean(y)
+    quantile_probabilities = np.arange(0.1, 1.0, 0.1)
+    y_quantiles = [bake.infer.quantile_regression(p,
+                                                  y_q_init,
+                                                  w_q,
+                                                  y, theta_y)
+                   for p in quantile_probabilities]
+    n_quantiles, = quantile_probabilities.shape
+
+    # MOMENT REGRESSION
+
+    # Expectance and Variance
+    yq_exp = bake.infer.expectance(y, w_q)[0]
+    # yq_var = bake.infer.variance(y, w_q)[0]
+    # yq_std = np.sqrt(yq_var)
+    # yq_lb = yq_exp - 2 * yq_std
+    # yq_ub = yq_exp + 2 * yq_std
+
+    colors = [(c - 0.1, c + 0.1, c + 0.1) for c in quantile_probabilities]
 
     # Plot the conditional embedding
     plt.figure(1)
-    plt.pcolormesh(xq_grid, yq_grid, mu_yqxq)
-    plt.scatter(x.ravel(), y.ravel(), c = 'k', label = 'Training Data')
-    # plt.scatter(x_modes.ravel(), y_modes.ravel(),
-    #     s = 20, c = 'w', edgecolor = 'face', label = 'Mode Predictions')
-    plt.plot(xq.ravel(), yq_exp, c = 'k')
-    plt.fill_between(xq.ravel(), yq_exp - 2 * yq_std, yq_exp + 2 * yq_std,
-                     facecolor=(0.9, 0.9, 0.9), edgecolor=(0.0, 0.0, 0.0),
-                     interpolate=True, alpha=0.5)
-    plt.xlim((-x_lim, x_lim))
-    plt.ylim((-y_lim, y_lim))
+    plt.pcolormesh(x_grid, y_grid, mu_yq_xq)
+    plt.scatter(x.ravel(), y.ravel(), c='k', label='Training Data')
+    plt.plot(x_q.ravel(), yq_exp, c='k', label='Expectance')
+    [plt.plot(x_q.ravel(), y_quantiles[i].ravel(),
+              c=colors[i], label='p = %f' % quantile_probabilities[i])
+     for i in np.arange(n_quantiles)]
+    # plt.fill_between(x_q.ravel(), yq_lb, yq_ub,
+    #                  facecolor=(0.9, 0.9, 0.9), edgecolor=(0.0, 0.0, 0.0),
+    #                  interpolate=True, alpha=0.5)
+    plt.xlim(x_lim)
+    plt.ylim(y_lim)
     plt.xlabel('$x$')
     plt.ylabel('$y$')
     plt.legend()

@@ -6,6 +6,7 @@ import time
 
 def time_module(module, *args, **kwargs):
     """
+    Time the run time of a module.
 
     Parameters
     ----------

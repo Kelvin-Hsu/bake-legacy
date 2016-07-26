@@ -32,12 +32,12 @@ def uniform_query(x_lim, y_lim, n_x_query=250, n_y_query=250):
     numpy.ndarray
         The mesh-grid for y (n_y_query, n_x_query)
     """
-    xq_array = np.linspace(x_lim[0], x_lim[1], n_x_query)
-    yq_array = np.linspace(y_lim[0], y_lim[1], n_y_query)
-    xq_grid, yq_grid = np.meshgrid(xq_array, yq_array)
-    xq = xq_array[:, np.newaxis]
-    yq = yq_array[:, np.newaxis]
-    return xq, yq, xq_grid, yq_grid
+    x_q_array = np.linspace(x_lim[0], x_lim[1], n_x_query)
+    y_q_array = np.linspace(y_lim[0], y_lim[1], n_y_query)
+    x_grid, y_grid = np.meshgrid(x_q_array, y_q_array)
+    x_q = x_q_array[:, np.newaxis]
+    y_q = y_q_array[:, np.newaxis]
+    return x_q, y_q, x_grid, y_grid
 
 
 def find_bounded_extrema(c_grid, z_grid, z_lim):

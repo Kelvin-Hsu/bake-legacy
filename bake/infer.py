@@ -606,7 +606,7 @@ def _distribution_singular(y_eval, w, y, theta_y):
         The distribution evaluated at y for each query point [(n_q,), 1]
     """
     # (n, d_y)
-    all_cdf = _erf((y_eval - y) / (np.sqrt(2) * theta_y))
+    all_cdf = 0.5 * (1 + _erf((y_eval - y) / (np.sqrt(2) * theta_y)))
 
     # (n,)
     each_cdf = np.prod(all_cdf, axis=1)
@@ -643,7 +643,7 @@ def _distribution_vector(y_eval, w, y, theta_y):
     z = y_dist / (np.sqrt(2) * theta_y)
 
     # (n_eval, n, d_y)
-    all_cdf = _erf(z)
+    all_cdf = 0.5 * (1 + _erf(z))
 
     # (n_eval, n)
     each_cdf = np.prod(all_cdf, axis=-1)
@@ -712,7 +712,7 @@ def quantile_regression(p, y_q_init, w, y, theta_y):
 
         # Find the quantile for this query point
         def function(y_q):
-            return p - _distribution_singular(y_q, w[:, j], y, theta_y)
+            return _distribution_singular(y_q, w[:, j], y, theta_y) - p
         y_q_opt = _root(function, y_q_opt).x
         y_quantiles.append(y_q_opt)
 
