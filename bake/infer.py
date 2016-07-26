@@ -9,6 +9,7 @@ the time being.
 import numpy as np
 from scipy.signal import argrelextrema as _argrelextrema
 from scipy.special import erf as _erf
+from scipy.optimize import root as _root
 from .kernels import gaussian as _gaussian
 from .linalg import solve_posdef as _solve_posdef
 from .linalg import dist as _dist
@@ -289,6 +290,50 @@ def posterior_embedding(prior_embedding, x, y, theta_x, theta_y,
     return posterior_embedding_function
 
 
+def embedding_to_weights(mu, x, k_xx):
+    """
+    Recover the weights in an embedding.
+
+    Parameters
+    ----------
+    mu : callable
+        The embedding of interest
+    x : numpy.ndarray
+        The observed data (n, d_x)
+    k_xx : numpy.ndarray
+        The gram matrix on x (n, n)
+
+    Returns
+    -------
+    numpy.ndarray
+        The recovered weights (n,)
+    """
+    return _solve_posdef(k_xx, mu(x))
+
+
+def conditional_embedding_to_weights(mu_y_x, y, k_yy, x_q):
+    """
+    Recover the weights in a conditional or posterior embedding at query points.
+
+    Parameters
+    ----------
+    mu_y_x : callable
+        The conditional or posterior embedding of interest
+    y : numpy.ndarray
+        The observed output data (n, d_x)
+    k_yy : numpy.ndarray
+        The gram matrix on x (n, n)
+    x_q : numpy.ndarray
+        The input query points (n_q,)
+
+    Returns
+    -------
+    numpy.ndarray
+
+    """
+    return _solve_posdef(k_yy, mu_y_x(y, x_q))
+
+
 def mode(mu, xv_start, xv_min, xv_max):
     """
     Determine a density mode (peak), given its kernel embedding representation.
@@ -540,13 +585,16 @@ def clip_normalise(w):
 
 def _distribution_singular(y_eval, w, y, theta_y):
     """
+    Obtain the distribution function from normalized weights (non-vectorized).
+
+    .. note:: This will be deleted once the vectorized version has been tested.
 
     Parameters
     ----------
     y_eval : numpy.ndarray
         The point to evaluate distribution (d_y,) [Not Vectorized]
     w : numpy.ndarray
-        The normalized conditional or posterior weight matrix (n, n_q)
+        The normalized weight matrix or weight vector [(n, n_q), (n,)]
     y : numpy.ndarray
         The training outputs (n, d_y)
     theta_y : numpy.ndarray
@@ -555,7 +603,7 @@ def _distribution_singular(y_eval, w, y, theta_y):
     Returns
     -------
     numpy.ndarray
-        The distribution evaluated at y for each query point (n_q,)
+        The distribution evaluated at y for each query point [(n_q,), 1]
     """
     # (n, d_y)
     all_cdf = _erf((y_eval - y) / (np.sqrt(2) * theta_y))
@@ -563,19 +611,20 @@ def _distribution_singular(y_eval, w, y, theta_y):
     # (n,)
     each_cdf = np.prod(all_cdf, axis=1)
 
-    # (n_q,)
-    return np.dot(w.T, each_cdf)
+    # (n_q,) or constant
+    return np.dot(each_cdf, w)
 
 
 def _distribution_vector(y_eval, w, y, theta_y):
     """
+    Obtain the distribution function from normalized weights (vectorized).
 
     Parameters
     ----------
     y_eval : numpy.ndarray
         The point to evaluate distribution (n_eval, d_y) [Vectorized]
     w : numpy.ndarray
-        The normalized conditional or posterior weight matrix (n, n_q)
+        The normalized weight matrix or weight vector [(n, n_q), (n,)]
     y : numpy.ndarray
         The training outputs (n, d_y)
     theta_y : numpy.ndarray
@@ -584,7 +633,8 @@ def _distribution_vector(y_eval, w, y, theta_y):
     Returns
     -------
     numpy.ndarray
-        The distribution evaluated at y for each query point (n_q,)
+        The distribution evaluated at y for each query point
+        [(n_eval, n_q), (n_eval,)]
     """
     # (n_eval, n, d_y)
     y_dist = _dist(y_eval, y)
@@ -598,19 +648,20 @@ def _distribution_vector(y_eval, w, y, theta_y):
     # (n_eval, n)
     each_cdf = np.prod(all_cdf, axis=-1)
 
-    # (n_eval, n_q)
+    # (n_eval, n_q) or (n_eval,)
     return np.dot(each_cdf, w)
 
 
 def distribution(y_eval, w, y, theta_y):
     """
+    Obtain the distribution function from normalized weights.
 
     Parameters
     ----------
     y_eval : numpy.ndarray
         The point to evaluate distribution [(n_eval, d_y), (d_y,)]
     w : numpy.ndarray
-        The normalized conditional or posterior weight matrix (n, n_q)
+        The normalized weight matrix or weight vector [(n, n_q), (n,)]
     y : numpy.ndarray
         The training outputs (n, d_y)
     theta_y : numpy.ndarray
@@ -619,13 +670,51 @@ def distribution(y_eval, w, y, theta_y):
     Returns
     -------
     numpy.ndarray
-        The distribution evaluated at y for each query point (n_q,)
+        The distribution evaluated at y for each query point
+        [(n_q,), 1] or [(n_eval, n_q), (n_eval,)]
     """
     if y_eval.ndim == 1:
-        return _embedding_to_distribution_singular(y_eval, w, y, theta_y)
+        return _distribution_singular(y_eval, w, y, theta_y)
     elif y_eval.ndim == 2:
-        return _embedding_to_distribution_vector(y_eval, w, y, theta_y)
+        return _distribution_vector(y_eval, w, y, theta_y)
     else:
         raise ValueError('y_eval not in the right dimensions')
 
 
+def quantile_regression(p, y_q_init, w, y, theta_y):
+    """
+    Perform quantile regression.
+
+    Parameters
+    ----------
+    p : float
+        The probability level of the quantile
+    y_q_init : numpy.ndarray
+        The initial quantile estimate for the first query point (d_y,)
+    w : numpy.ndarray
+        The conditional weights (n, n_q)
+    y : numpy.ndarray
+        The training outputs (n, d_y)
+    theta_y : numpy.ndarray
+        Hyperparameters that parametrises the kernel on y (d_y,)
+
+    Returns
+    -------
+    The quantiles at the query points (n_q, d_y)
+    """
+    # Initialise the quantile root finding routine
+    n, n_q = w.shape
+    y_q_opt = y_q_init.copy()
+    y_quantiles = []
+
+    # Go through each query point
+    for j in np.arange(n_q):
+
+        # Find the quantile for this query point
+        def function(y_q):
+            return p - _distribution_singular(y_q, w[:, j], y, theta_y)
+        y_q_opt = _root(function, y_q_opt).x
+        y_quantiles.append(y_q_opt)
+
+    # (n_q, d_y)
+    return np.array(y_quantiles)
