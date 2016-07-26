@@ -583,7 +583,7 @@ def clip_normalise(w):
     return w_clip / np.sum(w_clip, axis=0)
 
 
-def _distribution_singular(y_eval, w, y, theta_y):
+def _distribution_singular(y_eval, w_q, y, theta_y):
     """
     Obtain the distribution function from normalized weights (non-vectorized).
 
@@ -593,7 +593,7 @@ def _distribution_singular(y_eval, w, y, theta_y):
     ----------
     y_eval : numpy.ndarray
         The point to evaluate distribution (d_y,) [Not Vectorized]
-    w : numpy.ndarray
+    w_q : numpy.ndarray
         The normalized weight matrix or weight vector [(n, n_q), (n,)]
     y : numpy.ndarray
         The training outputs (n, d_y)
@@ -612,10 +612,10 @@ def _distribution_singular(y_eval, w, y, theta_y):
     each_cdf = np.prod(all_cdf, axis=1)
 
     # (n_q,) or constant
-    return np.dot(each_cdf, w)
+    return np.dot(each_cdf, w_q)
 
 
-def _distribution_vector(y_eval, w, y, theta_y):
+def _distribution_vector(y_eval, w_q, y, theta_y):
     """
     Obtain the distribution function from normalized weights (vectorized).
 
@@ -623,7 +623,7 @@ def _distribution_vector(y_eval, w, y, theta_y):
     ----------
     y_eval : numpy.ndarray
         The point to evaluate distribution (n_eval, d_y) [Vectorized]
-    w : numpy.ndarray
+    w_q : numpy.ndarray
         The normalized weight matrix or weight vector [(n, n_q), (n,)]
     y : numpy.ndarray
         The training outputs (n, d_y)
@@ -649,10 +649,10 @@ def _distribution_vector(y_eval, w, y, theta_y):
     each_cdf = np.prod(all_cdf, axis=-1)
 
     # (n_eval, n_q) or (n_eval,)
-    return np.dot(each_cdf, w)
+    return np.dot(each_cdf, w_q)
 
 
-def distribution(y_eval, w, y, theta_y):
+def distribution(y_eval, w_q, y, theta_y):
     """
     Obtain the distribution function from normalized weights.
 
@@ -660,7 +660,7 @@ def distribution(y_eval, w, y, theta_y):
     ----------
     y_eval : numpy.ndarray
         The point to evaluate distribution [(n_eval, d_y), (d_y,)]
-    w : numpy.ndarray
+    w_q : numpy.ndarray
         The normalized weight matrix or weight vector [(n, n_q), (n,)]
     y : numpy.ndarray
         The training outputs (n, d_y)
@@ -674,14 +674,14 @@ def distribution(y_eval, w, y, theta_y):
         [(n_q,), 1] or [(n_eval, n_q), (n_eval,)]
     """
     if y_eval.ndim == 1:
-        return _distribution_singular(y_eval, w, y, theta_y)
+        return _distribution_singular(y_eval, w_q, y, theta_y)
     elif y_eval.ndim == 2:
-        return _distribution_vector(y_eval, w, y, theta_y)
+        return _distribution_vector(y_eval, w_q, y, theta_y)
     else:
         raise ValueError('y_eval not in the right dimensions')
 
 
-def quantile_regression(p, y_q_init, w, y, theta_y):
+def quantile_regression(p, y_q_init, w_q, y, theta_y):
     """
     Perform quantile regression.
 
@@ -691,7 +691,7 @@ def quantile_regression(p, y_q_init, w, y, theta_y):
         The probability level of the quantile
     y_q_init : numpy.ndarray
         The initial quantile estimate for the first query point (d_y,)
-    w : numpy.ndarray
+    w_q : numpy.ndarray
         The conditional weights (n, n_q)
     y : numpy.ndarray
         The training outputs (n, d_y)
@@ -703,7 +703,7 @@ def quantile_regression(p, y_q_init, w, y, theta_y):
     The quantiles at the query points (n_q, d_y)
     """
     # Initialise the quantile root finding routine
-    n, n_q = w.shape
+    n, n_q = w_q.shape
     y_q_opt = y_q_init.copy()
     y_quantiles = []
 
@@ -712,9 +712,41 @@ def quantile_regression(p, y_q_init, w, y, theta_y):
 
         # Find the quantile for this query point
         def function(y_q):
-            return _distribution_singular(y_q, w[:, j], y, theta_y) - p
+            return _distribution_singular(y_q, w_q[:, j], y, theta_y) - p
         y_q_opt = _root(function, y_q_opt).x
         y_quantiles.append(y_q_opt)
 
     # (n_q, d_y)
     return np.array(y_quantiles)
+
+
+def multiple_quantile_regression(probabilities, w_q, y, theta_y):
+    """
+    Perform multiple quantile regressions.
+
+    Parameters
+    ----------
+    probabilities : array_like
+        A list or array of probabilities to find the quantiles for
+    w_q : numpy.ndarray
+        The conditional weights (n, n_q)
+    y : numpy.ndarray
+        The training outputs (n, d_y)
+    theta_y : numpy.ndarray
+        Hyperparameters that parametrises the kernel on y (d_y,)
+
+    Returns
+    -------
+
+    """
+    y_q_init = y.mean()
+
+    y_quantiles = []
+
+    for p in probabilities:
+
+        y_quantile = quantile_regression(p, y_q_init, w_q, y, theta_y)
+        y_q_init = y_quantile[0]
+        y_quantiles.append(y_quantile)
+
+    return y_quantiles

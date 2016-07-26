@@ -68,14 +68,10 @@ def main():
     # QUANTILE REGRESSION
 
     # Perform quantile regression
-    y_q_init = np.mean(y)
-    quantile_probabilities = np.arange(0.1, 1.0, 0.1)
-    y_quantiles = [bake.infer.quantile_regression(p,
-                                                  y_q_init,
-                                                  w_q,
-                                                  y, theta_y)
-                   for p in quantile_probabilities]
-    n_quantiles, = quantile_probabilities.shape
+    probabilities = np.arange(0.1, 1.0, 0.1)
+    n_quantiles, = probabilities.shape
+    y_quantiles = bake.infer.multiple_quantile_regression(probabilities,
+                                                          w_q, y, theta_y)
 
     # MOMENT REGRESSION
 
@@ -86,7 +82,7 @@ def main():
     # yq_lb = yq_exp - 2 * yq_std
     # yq_ub = yq_exp + 2 * yq_std
 
-    colors = [(c - 0.1, c + 0.1, c + 0.1) for c in quantile_probabilities]
+    colors = [(c - 0.1, c + 0.1, c + 0.1) for c in probabilities]
 
     # Plot the conditional embedding
     plt.figure(1)
@@ -94,7 +90,7 @@ def main():
     plt.scatter(x.ravel(), y.ravel(), c='k', label='Training Data')
     plt.plot(x_q.ravel(), yq_exp, c='k', label='Expectance')
     [plt.plot(x_q.ravel(), y_quantiles[i].ravel(),
-              c=colors[i], label='p = %f' % quantile_probabilities[i])
+              c=colors[i], label='p = %f' % probabilities[i])
      for i in np.arange(n_quantiles)]
     # plt.fill_between(x_q.ravel(), yq_lb, yq_ub,
     #                  facecolor=(0.9, 0.9, 0.9), edgecolor=(0.0, 0.0, 0.0),
