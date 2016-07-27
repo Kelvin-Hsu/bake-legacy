@@ -13,9 +13,10 @@ from scipy.optimize import root as _root
 from .kernels import gaussian as _gaussian
 from .linalg import solve_posdef as _solve_posdef
 from .linalg import dist as _dist
+from .linalg import gaussian_norm as _gaussian_norm
 from .kbr import posterior_fields as _posterior_fields
 from .optimize import local_optimization as _local_optimization
-
+from .optimize import solve_normalized_unit_constrained_quadratic as _snucq
 
 
 def uniform_weights(n):
@@ -583,6 +584,55 @@ def clip_normalise(w):
     return w_clip / np.sum(w_clip, axis=0)
 
 
+def density_weights(w_q, y, theta_y):
+    """
+    Recover the weights on the probability density function from the embedding.
+
+    .. note:: This is not working as well as expected for some reason.
+
+    Parameters
+    ----------
+    w_q : numpy.ndarray
+        The weight matrix or weight vector [(n, n_q), (n,)]
+    y : numpy.ndarray
+        The training outputs (n, d_y)
+    theta_y : numpy.ndarray
+        Hyperparameters that parametrises the kernel on y (d_y,)
+
+    Returns
+    -------
+    numpy.ndarray
+        The normalized weight matrix or weight vector [(n, n_q), (n,)]
+    """
+    # Setup the optimization problem
+    up_scale = _gaussian_norm(theta_y)
+    a_down_scale = _gaussian_norm(np.sqrt(3) * theta_y)
+    a_body = _gaussian(y, y, np.sqrt(3) * theta_y)
+    b_down_scale = _gaussian_norm(np.sqrt(2) * theta_y)
+    b_body = _gaussian(y, y, np.sqrt(2) * theta_y)
+    a_matrix = (up_scale / a_down_scale) * a_body
+    b_matrix = (up_scale / b_down_scale) * b_body
+    a = a_matrix # (n, n)
+    b = -np.dot(b_matrix, w_q) # [(n, n_q), (n,)]
+
+    # Initialize the normalized weights
+    w_norm_init = clip_normalise(w_q)
+    w_norm_opt = np.zeros(w_norm_init.shape)
+
+    # Find the normalized weights using snucq
+    if w_q.ndim == 2:
+        n, n_q = w_q.shape
+        for i in np.arange(n_q):
+            w_norm_opt[:, i] = _snucq(a, b[:, i], w_norm_init[:, i])
+    elif w_q.ndim == 1:
+        w_norm_opt = _snucq(a, b, w_norm_init)
+    else:
+        raise ValueError('Weights have the wrong dimensions')
+
+    # Return the normalized weights
+    return w_norm_opt
+
+
 def _distribution_singular(y_eval, w_q, y, theta_y):
     """
     Obtain the distribution function from normalized weights (non-vectorized).
@@ -739,14 +789,19 @@ def multiple_quantile_regression(probabilities, w_q, y, theta_y):
     -------
 
     """
+    # Initialise the quantile at the mean
     y_q_init = y.mean()
 
+    # Go through each probability
     y_quantiles = []
-
     for p in probabilities:
 
+        # Find the quantile for this probability
         y_quantile = quantile_regression(p, y_q_init, w_q, y, theta_y)
-        y_q_init = y_quantile[0]
         y_quantiles.append(y_quantile)
 
+        # Start the next quantile search with the result of the current one
+        y_q_init = y_quantile[0]
+
+    # Return the quantiles
     return y_quantiles

@@ -305,10 +305,25 @@ def hyper_opt(f, data, hyper_min, hyper_max,
 
 
 def solve_unit_constrained_quadratic_iterative(a, b, x_init):
-    # STILL UNDER TESTING
+    """
+    Solve a quadratic problem whose inputs are unit constrained.
+
+    Parameters
+    ----------
+    a : numpy.ndarray
+        The symmetric, positive definite matrix in the objective (n, n)
+    b : numpy.ndarray
+        The linear coefficient vector in the objective (n,)
+    x_init : numpy.ndarray
+        The initial solution to start the optimization with (n,)
+
+    Returns
+    -------
+    numpy.ndarray
+        The final optimal solution (n,)
+    """
     def objective(x):
         return 0.5 * np.dot(x, np.dot(a, x)) + np.dot(b, x)
-
     zeros = np.zeros(x_init.shape[0])
     ones = np.ones(x_init.shape[0])
     x_opt, f_opt = local_optimization(objective, zeros, ones, x_init)
@@ -316,7 +331,27 @@ def solve_unit_constrained_quadratic_iterative(a, b, x_init):
 
 
 def solve_normalized_unit_constrained_quadratic_iterative(a, b, x_init):
-    # STILL UNDER TESTING
+    """
+    Solve a quadratic problem whose inputs are unit constrained and normalized.
+
+    This method sets up the optimization as is with the original constraints.
+
+    .. note:: Experimentally, this is not working as well as the altered method.
+
+    Parameters
+    ----------
+    a : numpy.ndarray
+        The symmetric, positive definite matrix in the objective (n, n)
+    b : numpy.ndarray
+        The linear coefficient vector in the objective (n,)
+    x_init : numpy.ndarray
+        The initial solution to start the optimization with (n,)
+
+    Returns
+    -------
+    numpy.ndarray
+        The final optimal solution (n,)
+    """
     def objective(x):
         return 0.5 * np.dot(x, np.dot(a, x)) + np.dot(b, x)
 
@@ -335,7 +370,27 @@ def solve_normalized_unit_constrained_quadratic_iterative(a, b, x_init):
 
 
 def solve_normalized_unit_constrained_quadratic(a, b, x_init):
-    # STILL UNDER TESTING
+    """
+    Solve a quadratic problem whose inputs are unit constrained and normalized.
+
+    This method reduces the dimensionality of the problem by incorporating the
+    equality constraint into the objective. However, as a result, it is not
+    guaranteed that the last input is positive.
+
+    Parameters
+    ----------
+    a : numpy.ndarray
+        The symmetric, positive definite matrix in the objective (n, n)
+    b : numpy.ndarray
+        The linear coefficient vector in the objective (n,)
+    x_init : numpy.ndarray
+        The initial solution to start the optimization with (n,)
+
+    Returns
+    -------
+    numpy.ndarray
+        The final optimal solution (n,)
+    """
     n, = x_init.shape
     a_matrix = a[:-1, :-1]
     a_vector = a[-1, :-1]

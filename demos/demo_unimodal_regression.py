@@ -63,7 +63,8 @@ def main():
     mu_yq_xq = mu_y_xq(y_q)
 
     # Weights of the density
-    w_q_density= bake.infer.clip_normalise(w_q)
+    # w_q_density = bake.infer.clip_normalise(w_q)
+    # w_q_density = bake.infer.density_weights(w_q, y, theta_y)
 
     # QUANTILE REGRESSION
 
