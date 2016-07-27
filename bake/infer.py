@@ -458,6 +458,7 @@ def cleaned_multiple_modes(mu, xv_min, xv_max, n_modes=10, ratio=0.25):
     modes = multiple_modes(mu, xv_min, xv_max, n_modes=n_modes)
     return clean_multiple_modes(mu, modes, ratio=ratio)
 
+
 def conditional_modes(mu_yx, x_q, yv_min, yv_max, n_modes=10):
     """
     Determine a conditional density mode (peak), given its kernel embedding.
@@ -836,7 +837,8 @@ def multiple_quantile_regression(probabilities, w_q, y, theta_y):
 
     Returns
     -------
-
+    list
+        A list of quantile curves, each of which are of size (n_q, d_y)
     """
     # Initialise the quantile at the mean
     y_q_init = y.mean()

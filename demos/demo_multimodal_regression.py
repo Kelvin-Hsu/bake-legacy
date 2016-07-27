@@ -20,14 +20,10 @@ def main(learn=True):
     x = utils.data.generate_uniform_data(n, d, x_min, x_max, seed=seed)
 
     # Generate output data
-    # omega = np.array([1.0, 1.0])
-    # phase_shift = np.array([0.0, 0.5])
-    # amplitude = np.array([2.0, 1.0])
-    # bias = np.array([-3., 1.])
-    omega = 1.0
-    phase_shift = 0.0
-    amplitude = 2.0
-    bias = 1.0
+    omega = np.array([1.0, 1.0])
+    phase_shift = np.array([0.0, 1.5])
+    amplitude = np.array([2.0, 1.0])
+    bias = np.array([-3., 6.])
     noise_level = 0.4
     y = utils.data.generate_waves(x, omega, phase_shift, amplitude, bias,
                                   noise_level=noise_level, seed=seed)
@@ -43,14 +39,14 @@ def main(learn=True):
 
     # Set the hyperparameters
     if learn:
-        hyper_min = ([0.01], [0.01], [0.0008], [1e-6], [1e-6])
-        hyper_max = ([7.00], [5.00], [0.08], [1e-3], [1e-3])
+        hyper_min = ([3.0], [1.0], [1e-6], [2], [1e-10])
+        hyper_max = ([6.0], [3.0], [1e-2], [200], [1e-1])
         theta_x, theta_y, zeta, psi, sigma = \
             bake.learn.optimal_conditional_embedding(
             x, y, hyper_min, hyper_max)
         print(theta_x, theta_y, zeta, psi, sigma)
     else:
-        theta_x, theta_y, zeta = 3.0, 2.0, 0.01
+        theta_x, theta_y, zeta = 3.0, 1.0, 1e-4
 
     # QUERY POINT GENERATION
 
@@ -106,7 +102,7 @@ def main(learn=True):
     [plt.plot(x_q.ravel(), y_quantiles[i].ravel(),
               c=colors[i], label='p = %f' % probabilities[i])
      for i in np.arange(n_quantiles)]
-    plt.plot(x_modes.ravel(), y_modes.ravel(), c='w', label='Modes')
+    plt.scatter(x_modes.ravel(), y_modes.ravel(), c='w', label='Modes')
     # plt.fill_between(x_q.ravel(), yq_lb, yq_ub,
     #                  facecolor=(0.9, 0.9, 0.9), edgecolor=(0.0, 0.0, 0.0),
     #                  interpolate=True, alpha=0.5)
