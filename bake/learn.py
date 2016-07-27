@@ -98,7 +98,7 @@ def joint_nlml(theta, psi, sigma, data):
     mu = k_xx.mean(axis = 0)
 
     # Compute the regularised inferior kernel gramix
-    n, = x.shape
+    n, _ = x.shape
     r_xx_reg = r_xx + np.diag(sigma ** 2) * np.eye(n)
 
     # Compute the final log correction factor for the log marginal likelihood

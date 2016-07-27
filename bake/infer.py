@@ -409,6 +409,55 @@ def multiple_modes(mu, xv_min, xv_max, n_modes=10):
                      for xv_start in xv_start_list])
 
 
+def clean_multiple_modes(mu, modes, ratio=0.25):
+    """
+    Clean away the local minimum that arises from the local optimizer.
+
+    Parameters
+    ----------
+    mu : callable
+        The kernel embedding
+    modes : numpy.ndarray
+        The modes that were found (n_modes, d_x)
+    ratio : float, optional
+        The ratio for the cut off
+
+    Returns
+    -------
+    numpy.ndarray
+        The cleaned modes (?, d_x)
+    """
+    mu_modes = mu(modes)
+    cut_off = ratio * np.max(mu_modes)
+    i_modes_clean = mu_modes > cut_off
+    return modes[i_modes_clean.ravel(), :]
+
+
+def cleaned_multiple_modes(mu, xv_min, xv_max, n_modes=10, ratio=0.25):
+    """
+    A wrapper for returning cleaned modes straight away.
+
+    Parameters
+    ----------
+    mu : callable
+        The kernel embedding
+    xv_min : numpy.ndarray
+        The lower bound of the rectangular search region (d_x,)
+    xv_max : numpy.ndarray
+        The upper bound of the rectangular search region (d_x,)
+    n_modes : int, optional
+        The number of modes to search for (some of them will converge together)
+    ratio : float, optional
+        The ratio for the cut off
+
+    Returns
+    -------
+    numpy.ndarray
+        The cleaned modes (?, d_x)
+    """
+    modes = multiple_modes(mu, xv_min, xv_max, n_modes=n_modes)
+    return clean_multiple_modes(mu, modes, ratio=ratio)
+
 def conditional_modes(mu_yx, x_q, yv_min, yv_max, n_modes=10):
     """
     Determine a conditional density mode (peak), given its kernel embedding.

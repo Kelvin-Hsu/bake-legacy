@@ -122,18 +122,34 @@ def generate_multiple_gaussian(n_each, d, locs, scales, seed=None):
     if seed:
         np.random.seed(seed)
 
-    locs, scales = np.array(locs), np.array(scales)
-    assert locs.shape == scales.shape
-    assert d == locs.shape[1]
+    locs, scales = np.array(locs, ndmin=2), np.array(scales, ndmin=2)
+
     m, _= locs.shape
     standard_sample = np.random.randn(n_each * m, d)
     locs_apply = np.repeat(locs, n_each * np.ones(m).astype(int), axis=0)
     scales_apply = np.repeat(scales, n_each * np.ones(m).astype(int), axis=0)
+
     return scales_apply * standard_sample + locs_apply
 
 
 def generate_test_quadratic_problem(n, seed=None):
+    """
+    Generate a test quadratic problem.
 
+    Parameters
+    ----------
+    n : int
+        Dimensionality of the problem
+    seed : int
+        Randomization seed
+
+    Returns
+    -------
+    numpy.ndarray
+        The quadratic matrix (n, n)
+    numpy.ndarray
+        The linear vector (n,)
+    """
     if seed:
         np.random.seed(seed)
 

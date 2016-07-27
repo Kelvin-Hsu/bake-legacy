@@ -6,6 +6,7 @@ import utils
 import matplotlib.pyplot as plt
 import numpy as np
 
+
 def main(learn=True):
 
     # OBTAIN TRAINING DATA
@@ -96,7 +97,7 @@ def main(learn=True):
     plt.figure()
     plt.pcolormesh(x_grid, y_grid, mu_yq_xq)
     plt.scatter(x.ravel(), y.ravel(), c='k', label='Training Data')
-    plt.plot(x_q.ravel(), yq_exp, c='k', label='Expectance')
+    plt.plot(x_q.ravel(), yq_exp, c='b', label='Expectance')
     [plt.plot(x_q.ravel(), y_quantiles[i].ravel(),
               c=colors[i], label='p = %f' % probabilities[i])
      for i in np.arange(n_quantiles)]
@@ -112,6 +113,7 @@ def main(learn=True):
         plt.title('Optimal Conditional Embedding')
     else:
         plt.title('Original Conditional Embedding')
+
 
 if __name__ == "__main__":
     utils.misc.time_module(main, learn=False)
