@@ -6,7 +6,7 @@ import utils
 import matplotlib.pyplot as plt
 import numpy as np
 
-def main():
+def main(learn=True):
 
     # OBTAIN TRAINING DATA
 
@@ -32,22 +32,29 @@ def main():
                                   noise_level=noise_level, seed=seed)
 
     # Artificially remove some data
-    i_keep = np.logical_or(x < -2, x > 1)
-    x, y = x[i_keep, np.newaxis], y[i_keep, np.newaxis]
-
-    i_keep = np.logical_or(x < 2, x > 3)
-    x, y = x[i_keep, np.newaxis], y[i_keep, np.newaxis]
+    # i_keep = np.logical_or(x < -2, x > 1)
+    # x, y = x[i_keep, np.newaxis], y[i_keep, np.newaxis]
+    #
+    # i_keep = np.logical_or(x < 2, x > 3)
+    # x, y = x[i_keep, np.newaxis], y[i_keep, np.newaxis]
 
     # HYPERPARAMETER LEARNING OR SETTING
 
     # Set the hyperparameters
-    theta = [3.0, 2.0]
-    theta_x, theta_y = theta[0], theta[1]
+    if learn:
+        hyper_min = ([0.01], [0.01], [0.0008], [1e-6], [1e-6])
+        hyper_max = ([7.00], [5.00], [0.08], [1e-3], [1e-3])
+        theta_x, theta_y, zeta, psi, sigma = bake.learn.optimal_conditional_embedding(
+            x, y, hyper_min, hyper_max)
+        print(theta_x, theta_y, zeta, psi, sigma)
+    else:
+        theta_x, theta_y, zeta = 3.0, 2.0, 0.01
+
 
     # QUERY POINT GENERATION
 
     # Generate the query points
-    x_lim = (x_min - 2, x_max + 2)
+    x_lim = (x_min - 1, x_max + 2)
     y_lim = (y.min() - 3, y.max() + 3)
     x_q, y_q, x_grid, y_grid = utils.visuals.uniform_query(x_lim, y_lim,
                                                            n_x_query=250,
@@ -56,7 +63,7 @@ def main():
     # COMPUTE CONDITIONAL EMBEDDING
 
     # Conditional weights
-    w_q = bake.infer.conditional_weights(x, theta_x, x_q, zeta=0.01)
+    w_q = bake.infer.conditional_weights(x, theta_x, x_q, zeta=zeta)
 
     # Conditional embedding
     mu_y_xq = bake.infer.embedding(y, theta_y, w=w_q)
@@ -86,7 +93,7 @@ def main():
     colors = [(c - 0.1, c + 0.1, c + 0.1) for c in probabilities]
 
     # Plot the conditional embedding
-    plt.figure(1)
+    plt.figure()
     plt.pcolormesh(x_grid, y_grid, mu_yq_xq)
     plt.scatter(x.ravel(), y.ravel(), c='k', label='Training Data')
     plt.plot(x_q.ravel(), yq_exp, c='k', label='Expectance')
@@ -101,8 +108,12 @@ def main():
     plt.xlabel('$x$')
     plt.ylabel('$y$')
     plt.legend()
-    plt.title('Optimal Conditional Embedding')
+    if learn:
+        plt.title('Optimal Conditional Embedding')
+    else:
+        plt.title('Original Conditional Embedding')
 
 if __name__ == "__main__":
-    utils.misc.time_module(main)
+    utils.misc.time_module(main, learn=False)
+    utils.misc.time_module(main, learn=True)
     plt.show()
