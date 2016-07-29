@@ -1,7 +1,7 @@
 """
 Bayesian Learning for Kernel Embeddings Module.
 """
-import numpy as np
+import autograd.numpy as np
 from scipy.spatial.distance import cdist as _cdist
 from .linalg import dist as _dist
 from .linalg import solve_posdef as _solve_posdef
@@ -174,7 +174,7 @@ def conditional_nlml(theta_x, theta_y, zeta, psi, sigma, data):
     embedding_grads = np.array([embedding_grad(i).T[0] for i in np.arange(n)]).T
 
     # Sum over the component dimension of the squared embedding gradients (n,)
-    sum_sq_embedding_grads = np.sum(embedding_grads ** 2, axis = 0)
+    sum_sq_embedding_grads = np.sum(embedding_grads ** 2, axis=0)
 
     # Compute the final log correction factor for the log marginal likelihood
     log_gamma =  0.5 * np.sum(np.log(sum_sq_embedding_grads))
@@ -212,6 +212,8 @@ def optimal_joint_embedding(x, hyper_min, hyper_max, **kwargs):
         The number of sample points to use if sample optimization is involved
     n_repeat : int, optional
         The number of multiple explore optimisation to be performed if involved
+    hyper_warp : callable, optional
+        The function that wraps the parameter space
 
     Returns
     -------
@@ -241,13 +243,15 @@ def optimal_conditional_embedding(x, y, hyper_min, hyper_max, **kwargs):
         The number of sample points to use if sample optimization is involved
     n_repeat : int, optional
         The number of multiple explore optimisation to be performed if involved
+    hyper_warp : callable, optional
+        The function that wraps the parameter space
 
     Returns
     -------
     tuple
         A tuple of arrays representing the optimal hyperparameters
     """
-    yx = np.vstack((y.ravel(), x.ravel())).T
+    yx = np.concatenate((y, x), axis=1)
     dist_y = _dist(y, y)
     return _hyper_opt(conditional_nlml, (x, y, yx, dist_y),
                       hyper_min, hyper_max, **kwargs)

@@ -23,26 +23,38 @@ def read_pedestrian_data(fname):
     return tracks
 
 
-def extract_one_current_past_data(track):
+def extract_one_current_past_data(track, k=1):
 
-    previous_positions = track[:-1, :]
-    current_position = track[1:, :]
+    n, _ = track.shape
+
+    ind = np.arange(0, n, k)
+    previous_positions = track[ind[:-1], :]
+    current_position = track[ind[1:], :]
 
     return previous_positions, current_position
 
 
-def extract_all_current_past_data(tracks):
+def extract_all_current_past_data(tracks, k=1):
 
     all_previous_positions = []
     all_current_positions = []
 
     for track in tracks:
         previous_positions, current_position = \
-            extract_one_current_past_data(track)
+            extract_one_current_past_data(track, k=k)
         all_previous_positions.append(previous_positions)
         all_current_positions.append(current_position)
 
-    x_previous = np.concatenate(tuple(all_previous_positions), axis=0)
-    x_current = np.concatenate(tuple(all_current_positions), axis=0)
+    pos_previous = np.concatenate(tuple(all_previous_positions), axis=0)
+    pos_current = np.concatenate(tuple(all_current_positions), axis=0)
 
-    return x_previous, x_current
+    return pos_previous, pos_current
+
+
+def extract_state(pos_previous, pos_current, dt=1):
+
+    vel_previous = (pos_current - pos_previous)/dt
+
+    state_previous = np.concatenate((pos_previous, vel_previous), axis=1)
+
+    return state_previous

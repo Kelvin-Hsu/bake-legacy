@@ -4,7 +4,7 @@ Linear Algebra Utility Module.
 .. note:: Initially modified from revrand [http://github.com/nicta/revrand]
 """
 
-import numpy as np
+import autograd.numpy as np
 from scipy.linalg import cholesky, cho_solve, svd, LinAlgError
 
 
@@ -125,10 +125,10 @@ def solve_posdef(A, b, cholthresh=1e-5):
     # Try cholesky for speed
     try:
         lower = True
-        L = cholesky(A, lower=lower)
+        L = cholesky(A, lower=lower, check_finite=False)
         if np.any(L.diagonal() < cholthresh):
             raise LinAlgError("Unstable cholesky factor detected")
-        X = cho_solve((L, lower), b)
+        X = cho_solve((L, lower), b, check_finite=False)
         logdet = cho_log_det(L)
 
     # Failed cholesky, use svd to do the inverse

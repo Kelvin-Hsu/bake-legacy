@@ -1,7 +1,7 @@
 """
 Optimization Module.
 """
-import numpy as np
+import autograd.numpy as np
 from scipy.optimize import minimize
 import logging
 
@@ -45,6 +45,7 @@ def sample_optimization(objective, t_min, t_max, n_samples=1000):
     for i, t in enumerate(t_samples):
         f = objective(t)
         if f < f_opt:
+            print(t_opt, f_opt)
             t_opt = t
             f_opt = f
             logging.debug('Iteration: %d | Hyperparameters: %s | Objective: %f'
@@ -56,7 +57,7 @@ def sample_optimization(objective, t_min, t_max, n_samples=1000):
     return t_opt, f_opt
 
 
-def local_optimization(objective, t_min, t_max, t_init):
+def local_optimization(objective, t_min, t_max, t_init, jac=None):
     """
     Perform local optimization.
 
@@ -79,7 +80,7 @@ def local_optimization(objective, t_min, t_max, t_init):
         The optimal objective value
     """
     method = 'L-BFGS-B'
-    options = {'disp': False, 'maxls': 20, 'iprint': -1, 'gtol': 1e-05,
+    options = {'disp': True, 'maxls': 20, 'iprint': -1, 'gtol': 1e-05,
                'eps': 1e-08, 'maxiter': 15000, 'ftol': 1e-9,
                'maxcor': 20, 'maxfun': 15000}
     bounds = [(t_min[i], t_max[i]) for i in range(len(t_init))]
@@ -89,7 +90,8 @@ def local_optimization(objective, t_min, t_max, t_init):
                   % (str(t_init), objective(t_init)))
 
     optimal_result = minimize(objective, t_init,
-                              method=method, bounds=bounds, options=options)
+                              method=method, bounds=bounds, options=options,
+                              jac=jac)
     t_opt, f_opt = optimal_result.x, optimal_result.fun
 
     logging.debug('Local Optimization Completed')
@@ -98,7 +100,7 @@ def local_optimization(objective, t_min, t_max, t_init):
     return t_opt, f_opt
 
 
-def explore_optimization(objective, t_min, t_max, n_samples=1000):
+def explore_optimization(objective, t_min, t_max, n_samples=1000, jac=None):
     """
     Perform sample optimization to initialize a local optimization procedure.
 
@@ -122,7 +124,7 @@ def explore_optimization(objective, t_min, t_max, n_samples=1000):
     """
     t_init, f_init = sample_optimization(objective, t_min, t_max,
                                          n_samples=n_samples)
-    t_opt, f_opt = local_optimization(objective, t_min, t_max, t_init)
+    t_opt, f_opt = local_optimization(objective, t_min, t_max, t_init, jac=jac)
 
     logging.debug('Explore Optimization Completed')
     logging.debug('Hyperparameters: %s | Objective: %f' % (str(t_opt), f_opt))
@@ -131,7 +133,7 @@ def explore_optimization(objective, t_min, t_max, n_samples=1000):
 
 
 def multi_explore_optimization(objective, t_min, t_max,
-                               n_samples=100, n_repeat=10):
+                               n_samples=100, n_repeat=10, jac=None):
     """
     Repeat explore optimisation and pick the best optimum from the results.
 
@@ -156,7 +158,7 @@ def multi_explore_optimization(objective, t_min, t_max,
         The optimal objective value
     """
     results = [explore_optimization(objective, t_min, t_max,
-                                    n_samples=n_samples)
+                                    n_samples=n_samples, jac=jac)
                for i in range(n_repeat)]
     results = list(map(list, zip(*results)))
 
@@ -252,7 +254,7 @@ def unpack(t, t_indices):
 
 
 def hyper_opt(f, data, hyper_min, hyper_max,
-              hyper_init=None, n_samples=1000, n_repeat=1):
+              hyper_init=None, n_samples=1000, n_repeat=1, hyper_warp=None):
     """
     Optimize Hyperparameters.
 
@@ -272,6 +274,8 @@ def hyper_opt(f, data, hyper_min, hyper_max,
         The number of sample points to use if sample optimization is involved
     n_repeat : int, optional
         The number of multiple explore optimisation to be performed if involved
+    hyper_warp : callable, optional
+        The function that wraps the parameter space
 
     Returns
     -------
@@ -289,8 +293,12 @@ def hyper_opt(f, data, hyper_min, hyper_max,
     assert t_min.shape == t_max.shape
 
     # Define the objective
-    def objective(t):
-        return f(*unpack(t, t_indices), data)
+    if hyper_warp is None:
+        def objective(t):
+            return f(*unpack(t, t_indices), data)
+    else:
+        def objective(t):
+            return f(*hyper_warp(*unpack(t, t_indices)), data)
 
     # Perform optimization
     if hyper_init is None:

@@ -6,7 +6,7 @@ unless otherwise specified through a keyword argument, since the learning that
 is implemented in the learning module is done with the Gaussian kernel only for
 the time being.
 """
-import numpy as np
+import autograd.numpy as np
 from scipy.signal import argrelextrema as _argrelextrema
 from scipy.special import erf as _erf
 from scipy.optimize import root as _root
