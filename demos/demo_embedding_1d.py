@@ -6,6 +6,7 @@ import bake
 import utils
 import matplotlib.pyplot as plt
 
+
 def main():
 
     # Generate some data

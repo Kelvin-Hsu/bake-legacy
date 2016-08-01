@@ -616,7 +616,24 @@ def variance(y, w):
     return y_q_exp_sq - (y_q_exp ** 2)
 
 
-def clip_normalise(w):
+def normalize(w):
+    """
+    Normalize weights.
+
+    Parameters
+    ----------
+    w : numpy.ndarray
+        The conditional or posterior weight matrix (n, n_q)
+
+    Returns
+    -------
+    numpy.ndarray
+        The normalized conditional or posterior weight matrix (n, n_q)
+    """
+    return w / np.sum(w, axis=0)
+
+
+def clip_normalize(w):
     """
     Use the clipping method to normalize weights.
 
@@ -666,24 +683,24 @@ def density_weights(w_q, y, theta_y):
     b = -np.dot(b_matrix, w_q) # [(n, n_q), (n,)]
 
     # Initialize the normalized weights
-    w_norm_init = clip_normalise(w_q)
-    w_norm_opt = np.zeros(w_norm_init.shape)
+    w_q_pdf_init = clip_normalise(w_q)
+    w_q_pdf = np.zeros(w_q_pdf_init.shape)
 
     # Find the normalized weights using snucq
     if w_q.ndim == 2:
         n, n_q = w_q.shape
         for i in np.arange(n_q):
-            w_norm_opt[:, i] = _snucq(a, b[:, i], w_norm_init[:, i])
+            w_q_pdf[:, i] = _snucq(a, b[:, i], w_q_pdf_init[:, i])
     elif w_q.ndim == 1:
-        w_norm_opt = _snucq(a, b, w_norm_init)
+        w_q_pdf = _snucq(a, b, w_q_pdf_init)
     else:
         raise ValueError('Weights have the wrong dimensions')
 
     # Return the normalized weights
-    return w_norm_opt
+    return w_q_pdf
 
 
-def _distribution_singular(y_eval, w_q, y, theta_y):
+def _distribution_singular(y_eval, w_q_pdf, y, theta_y, clip=True):
     """
     Obtain the distribution function from normalized weights (non-vectorized).
 
@@ -693,7 +710,7 @@ def _distribution_singular(y_eval, w_q, y, theta_y):
     ----------
     y_eval : numpy.ndarray
         The point to evaluate distribution (d_y,) [Not Vectorized]
-    w_q : numpy.ndarray
+    w_q_pdf : numpy.ndarray
         The normalized weight matrix or weight vector [(n, n_q), (n,)]
     y : numpy.ndarray
         The training outputs (n, d_y)
@@ -712,10 +729,13 @@ def _distribution_singular(y_eval, w_q, y, theta_y):
     each_cdf = np.prod(all_cdf, axis=1)
 
     # (n_q,) or constant
-    return np.dot(each_cdf, w_q)
+    cdf =  np.dot(each_cdf, w_q_pdf)
+
+    # Clip the distribution if required
+    return np.clip(cdf, 0, 1) if clip else cdf
 
 
-def _distribution_vector(y_eval, w_q, y, theta_y):
+def _distribution_vector(y_eval, w_q_pdf, y, theta_y, clip=True):
     """
     Obtain the distribution function from normalized weights (vectorized).
 
@@ -723,7 +743,7 @@ def _distribution_vector(y_eval, w_q, y, theta_y):
     ----------
     y_eval : numpy.ndarray
         The point to evaluate distribution (n_eval, d_y) [Vectorized]
-    w_q : numpy.ndarray
+    w_q_pdf : numpy.ndarray
         The normalized weight matrix or weight vector [(n, n_q), (n,)]
     y : numpy.ndarray
         The training outputs (n, d_y)
@@ -749,10 +769,13 @@ def _distribution_vector(y_eval, w_q, y, theta_y):
     each_cdf = np.prod(all_cdf, axis=-1)
 
     # (n_eval, n_q) or (n_eval,)
-    return np.dot(each_cdf, w_q)
+    cdf = np.dot(each_cdf, w_q_pdf)
+
+    # Clip the distribution if required
+    return np.clip(cdf, 0, 1) if clip else cdf
 
 
-def distribution(y_eval, w_q, y, theta_y):
+def distribution(y_eval, w_q_pdf, y, theta_y, clip=True):
     """
     Obtain the distribution function from normalized weights.
 
@@ -760,7 +783,7 @@ def distribution(y_eval, w_q, y, theta_y):
     ----------
     y_eval : numpy.ndarray
         The point to evaluate distribution [(n_eval, d_y), (d_y,)]
-    w_q : numpy.ndarray
+    w_q_pdf : numpy.ndarray
         The normalized weight matrix or weight vector [(n, n_q), (n,)]
     y : numpy.ndarray
         The training outputs (n, d_y)
@@ -774,14 +797,14 @@ def distribution(y_eval, w_q, y, theta_y):
         [(n_q,), 1] or [(n_eval, n_q), (n_eval,)]
     """
     if y_eval.ndim == 1:
-        return _distribution_singular(y_eval, w_q, y, theta_y)
+        return _distribution_singular(y_eval, w_q_pdf, y, theta_y, clip=clip)
     elif y_eval.ndim == 2:
-        return _distribution_vector(y_eval, w_q, y, theta_y)
+        return _distribution_vector(y_eval, w_q_pdf, y, theta_y, clip=clip)
     else:
         raise ValueError('y_eval not in the right dimensions')
 
 
-def quantile_regression(p, y_q_init, w_q, y, theta_y):
+def quantile_regression(p, y_q_init, w_q_pdf, y, theta_y):
     """
     Perform quantile regression.
 
@@ -791,7 +814,7 @@ def quantile_regression(p, y_q_init, w_q, y, theta_y):
         The probability level of the quantile
     y_q_init : numpy.ndarray
         The initial quantile estimate for the first query point (d_y,)
-    w_q : numpy.ndarray
+    w_q_pdf : numpy.ndarray
         The conditional weights (n, n_q)
     y : numpy.ndarray
         The training outputs (n, d_y)
@@ -803,7 +826,7 @@ def quantile_regression(p, y_q_init, w_q, y, theta_y):
     The quantiles at the query points (n_q, d_y)
     """
     # Initialise the quantile root finding routine
-    n, n_q = w_q.shape
+    n, n_q = w_q_pdf.shape
     y_q_opt = y_q_init.copy()
     y_quantiles = []
 
@@ -812,7 +835,8 @@ def quantile_regression(p, y_q_init, w_q, y, theta_y):
 
         # Find the quantile for this query point
         def function(y_q):
-            return _distribution_singular(y_q, w_q[:, j], y, theta_y) - p
+            return _distribution_singular(y_q,
+                                          w_q_pdf[:, j],y, theta_y) - p
         y_q_opt = _root(function, y_q_opt).x
         y_quantiles.append(y_q_opt)
 
@@ -820,7 +844,7 @@ def quantile_regression(p, y_q_init, w_q, y, theta_y):
     return np.array(y_quantiles)
 
 
-def multiple_quantile_regression(probabilities, w_q, y, theta_y):
+def multiple_quantile_regression(probabilities, w_q_pdf, y, theta_y):
     """
     Perform multiple quantile regressions.
 
@@ -828,7 +852,7 @@ def multiple_quantile_regression(probabilities, w_q, y, theta_y):
     ----------
     probabilities : array_like
         A list or array of probabilities to find the quantiles for
-    w_q : numpy.ndarray
+    w_q_pdf : numpy.ndarray
         The conditional weights (n, n_q)
     y : numpy.ndarray
         The training outputs (n, d_y)
@@ -848,7 +872,7 @@ def multiple_quantile_regression(probabilities, w_q, y, theta_y):
     for p in probabilities:
 
         # Find the quantile for this probability
-        y_quantile = quantile_regression(p, y_q_init, w_q, y, theta_y)
+        y_quantile = quantile_regression(p, y_q_init, w_q_pdf, y, theta_y)
         y_quantiles.append(y_quantile)
 
         # Start the next quantile search with the result of the current one
