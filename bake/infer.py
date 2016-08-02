@@ -309,7 +309,7 @@ def embedding_to_weights(mu, x, k_xx):
     numpy.ndarray
         The recovered weights (n,)
     """
-    return _solve_posdef(k_xx, mu(x))
+    return _solve_posdef(k_xx, mu(x))[0]
 
 
 def conditional_embedding_to_weights(mu_y_x, y, k_yy, x_q):
@@ -332,7 +332,7 @@ def conditional_embedding_to_weights(mu_y_x, y, k_yy, x_q):
     numpy.ndarray
 
     """
-    return _solve_posdef(k_yy, mu_y_x(y, x_q))
+    return _solve_posdef(k_yy, mu_y_x(y, x_q))[0]
 
 
 def mode(mu, xv_start, xv_min, xv_max):
@@ -606,6 +606,7 @@ def variance(y, w):
     numpy.ndarray
         The conditional covariance value of the output (d_y, n_q)
     """
+    w = clip_normalize(w)
     # Compute the expectance (d_y, n_q)
     y_q_exp = np.dot(y.T, w)
 
@@ -631,6 +632,24 @@ def normalize(w):
         The normalized conditional or posterior weight matrix (n, n_q)
     """
     return w / np.sum(w, axis=0)
+
+
+def softmax_normalize(w):
+    """
+    Normalize weights.
+
+    Parameters
+    ----------
+    w : numpy.ndarray
+        The conditional or posterior weight matrix (n, n_q)
+
+    Returns
+    -------
+    numpy.ndarray
+        The normalized conditional or posterior weight matrix (n, n_q)
+    """
+    w_softmax = np.exp(w)
+    return w_softmax / np.sum(w_softmax, axis=0)
 
 
 def clip_normalize(w):
@@ -683,7 +702,7 @@ def density_weights(w_q, y, theta_y):
     b = -np.dot(b_matrix, w_q) # [(n, n_q), (n,)]
 
     # Initialize the normalized weights
-    w_q_pdf_init = clip_normalise(w_q)
+    w_q_pdf_init = clip_normalize(w_q)
     w_q_pdf = np.zeros(w_q_pdf_init.shape)
 
     # Find the normalized weights using snucq

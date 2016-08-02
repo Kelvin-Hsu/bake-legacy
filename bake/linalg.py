@@ -27,7 +27,7 @@ def dist(x_1, x_2):
     return x_1[:, np.newaxis] - x_2[np.newaxis, :]
 
 
-def gaussian_norm(theta, m = 1):
+def gaussian_norm(theta, m=1):
     """
     Obtains the normalising constant for the gaussian kernel.
 

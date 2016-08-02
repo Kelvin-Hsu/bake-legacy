@@ -75,7 +75,7 @@ def wave_regression(wave_params, noise_level, hyper_min, hyper_max, learn=True):
             x, y, hyper_min, hyper_max)
         print(theta_x, theta_y, zeta, psi, sigma)
     else:
-        theta_x, theta_y, zeta = 2.0, 3.0, 0.01
+        theta_x, theta_y, zeta = 5.0, 3.7, 0.02
 
     # QUERY POINT GENERATION
 
@@ -98,7 +98,9 @@ def wave_regression(wave_params, noise_level, hyper_min, hyper_max, learn=True):
     # Weights of the density
     # w_q_density = bake.infer.clip_normalize(w_q)
     # w_q_density = bake.infer.density_weights(w_q, y, theta_y)
-    w_q_density = bake.infer.normalize(w_q)
+    w_q_density = bake.infer.clip_normalize(w_q)
+    # w_q_density = bake.infer.softmax_normalize(w_q)
+
     # w_q_density = w_q
 
     # QUANTILE REGRESSION
@@ -117,10 +119,10 @@ def wave_regression(wave_params, noise_level, hyper_min, hyper_max, learn=True):
 
     # Expectance and Variance
     yq_exp = bake.infer.expectance(y, w_q)[0]
-    # yq_var = bake.infer.variance(y, w_q)[0]
-    # yq_std = np.sqrt(yq_var)
-    # yq_lb = yq_exp - 2 * yq_std
-    # yq_ub = yq_exp + 2 * yq_std
+    yq_var = bake.infer.variance(y, w_q)[0]
+    yq_std = np.sqrt(yq_var)
+    yq_lb = yq_exp - 2 * yq_std
+    yq_ub = yq_exp + 2 * yq_std
 
     # MODE REGRESSION
 
@@ -139,9 +141,9 @@ def wave_regression(wave_params, noise_level, hyper_min, hyper_max, learn=True):
      for i in np.arange(n_quantiles)]
     plt.scatter(x_modes.ravel(), y_modes.ravel(), c='w', edgecolors='w',
                 label='Modes')
-    # plt.fill_between(x_q.ravel(), yq_lb, yq_ub,
-    #                  facecolor=(0.9, 0.9, 0.9), edgecolor=(0.0, 0.0, 0.0),
-    #                  interpolate=True, alpha=0.5)
+    plt.fill_between(x_q.ravel(), yq_lb, yq_ub,
+                     facecolor=(0.9, 0.9, 0.9), edgecolor=(0.0, 0.0, 0.0),
+                     interpolate=True, alpha=0.5)
     plt.xlim(x_lim)
     plt.ylim(y_lim)
     plt.xlabel('$x$')
