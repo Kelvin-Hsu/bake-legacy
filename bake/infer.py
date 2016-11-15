@@ -606,7 +606,7 @@ def variance(y, w):
     numpy.ndarray
         The conditional covariance value of the output (d_y, n_q)
     """
-    w = clip_normalize(w)
+    # w = clip_normalize(w)
     # Compute the expectance (d_y, n_q)
     y_q_exp = np.dot(y.T, w)
 
