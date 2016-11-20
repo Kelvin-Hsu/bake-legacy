@@ -88,7 +88,12 @@ def binary_classification(x, y, learn=False):
     # MOMENT REGRESSION
 
     # Expectance and Variance
-    yq_exp = bake.infer.expectance(y, w_q)[0]
+    classes = np.array([0, 1])
+    colors = ['k', 'b']
+    p = np.array([bake.infer.expectance(y == c, w_q)[0] for c in classes])
+    i_pred = np.argmax(p, axis=0)
+    y_pred = classes[i_pred]
+
 
     # MODE REGRESSION
     x_modes, y_modes = \
@@ -96,11 +101,13 @@ def binary_classification(x, y, learn=False):
 
     # Plot the conditional embedding
     plt.figure()
-    plt.pcolormesh(x_grid, y_grid, mu_yq_xq)
+    # plt.pcolormesh(x_grid, y_grid, mu_yq_xq)
     plt.scatter(x.ravel(), y.ravel(), c='k', label='Training Data')
-    plt.plot(x_q.ravel(), yq_exp, c='b', label='Expectance')
+    [plt.plot(x_q.ravel(), p[c], c=colors[c],
+              label='Generalised Probability of Class %d' % c) for c in classes]
     plt.plot(x_q.ravel(), y_q_true, c='g', label='Ground Truth')
-    plt.scatter(x_modes.ravel(), y_modes.ravel(), c='w', edgecolors='w',
+    plt.plot(x_q.ravel(), y_pred, c='c', label='Predictions')
+    plt.scatter(x_modes.ravel(), y_modes.ravel(), c='b', edgecolors='w',
                 label='Modes')
     plt.xlim(x_lim)
     plt.ylim(y_lim)
