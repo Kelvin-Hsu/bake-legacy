@@ -6,55 +6,40 @@ import utils
 import matplotlib.pyplot as plt
 import numpy as np
 
-seed = 200
+seed = 100
+colors = ['k', 'b', 'r', 'g']
 
 def true_phenomenon(x):
 
-    omega = 2.0
-    phase_shift = 0.0
-    amplitude = 1.0
-    bias = 0.0
-    wave_params = (omega, phase_shift, amplitude, bias)
-    noise_level = 0.0
-
-    # Generate output data
-    f = utils.data.generate_waves(x, *wave_params,
-                                  noise_level=noise_level, seed=seed)
-    return (f > 0).astype(float)
-
-
-def noisy_phenomenon(x):
-
-    omega = 2.0
-    phase_shift = 0.0
-    amplitude = 1.0
-    bias = 0.0
-    wave_params = (omega, phase_shift, amplitude, bias)
-    noise_level = 0.1
-
-    # Generate output data
-    f = utils.data.generate_waves(x, *wave_params,
-                                  noise_level=noise_level, seed=seed)
-    return (f > 0).astype(float)
+    x_min = -5
+    x_max = +5
+    r_max = 1.5
+    n_class = 5
+    c = (x_max - x_min) * np.random.rand(n_class) + x_min
+    r = r_max * np.random.rand(n_class)
+    y = np.zeros(x.shape)
+    for i in range(n_class):
+        y[np.abs(x - c[i]) < r[i]] = i
+    return y
 
 def create_training_data():
 
     # Generate input data
-    n = 40
+    n = 100
     d = 1
     x_min = -5
     x_max = +5
     x = utils.data.generate_uniform_data(n, d, x_min, x_max, seed=seed)
-    y = noisy_phenomenon(x)
+    y = true_phenomenon(x)
     return x, y
 
-def binary_classification(x, y, learn=False):
+def multiclass_classification(x, y, learn=False):
 
     # Set the hyperparameters
     if learn:
         return
     else:
-        theta_x, zeta = 1.5, 0.01
+        theta_x, zeta = 0.5, 0.01
 
     # Generate the query points
     x_min = -5
@@ -78,7 +63,6 @@ def binary_classification(x, y, learn=False):
 
     # Probabilistic computations
     classes = np.arange(np.unique(y).shape[0])
-    colors = ['k', 'b']
     p = np.array([bake.infer.expectance(y == c, w_q)[0] for c in classes])
     i_pred = np.argmax(p, axis=0)
     y_pred = classes[i_pred]
@@ -93,10 +77,10 @@ def binary_classification(x, y, learn=False):
     plt.scatter(x.ravel(), y.ravel(), c='k', label='Training Data')
     [plt.plot(x_q.ravel(), p[c], c=colors[c],
               label='Generalised Probability of Class %d' % c) for c in classes]
-    plt.plot(x_q.ravel(), y_q_true, c='g', label='Ground Truth')
+    # plt.plot(x_q.ravel(), y_q_true, c='c', marker='.', label='Ground Truth')
     plt.plot(x_q.ravel(), y_pred, c='c', label='Predictions')
-    plt.scatter(x_modes.ravel(), y_modes.ravel(), c='b', edgecolors='w',
-                label='Modes')
+    # plt.scatter(x_modes.ravel(), y_modes.ravel(), c='b', edgecolors='w',
+    #             label='Modes')
     plt.xlim(x_lim)
     plt.ylim(y_lim)
     plt.xlabel('$x$')
@@ -107,5 +91,5 @@ def binary_classification(x, y, learn=False):
 
 if __name__ == "__main__":
     x, y = create_training_data()
-    utils.misc.time_module(binary_classification, x, y, learn=False)
+    utils.misc.time_module(multiclass_classification, x, y, learn=False)
     plt.show()
