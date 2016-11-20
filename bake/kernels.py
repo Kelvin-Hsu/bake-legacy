@@ -124,4 +124,5 @@ def kronecker_delta(x_p, x_q, *args):
     """
     if x_q is None:
         return np.ones(x_p.shape[0])
-    return (cdist(x_q, x_q, 'sqeuclidean') == 0).astype(float)
+    # return (cdist(x_q, x_q, 'sqeuclidean') < 1e-8).astype(float)
+    return (cdist(x_p, x_q, 'sqeuclidean') == 0).astype(float)
