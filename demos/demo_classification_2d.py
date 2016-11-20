@@ -4,6 +4,7 @@ Demonstration of simple kernel embeddings.
 import bake
 import utils
 import matplotlib.pyplot as plt
+from matplotlib import cm
 import numpy as np
 
 seed = 200
@@ -33,7 +34,7 @@ def create_training_data():
 def multiclass_classification(x, y):
 
     # Set the hyperparameters
-    theta_x, zeta = 0.5, 0.01
+    theta_x, zeta = 0.4, 0.01
 
     # Generate the query points
     n_query = 250
@@ -47,18 +48,21 @@ def multiclass_classification(x, y):
     w_q = bake.infer.conditional_weights(x, theta_x, x_q, zeta=zeta)
 
     # Weights of the density
-    # w_q = bake.infer.clip_normalize(w_q)
+    w_q = bake.infer.clip_normalize(w_q)
 
     # Probabilistic computations
     classes = np.arange(np.unique(y).shape[0])
     p = np.array([bake.infer.expectance(y == c, w_q)[0] for c in classes])
+    p_norm = bake.infer.softmax_normalize(p)
+    entropy = - np.sum(p_norm * np.log(p_norm), axis=0)
     i_pred = np.argmax(p, axis=0)
     y_pred = classes[i_pred]
 
     # Convert to mesh
     y_pred_mesh = np.reshape(y_pred, (n_query, n_query))
+    entropy_mesh = np.reshape(entropy, (n_query, n_query))
 
-    # Plot the conditional embedding
+    # Plot the predictions
     plt.figure()
     plt.pcolormesh(x_1_grid, x_2_grid, y_pred_mesh, label='Predictions')
     plt.scatter(x[:, 0], x[:, 1], c=y, label='Training Data')
@@ -69,7 +73,21 @@ def multiclass_classification(x, y):
     plt.ylabel('$x_{2}$')
     plt.legend(loc='lower left', bbox_to_anchor=(0, 0),
                fontsize=8,fancybox=True).get_frame().set_alpha(0.5)
-    plt.title('Kernel Embedding Classifier')
+    plt.title('Kernel Embedding Classifier: Predictions')
+
+    # Plot the entropy
+    plt.figure()
+    plt.pcolormesh(x_1_grid, x_2_grid, entropy_mesh, cmap=cm.coolwarm,
+                   label='Entropy')
+    plt.colorbar()
+    plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cm.jet, label='Training Data')
+    plt.xlim(x_1_lim)
+    plt.ylim(x_2_lim)
+    plt.xlabel('$x_{1}$')
+    plt.ylabel('$x_{2}$')
+    plt.legend(loc='lower left', bbox_to_anchor=(0, 0),
+               fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
+    plt.title('Kernel Embedding Classifier: Entropy')
 
 if __name__ == "__main__":
     x, y = create_training_data()
