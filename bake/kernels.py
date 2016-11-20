@@ -98,3 +98,30 @@ def matern3on2(x_p, x_q, theta):
         return np.ones(x_p.shape[0])
     r = cdist(x_p/theta, x_q/theta, 'euclidean')
     return (1.0 + r) * np.exp(-r)
+
+
+def kronecker_delta(x_p, x_q, *args):
+    """
+    Defines the Kronecker delta kernel.
+
+    The Kronecker delta does not need any hyperparameters. Passing
+    hyperparameter arguments do not change the kernel behaviour.
+
+    Parameters
+    ----------
+    x_p : numpy.ndarray
+        A collection of data (n_p x m) [2D Array]
+    x_q : numpy.ndarray
+        A collection of data (n_q x m) [2D Array]
+    theta : numpy.ndarray
+        Hyperparameters that parametrises the kernel [1D Array]
+
+    Returns
+    -------
+    numpy.ndarray
+        The corresponding gram matrix if "x_q" is given (n_p x n_q)
+        The diagonal of the gram matrix if "x_q" is given as "None" (n_p)
+    """
+    if x_q is None:
+        return np.ones(x_p.shape[0])
+    return (cdist(x_q, x_q, 'sqeuclidean') == 0).astype(float)
