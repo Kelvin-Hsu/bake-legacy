@@ -48,12 +48,13 @@ def multiclass_classification(x, y):
     w_q = bake.infer.conditional_weights(x, theta_x, x_q, zeta=zeta)
 
     # Weights of the density
-    w_q = bake.infer.clip_normalize(w_q)
+    # w_q = bake.infer.clip_normalize(w_q)
 
     # Probabilistic computations
     classes = np.arange(np.unique(y).shape[0])
     p = np.array([bake.infer.expectance(y == c, w_q)[0] for c in classes])
     p_norm = bake.infer.softmax_normalize(p)
+    # p_norm = p
     entropy = - np.sum(p_norm * np.log(p_norm), axis=0)
     i_pred = np.argmax(p, axis=0)
     y_pred = classes[i_pred]
@@ -88,6 +89,21 @@ def multiclass_classification(x, y):
     plt.legend(loc='lower left', bbox_to_anchor=(0, 0),
                fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
     plt.title('Kernel Embedding Classifier: Entropy')
+
+    for c in classes:
+        plt.figure()
+        plt.pcolormesh(x_1_grid, x_2_grid, np.reshape(p[c], (n_query, n_query)),
+                       cmap=cm.coolwarm,
+                       label='Probability')
+        plt.colorbar()
+        plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cm.jet, label='Training Data')
+        plt.xlim(x_1_lim)
+        plt.ylim(x_2_lim)
+        plt.xlabel('$x_{1}$')
+        plt.ylabel('$x_{2}$')
+        plt.legend(loc='lower left', bbox_to_anchor=(0, 0),
+                   fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
+        plt.title('Kernel Embedding Classifier: Probability for Class %d' % c)
 
 if __name__ == "__main__":
     x, y = create_training_data()

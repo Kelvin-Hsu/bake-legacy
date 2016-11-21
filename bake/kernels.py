@@ -38,9 +38,10 @@ def gaussian(x_p, x_q, theta):
         The corresponding gram matrix if "x_q" is given (n_p x n_q)
         The diagonal of the gram matrix if "x_q" is given as "None" (n_p)
     """
+    c = np.prod(np.sqrt(2*np.pi)*theta*np.ones(x_p.shape[1]))
     if x_q is None:
-        return np.ones(x_p.shape[0])
-    return np.exp(-0.5 * cdist(x_p/theta, x_q/theta, 'sqeuclidean'))
+        return np.ones(x_p.shape[0])/c
+    return np.exp(-0.5 * cdist(x_p/theta, x_q/theta, 'sqeuclidean'))/c
 
 
 def laplace(x_p, x_q, theta):
