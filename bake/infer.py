@@ -899,3 +899,6 @@ def multiple_quantile_regression(probabilities, w_q_pdf, y, theta_y):
 
     # Return the quantiles
     return y_quantiles
+
+
+# def expected_improvement(x_q, ):

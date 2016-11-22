@@ -12,6 +12,7 @@ x_min = -5
 x_max = +5
 d = 2
 
+
 def true_phenomenon(x):
 
     n_class = 5
@@ -24,12 +25,14 @@ def true_phenomenon(x):
         y[((x - c[i])**2).sum(axis=1) < r[i]**2] = i
     return y
 
+
 def create_training_data():
 
     n = 100
     x = utils.data.generate_uniform_data(n, d, x_min, x_max, seed=seed)
     y = true_phenomenon(x)
     return x, y
+
 
 def multiclass_classification(x, y):
 
@@ -48,7 +51,7 @@ def multiclass_classification(x, y):
     w_q = bake.infer.conditional_weights(x, theta_x, x_q, zeta=zeta)
 
     # Weights of the density
-    # w_q = bake.infer.clip_normalize(w_q)
+    w_q = bake.infer.clip_normalize(w_q)
 
     # Probabilistic computations
     classes = np.arange(np.unique(y).shape[0])
