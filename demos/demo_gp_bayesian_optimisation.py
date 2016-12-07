@@ -1,17 +1,14 @@
 """
 Demonstration of simple kernel embeddings.
 """
+import utils
+import matplotlib.pyplot as plt
+from matplotlib import cm
+import numpy as np
+
 from manifold.regression import GPRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from scipy.stats import norm
-
-import utils
-import matplotlib.pyplot as plt
-from matplotlib import animation
-from matplotlib import cm
-from mpl_toolkits.mplot3d import axes3d
-import numpy as np
-import time
 
 seed = 20
 x_min = np.array([-5, 0])
@@ -47,11 +44,25 @@ def true_phenomenon(x):
 true_phenomenon.optima = np.array([[-np.pi, 12.275],
                                    [np.pi, 2.275],
                                    [9.42478, 2.475]])
-
 true_phenomenon.optimal_value = true_phenomenon(true_phenomenon.optima)
 
-def noisy_phenomenon(x, sigma=1.0):
 
+def noisy_phenomenon(x, sigma=1.0):
+    """
+    Noisy Branin-Hoo Function.
+
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The input to the function of size (n, 2)
+    sigma : float, optional
+        The noise level to be added
+
+    Returns
+    -------
+    numpy.ndarray
+        The noisy output from the function
+    """
     f = true_phenomenon(x)
     e = np.random.normal(loc=0, scale=sigma, size=x.shape[0])
     y = f + e
@@ -59,17 +70,35 @@ def noisy_phenomenon(x, sigma=1.0):
 
 
 def create_training_data(n=100, sigma=1.0):
+    """
+    Create training data.
 
+    Parameters
+    ----------
+    n, optional: int
+        The number of training data points
+    sigma : float, optional
+        The noise level to be added
+
+    Returns
+    -------
+    np.ndarray
+        The input data of size (n, d)
+    np.ndarray
+        The output data of size (n,)
+    """
     x = utils.data.generate_uniform_data(n, d, x_min, x_max, seed=seed)
     y = noisy_phenomenon(x, sigma=1.0)
     return x, y
 
 
-def bayesian_optimisation():
-
+def bayesian_optimisation(retrain=True):
+    """
+    Run Bayesian Optimisation.
+    """
     # Create training data
-    sigma = 0.5
-    x, y = create_training_data(n=10, sigma=sigma)
+    sigma = 0.1
+    x, y = create_training_data(n=5, sigma=sigma)
 
     # Initialise a Gaussian Process Regressor
     kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
@@ -96,26 +125,33 @@ def bayesian_optimisation():
     x_opt = x[[i_opt]]
     y_opt = y[i_opt]
 
+    # The proposed points
     x_stars = []
     y_stars = []
 
-    # Predictions
+    # Start Bayesian Optimisation
     gpr.fit(x, y)
-    for i in range(20):
+    for i in range(40):
 
         if i > 0:
-            # x = np.concatenate((x, x_propose), axis=0)
-            # y = np.append(y, y_observe)
-            gpr.update(x_star, y_star)
+
+            if retrain:
+                x = np.concatenate((x, x_star), axis=0)
+                y = np.append(y, y_star)
+                gpr.fit(x, y)
+            else:
+                gpr.update(x_star, y_star)
+
             if y_star > y_opt:
                 x_opt = x_star
                 y_opt = y_star
 
+        # Prediction
         y_q_exp, y_q_std = gpr.predict(x_q, return_std=True)
         y_q_exp_mesh = np.reshape(y_q_exp, (n_query, n_query))
 
         # Expected Improvement
-        ei = gpr_expected_improvement(y_q_exp, y_q_std, y_opt)
+        ei = gaussian_expected_improvement(y_q_exp, y_q_std, y_opt)
         ei_mesh = np.reshape(ei, (n_query, n_query))
 
         # Proposed location of observation
@@ -132,7 +168,8 @@ def bayesian_optimisation():
     fig = plt.figure()
     ax = fig.gca(projection='3d')
     X, Y, Z = x_1_mesh, x_2_mesh, y_q_exp_mesh
-    ax.plot_surface(X, Y, Z, alpha=0.3, cmap=cm.jet, linewidth=0, antialiased=False)
+    ax.plot_surface(X, Y, Z, alpha=0.3, cmap=cm.jet, linewidth=0,
+                    antialiased=False)
     ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.coolwarm)
     ax.set_xlabel('$x_{1}$')
     ax.set_ylabel('$x_{2}$')
@@ -147,13 +184,12 @@ def bayesian_optimisation():
     ax.scatter(x_stars[:, 0], x_stars[:, 1], y_stars,
                c=y_stars, marker='+', vmin=vmin, vmax=vmax,
                label='Proposal Points')
-    # ax.view_init(90, 0)
-
 
     fig = plt.figure()
     ax = fig.gca(projection='3d')
     X, Y, Z = x_1_mesh, x_2_mesh, ei_mesh
-    ax.plot_surface(X, Y, Z, alpha=0.3, cmap=cm.jet, linewidth=0, antialiased=False)
+    ax.plot_surface(X, Y, Z, alpha=0.3, cmap=cm.jet, linewidth=0,
+                    antialiased=False)
     ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.coolwarm)
     ax.set_xlabel('$x_{1}$')
     ax.set_ylabel('$x_{2}$')
@@ -168,31 +204,49 @@ def bayesian_optimisation():
     ax.scatter(x_stars[:, 0], x_stars[:, 1], np.min(Z),
                c=y_stars, marker='+', vmin=vmin, vmax=vmax,
                label='Proposal Points')
-    # ax.view_init(90, 0)
 
     x_star_history = np.concatenate((x_opt_init, x_stars), axis=0)
     y_star_history = np.append(y_opt_init, y_stars)
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.plot(np.arange(y_star_history.shape[0]), y_star_history, label='Proposed Points')
-    ax.axhline(y=true_phenomenon.optimal_value[0], color = 'k', label='True Optimum')
+    ax.plot(np.arange(y_star_history.shape[0]), y_star_history,
+            label='Proposed Points')
+    ax.axhline(y=true_phenomenon.optimal_value[0], color = 'k',
+               label='True Optimum')
     ax.set_xlabel('Iterations')
     ax.set_ylabel('Observed Value')
     ax.set_title('Proposed Observations v.s. Iterations')
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.plot(np.arange(y_star_history.shape[0]), np.maximum.accumulate(y_star_history), label='Optima')
-    ax.axhline(y=true_phenomenon.optimal_value[0], color = 'k', label='True Optimum')
+    ax.plot(np.arange(y_star_history.shape[0]),
+            np.maximum.accumulate(y_star_history), label='Optima')
+    ax.axhline(y=true_phenomenon.optimal_value[0], color = 'k',
+               label='True Optimum')
     ax.set_xlabel('Iterations')
-    ax.set_ylabel('Optima')
-    ax.set_title('Optimum v.s. Iterations')
+    ax.set_ylabel('Optimum')
+    ax.set_title('Optimum So Far v.s. Iterations')
 
 
-def gpr_expected_improvement(mu, std, best):
+def gaussian_expected_improvement(mu, std, best):
+    """
+    Expected Improvement Acquisition Function for a Gaussian process.
 
-    # The difference between our predictions and the observed maximum so far
+    Parameters
+    ----------
+    mu : numpy.ndarray
+        The mean of the predictions (n_q,)
+    std : numpy.ndarray
+        The standard deviations of the predictions (n_q,)
+    best : float
+        The maximum observed value so far
+
+    Returns
+    -------
+    numpy.ndarray
+        The acquisition function evaluated at the corresponding points (n_q,)
+    """
     diff = mu - best
     abs_diff = np.abs(diff)
     clip_diff = np.clip(diff, 0, np.inf)
