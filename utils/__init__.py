@@ -1,1 +1,1 @@
-from . import visuals, data, misc
+from . import benchmark, data, misc, visuals

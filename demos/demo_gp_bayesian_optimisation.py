@@ -4,6 +4,7 @@ Demonstration of simple kernel embeddings.
 import utils
 import matplotlib.pyplot as plt
 from matplotlib import cm
+from mpl_toolkits.mplot3d import axes3d
 import numpy as np
 
 from manifold.regression import GPRegressor
@@ -14,37 +15,7 @@ seed = 20
 x_min = np.array([-5, 0])
 x_max = np.array([10, 15])
 d = 2
-
-
-def true_phenomenon(x):
-    """
-    Branin-Hoo Function.
-
-    Parameters
-    ----------
-    x : numpy.ndarray
-        The input to the function of size (n, 2)
-
-    Returns
-    -------
-    numpy.ndarray
-        The output from the function of size (n, )
-    """
-    x1 = x[:, 0]
-    x2 = x[:, 1]
-    a = 1.
-    b = 5.1 / (4. * np.pi ** 2)
-    c = 5. / np.pi
-    r = 6.
-    s = 10.
-    t = 1. / (8. * np.pi)
-    f = a * (x2 - b * x1 ** 2 + c * x1 - r) ** 2 + s * (1 - t) * np.cos(x1) + s
-    return -f
-
-true_phenomenon.optima = np.array([[-np.pi, 12.275],
-                                   [np.pi, 2.275],
-                                   [9.42478, 2.475]])
-true_phenomenon.optimal_value = true_phenomenon(true_phenomenon.optima)
+true_phenomenon = utils.benchmark.branin_hoo
 
 
 def noisy_phenomenon(x, sigma=1.0):
@@ -131,7 +102,7 @@ def bayesian_optimisation(retrain=True):
 
     # Start Bayesian Optimisation
     gpr.fit(x, y)
-    for i in range(40):
+    for i in range(32):
 
         if i > 0:
 
@@ -167,17 +138,28 @@ def bayesian_optimisation(retrain=True):
 
     fig = plt.figure()
     ax = fig.gca(projection='3d')
+    X, Y, Z = x_1_mesh, x_2_mesh, y_q_true_mesh
+    ax.plot_surface(X, Y, Z, alpha=0.3, cmap=cm.jet, linewidth=0,
+                    antialiased=False)
+    ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.jet)
+    ax.set_xlabel('$x_{1}$')
+    ax.set_ylabel('$x_{2}$')
+    ax.set_zlabel('$f(x)$')
+    ax.set_title('Ground Truth')
+
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
     X, Y, Z = x_1_mesh, x_2_mesh, y_q_exp_mesh
     ax.plot_surface(X, Y, Z, alpha=0.3, cmap=cm.jet, linewidth=0,
                     antialiased=False)
-    ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.coolwarm)
+    ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.jet)
     ax.set_xlabel('$x_{1}$')
     ax.set_ylabel('$x_{2}$')
     ax.set_zlabel('$E[f]$')
     ax.set_title('Predictions')
-    ax.scatter(true_phenomenon.optima[:, 0], true_phenomenon.optima[:, 1],
-               true_phenomenon.optimal_value,
-               c=true_phenomenon.optimal_value, s=40, marker='x',
+    ax.scatter(true_phenomenon.x_opt[:, 0], true_phenomenon.x_opt[:, 1],
+               true_phenomenon.f_opt,
+               c=true_phenomenon.f_opt, s=40, marker='x',
                vmin=vmin, vmax=vmax, label='Optima')
     ax.scatter(x[:, 0], x[:, 1], y, c=y, vmin=vmin, vmax=vmax,
                label='Training Data')
@@ -190,14 +172,14 @@ def bayesian_optimisation(retrain=True):
     X, Y, Z = x_1_mesh, x_2_mesh, ei_mesh
     ax.plot_surface(X, Y, Z, alpha=0.3, cmap=cm.jet, linewidth=0,
                     antialiased=False)
-    ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.coolwarm)
+    ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.jet)
     ax.set_xlabel('$x_{1}$')
     ax.set_ylabel('$x_{2}$')
     ax.set_zlabel('EI')
     ax.set_title('Expected Improvement')
-    ax.scatter(true_phenomenon.optima[:, 0], true_phenomenon.optima[:, 1],
+    ax.scatter(true_phenomenon.x_opt[:, 0], true_phenomenon.x_opt[:, 1],
                np.min(Z),
-               c=true_phenomenon.optimal_value, s=40, marker='x',
+               c=true_phenomenon.f_opt, s=40, marker='x',
                vmin=vmin, vmax=vmax, label='Optima')
     ax.scatter(x[:, 0], x[:, 1], np.min(Z), c=y, vmin=vmin, vmax=vmax,
                label='Training Data')
@@ -212,7 +194,7 @@ def bayesian_optimisation(retrain=True):
     ax = fig.add_subplot(111)
     ax.plot(np.arange(y_star_history.shape[0]), y_star_history,
             label='Proposed Points')
-    ax.axhline(y=true_phenomenon.optimal_value[0], color = 'k',
+    ax.axhline(y=true_phenomenon.f_opt[0], color = 'k',
                label='True Optimum')
     ax.set_xlabel('Iterations')
     ax.set_ylabel('Observed Value')
@@ -222,7 +204,7 @@ def bayesian_optimisation(retrain=True):
     ax = fig.add_subplot(111)
     ax.plot(np.arange(y_star_history.shape[0]),
             np.maximum.accumulate(y_star_history), label='Optima')
-    ax.axhline(y=true_phenomenon.optimal_value[0], color = 'k',
+    ax.axhline(y=true_phenomenon.f_opt[0], color = 'k',
                label='True Optimum')
     ax.set_xlabel('Iterations')
     ax.set_ylabel('Optimum')
@@ -251,6 +233,7 @@ def gaussian_expected_improvement(mu, std, best):
     abs_diff = np.abs(diff)
     clip_diff = np.clip(diff, 0, np.inf)
     return clip_diff + std*norm.pdf(diff/std) - abs_diff*norm.cdf(-abs_diff/std)
+
 
 if __name__ == "__main__":
     utils.misc.time_module(bayesian_optimisation)
