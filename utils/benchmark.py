@@ -67,7 +67,19 @@ griewank.f_opt = griewank(griewank.x_opt)
 
 
 def levy(x):
+    """
+    Levy Function.
 
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The input to the function of size (n, d)
+
+    Returns
+    -------
+    numpy.ndarray
+        The output from the function of size (n,)
+    """
     x1 = x[:, 0]
     x2 = x[:, 1]
     a = np.sin(3*np.pi*x1)**2
@@ -81,3 +93,20 @@ levy.x_min = np.array([-5., -5.])
 levy.x_max = np.array([5., 5.])
 levy.x_opt = np.array([[1., 1.]])
 levy.f_opt = levy(levy.x_opt)
+
+
+def schaffer(x):
+
+    x1 = x[:, 0]
+    x2 = x[:, 1]
+
+    a = np.sin(x1**2 - x2**2)**2 - 0.5
+    b = 1 + 0.001*(x1**2 + x2**2)
+    f = 0.5 + a/(b**2)
+    return -f
+
+schaffer.n_dim = 2
+schaffer.x_min = np.array([-2., -2.])
+schaffer.x_max = np.array([2., 2.])
+schaffer.x_opt = np.array([[0., 0.]])
+schaffer.f_opt = schaffer(schaffer.x_opt)

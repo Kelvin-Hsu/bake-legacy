@@ -193,24 +193,16 @@ def bayesian_optimisation(retrain=True):
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.plot(np.arange(y_star_history.shape[0]), y_star_history,
-            label='Proposed Points')
+    ax.step(np.arange(y_star_history.shape[0]), y_star_history, c='c',
+            where='post', label='Proposed Points')
+    ax.step(np.arange(y_star_history.shape[0]),
+            np.maximum.accumulate(y_star_history), c='g', where='post',
+            label='Current Optimum')
     ax.axhline(y=true_phenomenon.f_opt[0], color = 'k',
                label='True Optimum')
     ax.set_xlabel('Iterations')
     ax.set_ylabel('Observed Value')
-    ax.set_title('Proposed Observations v.s. Iterations')
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.plot(np.arange(y_star_history.shape[0]),
-            np.maximum.accumulate(y_star_history), label='Optima')
-    ax.axhline(y=true_phenomenon.f_opt[0], color = 'k',
-               label='True Optimum')
-    ax.set_xlabel('Iterations')
-    ax.set_ylabel('Optimum')
-    ax.set_title('Optimum So Far v.s. Iterations')
-
+    ax.set_title('Proposed Observations and Current Optimum v.s. Iterations')
 
 def gaussian_expected_improvement(mu, std, best):
     """
