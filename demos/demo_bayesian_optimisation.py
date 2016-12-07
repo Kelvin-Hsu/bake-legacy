@@ -18,7 +18,7 @@ d = 2
 def true_phenomenon(x):
     """
     Branin-Hoo Function.
-
+z
     Parameters
     ----------
     x : numpy.ndarray

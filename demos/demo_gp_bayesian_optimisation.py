@@ -12,10 +12,11 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from scipy.stats import norm
 
 seed = 20
-x_min = np.array([-5, 0])
-x_max = np.array([10, 15])
-d = 2
-true_phenomenon = utils.benchmark.branin_hoo
+
+true_phenomenon = utils.benchmark.levy
+d = true_phenomenon.n_dim
+x_min = true_phenomenon.x_min
+x_max = true_phenomenon.x_max
 
 
 def noisy_phenomenon(x, sigma=1.0):
