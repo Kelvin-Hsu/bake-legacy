@@ -3,7 +3,28 @@ Benchmark Module.
 
 Utility tools that deal with benchmarking or testing algorithmic performance.
 """
-import numpy as np
+import autograd.numpy as np
+from scipy.spatial.distance import cdist
+
+
+def loss_opt_loc(x=None, function=None, dist_ratio=0.01):
+
+    dists = cdist(x, function.x_opt, 'euclidean')
+    success_radius = dist_ratio * np.min(function.x_max - function.x_min)
+    return np.min(dists/success_radius)
+
+
+def success_opt_loc(loss_opt_loc_value):
+    return loss_opt_loc_value < 1
+
+
+def loss_func_approx(x_q, f_q, function=None):
+    f_q_true = function(x_q)
+    return np.sqrt(np.mean((f_q - f_q_true)**2))
+
+
+def success_func_approx(loss_func_approx_value, rmse_bound=None):
+    return loss_func_approx_value < rmse_bound
 
 
 def branin_hoo(x):

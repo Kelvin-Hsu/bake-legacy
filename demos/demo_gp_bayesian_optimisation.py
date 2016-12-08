@@ -1,5 +1,5 @@
 """
-Demonstration of simple kernel embeddings.
+Demonstration of Bayesian optimisation with Gaussian processes
 """
 import utils
 import matplotlib.pyplot as plt
@@ -13,7 +13,7 @@ from scipy.stats import norm
 
 seed = 20
 
-true_phenomenon = utils.benchmark.levy
+true_phenomenon = utils.benchmark.griewank
 d = true_phenomenon.n_dim
 x_min = true_phenomenon.x_min
 x_max = true_phenomenon.x_max
@@ -21,7 +21,7 @@ x_max = true_phenomenon.x_max
 
 def noisy_phenomenon(x, sigma=1.0):
     """
-    Noisy Branin-Hoo Function.
+    Noisy Function.
 
     Parameters
     ----------
@@ -36,7 +36,8 @@ def noisy_phenomenon(x, sigma=1.0):
         The noisy output from the function
     """
     f = true_phenomenon(x)
-    e = np.random.normal(loc=0, scale=sigma, size=x.shape[0])
+    e = np.random.normal(loc=0, scale=sigma, size=x.shape[0]) \
+        if sigma > 0 else 0
     y = f + e
     return y
 
@@ -64,13 +65,14 @@ def create_training_data(n=100, sigma=1.0):
     return x, y
 
 
-def bayesian_optimisation(retrain=True):
+def bayesian_optimisation():
     """
     Run Bayesian Optimisation.
     """
     # Create training data
-    sigma = 0.1
-    x, y = create_training_data(n=5, sigma=sigma)
+    n_start = 5
+    sigma = 0.0
+    x, y = create_training_data(n=n_start, sigma=sigma)
 
     # Initialise a Gaussian Process Regressor
     kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
@@ -103,13 +105,17 @@ def bayesian_optimisation(retrain=True):
 
     # Start Bayesian Optimisation
     gpr.fit(x, y)
-    for i in range(32):
+    retrain = True
+    n_trials = 100
+    n_stop_retrain = 30
+    metric_success_trial = np.inf
+    for i in range(n_trials):
 
         if i > 0:
 
+            x = np.concatenate((x, x_star), axis=0)
+            y = np.append(y, y_star)
             if retrain:
-                x = np.concatenate((x, x_star), axis=0)
-                y = np.append(y, y_star)
                 gpr.fit(x, y)
             else:
                 gpr.update(x_star, y_star)
@@ -117,6 +123,9 @@ def bayesian_optimisation(retrain=True):
             if y_star > y_opt:
                 x_opt = x_star
                 y_opt = y_star
+
+        if i > n_stop_retrain:
+            retrain = False
 
         # Prediction
         y_q_exp, y_q_std = gpr.predict(x_q, return_std=True)
@@ -134,6 +143,30 @@ def bayesian_optimisation(retrain=True):
         y_star = noisy_phenomenon(x_star, sigma=sigma)
         y_stars.append(y_star)
 
+        # Use a loss metric to measure the current performance
+        loss_value = utils.benchmark.loss_opt_loc(x=x_star,
+                                                  function=true_phenomenon,
+                                                  dist_ratio=0.01)
+        if utils.benchmark.success_opt_loc(loss_value) and metric_success_trial == np.inf:
+            metric_success_trial = i + 1
+            print('Success at %d steps with loss %f' % (metric_success_trial, loss_value))
+            # break
+
+        print('Step %d' % (i + 1))
+
+    final_loss_value = utils.benchmark.loss_opt_loc(x=x_opt,
+                                              function=true_phenomenon,
+                                              dist_ratio=0.01)
+
+    if metric_success_trial < np.inf:
+        print('Number of steps taken to succeed (up to %d): %d' % (
+            n_trials, metric_success_trial))
+    else:
+        print('Did not succeed after %d steps' % n_trials)
+    print('Final loss value after %d steps: %f' % (n_trials, final_loss_value))
+
+    ### PLOTTING ###
+
     x_stars = np.array(x_stars)
     y_stars = np.array(y_stars)
 
@@ -147,6 +180,11 @@ def bayesian_optimisation(retrain=True):
     ax.set_ylabel('$x_{2}$')
     ax.set_zlabel('$f(x)$')
     ax.set_title('Ground Truth')
+    ax.scatter(true_phenomenon.x_opt[:, 0], true_phenomenon.x_opt[:, 1],
+               true_phenomenon.f_opt,
+               c=true_phenomenon.f_opt, s=40, marker='x',
+               vmin=vmin, vmax=vmax, label='Optima')
+    ax.legend()
 
     fig = plt.figure()
     ax = fig.gca(projection='3d')
@@ -156,8 +194,8 @@ def bayesian_optimisation(retrain=True):
     ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.jet)
     ax.set_xlabel('$x_{1}$')
     ax.set_ylabel('$x_{2}$')
-    ax.set_zlabel('$E[f]$')
-    ax.set_title('Predictions')
+    ax.set_zlabel('$\mu(x)$')
+    ax.set_title('Mean Prediction')
     ax.scatter(true_phenomenon.x_opt[:, 0], true_phenomenon.x_opt[:, 1],
                true_phenomenon.f_opt,
                c=true_phenomenon.f_opt, s=40, marker='x',
@@ -166,7 +204,8 @@ def bayesian_optimisation(retrain=True):
                label='Training Data')
     ax.scatter(x_stars[:, 0], x_stars[:, 1], y_stars,
                c=y_stars, marker='+', vmin=vmin, vmax=vmax,
-               label='Proposal Points')
+               label='Active Sampled Data')
+    ax.legend()
 
     fig = plt.figure()
     ax = fig.gca(projection='3d')
@@ -176,7 +215,7 @@ def bayesian_optimisation(retrain=True):
     ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.jet)
     ax.set_xlabel('$x_{1}$')
     ax.set_ylabel('$x_{2}$')
-    ax.set_zlabel('EI')
+    ax.set_zlabel(r'$\alpha_{EI}(x)$')
     ax.set_title('Expected Improvement')
     ax.scatter(true_phenomenon.x_opt[:, 0], true_phenomenon.x_opt[:, 1],
                np.min(Z),
@@ -186,7 +225,8 @@ def bayesian_optimisation(retrain=True):
                label='Training Data')
     ax.scatter(x_stars[:, 0], x_stars[:, 1], np.min(Z),
                c=y_stars, marker='+', vmin=vmin, vmax=vmax,
-               label='Proposal Points')
+               label='Active Sampled Data')
+    ax.legend()
 
     x_star_history = np.concatenate((x_opt_init, x_stars), axis=0)
     y_star_history = np.append(y_opt_init, y_stars)
@@ -194,15 +234,37 @@ def bayesian_optimisation(retrain=True):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     ax.step(np.arange(y_star_history.shape[0]), y_star_history, c='c',
-            where='post', label='Proposed Points')
+            where='post', label='Sampled values')
     ax.step(np.arange(y_star_history.shape[0]),
             np.maximum.accumulate(y_star_history), c='g', where='post',
             label='Current Optimum')
     ax.axhline(y=true_phenomenon.f_opt[0], color = 'k',
                label='True Optimum')
     ax.set_xlabel('Iterations')
-    ax.set_ylabel('Observed Value')
-    ax.set_title('Proposed Observations and Current Optimum v.s. Iterations')
+    ax.set_ylabel('$y$')
+    ax.set_title('Active sampled target values v.s. Iterations')
+    ax.legend()
+
+    fig = plt.figure()
+    ax = fig.gca(projection='3d')
+    X, Y, Z = x_1_mesh, x_2_mesh, y_q_true_mesh
+    ax.plot_surface(X, Y, Z, alpha=0.3, cmap=cm.jet, linewidth=0,
+                    antialiased=False)
+    ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.jet)
+    ax.set_xlabel('$x_{1}$')
+    ax.set_ylabel('$x_{2}$')
+    ax.set_zlabel('$f(x)$')
+    ax.set_title('Trajectory of Active Samples')
+    ax.plot(x_star_history[:, 0], x_star_history[:, 1], y_star_history,
+            c='k', label='Trajectory of Active Samples')
+    ax.plot(x_star_history[:, 0], x_star_history[:, 1], np.min(Z),
+            linestyle=':', c='k', label='Trajectory of Active Samples')
+    m = np.concatenate((x_star_history, y_star_history[:, np.newaxis]), axis=1)
+    # ax.scatter(m[:, 0], m[:, 1], m[:, 2], c=m[:, 2])
+    for i in range(len(m)):  # plot each point + it's index as text above
+        ax.text(m[i, 0], m[i, 1], np.min(Z) + 0.05*(np.max(Z) - np.min(Z)),
+                '%s' % (str(i)), size=10, zorder=1, color='k')
+
 
 def gaussian_expected_improvement(mu, std, best):
     """
