@@ -8,7 +8,8 @@ from mpl_toolkits.mplot3d import axes3d
 import numpy as np
 
 from manifold.regression import GPRegressor
-from bayesian_optimization.gaussian_process import GPREI
+from bayesian_optimization.active_samplers import \
+    GaussianProcessSampler, RandomSampler
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from scipy.stats import norm
 
@@ -77,8 +78,7 @@ def setup_model():
     """
     # Initialise a Gaussian Process Regressor
     kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
-    # return GPRegressor(kernel=kernel)
-    return GPREI(kernel=kernel, n_stop_train=30)
+    return GaussianProcessSampler(kernel=kernel, n_stop_train=30)
 
 
 def bayesian_optimisation():
@@ -111,7 +111,6 @@ def bayesian_optimisation():
     x_opt_init = x[[i_opt]]
     y_opt_init = y[i_opt]
     x_opt = x[[i_opt]]
-    y_opt = y[i_opt]
 
     # The proposed points
     x_stars = []
@@ -124,36 +123,16 @@ def bayesian_optimisation():
     metric_success_trial = np.inf
     for i in range(n_trials):
 
-        if i > 0:
-
-            x = np.concatenate((x, x_star), axis=0)
-            y = np.concatenate((y, y_star), axis=0)
-            model.update(x_star, y_star)
-
-        # # Prediction
-        # y_q_exp, y_q_std = model.predict(x_q, return_std=True)
-        # y_q_exp_mesh = np.reshape(y_q_exp, (n_query, n_query))
-        #
-        # # Expected Improvement
-        # acq = gaussian_expected_improvement(y_q_exp, y_q_std, y_opt)
-        # acq_mesh = np.reshape(acq, (n_query, n_query))
-        #
-        # # Proposed location of observation
-        # x_star = x_q[[np.argmax(acq)]]
-        # x_stars.append(x_star[0])
-
-        # Proposed location of observation
+        # Pick a location to observe
         x_star = model.pick(x_q)
         x_stars.append(x_star[0])
 
-        # Observe!
+        # Observe that location
         y_star = noisy_phenomenon(x_star, sigma=sigma)
-        y_stars.append(y_star)
+        y_stars.append(y_star[0])
 
-        # Keep track of the current optimum
-        if y_star > y_opt:
-            x_opt = x_star
-            y_opt = y_star
+        # Update the model about the new observation
+        model.update(x_star, y_star)
 
         # Use a loss metric to measure the current performance
         loss_value = utils.benchmark.loss_opt_loc(x=x_star,
@@ -179,12 +158,15 @@ def bayesian_optimisation():
     print('Final loss value after %d steps: %f' % (n_trials, final_loss_value))
 
     ### PLOTTING ###
+    x_stars = np.array(x_stars)
+    y_stars = np.array(y_stars)
+    print(y.shape, y_stars.shape)
+    x = np.concatenate((x, x_stars), axis=0)
+    y = np.concatenate((y, y_stars), axis=0)
     y_q_exp = model.predict(x_q)
     y_q_exp_mesh = np.reshape(y_q_exp, (n_query, n_query))
     acq = model.acquisition(x_q)
     acq_mesh = np.reshape(acq, (n_query, n_query))
-    x_stars = np.array(x_stars)
-    y_stars = np.array(y_stars)
 
     fig = plt.figure()
     ax = fig.gca(projection='3d')
