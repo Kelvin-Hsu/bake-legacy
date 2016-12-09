@@ -8,12 +8,13 @@ from mpl_toolkits.mplot3d import axes3d
 import numpy as np
 
 from manifold.regression import GPRegressor
+from bayesian_optimization.gaussian_process import GPREI
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from scipy.stats import norm
 
 seed = 20
 
-true_phenomenon = utils.benchmark.griewank
+true_phenomenon = utils.benchmark.branin_hoo
 d = true_phenomenon.n_dim
 x_min = true_phenomenon.x_min
 x_max = true_phenomenon.x_max
@@ -65,6 +66,21 @@ def create_training_data(n=100, sigma=1.0):
     return x, y
 
 
+def setup_model():
+    """
+    Setup the model.
+
+    Must have fit, update
+    Returns
+    -------
+
+    """
+    # Initialise a Gaussian Process Regressor
+    kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
+    # return GPRegressor(kernel=kernel)
+    return GPREI(kernel=kernel, n_stop_train=30)
+
+
 def bayesian_optimisation():
     """
     Run Bayesian Optimisation.
@@ -74,9 +90,7 @@ def bayesian_optimisation():
     sigma = 0.0
     x, y = create_training_data(n=n_start, sigma=sigma)
 
-    # Initialise a Gaussian Process Regressor
-    kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
-    gpr = GPRegressor(kernel=kernel)
+    model = setup_model()
 
     # Generate the query points
     n_query = 250
@@ -104,53 +118,52 @@ def bayesian_optimisation():
     y_stars = []
 
     # Start Bayesian Optimisation
-    gpr.fit(x, y)
-    retrain = True
-    n_trials = 100
-    n_stop_retrain = 30
+    model.fit(x, y)
+    n_trials = 30
+
     metric_success_trial = np.inf
     for i in range(n_trials):
 
         if i > 0:
 
             x = np.concatenate((x, x_star), axis=0)
-            y = np.append(y, y_star)
-            if retrain:
-                gpr.fit(x, y)
-            else:
-                gpr.update(x_star, y_star)
+            y = np.concatenate((y, y_star), axis=0)
+            model.update(x_star, y_star)
 
-            if y_star > y_opt:
-                x_opt = x_star
-                y_opt = y_star
-
-        if i > n_stop_retrain:
-            retrain = False
-
-        # Prediction
-        y_q_exp, y_q_std = gpr.predict(x_q, return_std=True)
-        y_q_exp_mesh = np.reshape(y_q_exp, (n_query, n_query))
-
-        # Expected Improvement
-        ei = gaussian_expected_improvement(y_q_exp, y_q_std, y_opt)
-        ei_mesh = np.reshape(ei, (n_query, n_query))
+        # # Prediction
+        # y_q_exp, y_q_std = model.predict(x_q, return_std=True)
+        # y_q_exp_mesh = np.reshape(y_q_exp, (n_query, n_query))
+        #
+        # # Expected Improvement
+        # acq = gaussian_expected_improvement(y_q_exp, y_q_std, y_opt)
+        # acq_mesh = np.reshape(acq, (n_query, n_query))
+        #
+        # # Proposed location of observation
+        # x_star = x_q[[np.argmax(acq)]]
+        # x_stars.append(x_star[0])
 
         # Proposed location of observation
-        x_star = x_q[[np.argmax(ei)]]
+        x_star = model.pick(x_q)
         x_stars.append(x_star[0])
 
         # Observe!
         y_star = noisy_phenomenon(x_star, sigma=sigma)
         y_stars.append(y_star)
 
+        # Keep track of the current optimum
+        if y_star > y_opt:
+            x_opt = x_star
+            y_opt = y_star
+
         # Use a loss metric to measure the current performance
         loss_value = utils.benchmark.loss_opt_loc(x=x_star,
                                                   function=true_phenomenon,
                                                   dist_ratio=0.01)
-        if utils.benchmark.success_opt_loc(loss_value) and metric_success_trial == np.inf:
+        if utils.benchmark.success_opt_loc(loss_value) \
+                and metric_success_trial == np.inf:
             metric_success_trial = i + 1
-            print('Success at %d steps with loss %f' % (metric_success_trial, loss_value))
-            # break
+            print('Success at %d steps with loss %f' % (metric_success_trial,
+                                                        loss_value))
 
         print('Step %d' % (i + 1))
 
@@ -166,7 +179,10 @@ def bayesian_optimisation():
     print('Final loss value after %d steps: %f' % (n_trials, final_loss_value))
 
     ### PLOTTING ###
-
+    y_q_exp = model.predict(x_q)
+    y_q_exp_mesh = np.reshape(y_q_exp, (n_query, n_query))
+    acq = model.acquisition(x_q)
+    acq_mesh = np.reshape(acq, (n_query, n_query))
     x_stars = np.array(x_stars)
     y_stars = np.array(y_stars)
 
@@ -209,7 +225,7 @@ def bayesian_optimisation():
 
     fig = plt.figure()
     ax = fig.gca(projection='3d')
-    X, Y, Z = x_1_mesh, x_2_mesh, ei_mesh
+    X, Y, Z = x_1_mesh, x_2_mesh, acq_mesh
     ax.plot_surface(X, Y, Z, alpha=0.3, cmap=cm.jet, linewidth=0,
                     antialiased=False)
     ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.jet)
@@ -288,7 +304,7 @@ def gaussian_expected_improvement(mu, std, best):
     abs_diff = np.abs(diff)
     clip_diff = np.clip(diff, 0, np.inf)
     return clip_diff + std*norm.pdf(diff/std) - abs_diff*norm.cdf(-abs_diff/std)
-
+#
 
 if __name__ == "__main__":
     utils.misc.time_module(bayesian_optimisation)
