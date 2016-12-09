@@ -10,7 +10,7 @@ import numpy as np
 from manifold.regression import GPRegressor
 from bayesian_optimization.active_samplers import \
     GaussianProcessSampler, RandomSampler
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel
 from scipy.stats import norm
 
 seed = 20
@@ -70,15 +70,24 @@ def create_training_data(n=100, sigma=1.0):
 def setup_model():
     """
     Setup the model.
-
-    Must have fit, update
-    Returns
-    -------
-
     """
     # Initialise a Gaussian Process Regressor
-    kernel = C(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
-    return GaussianProcessSampler(kernel=kernel, n_stop_train=30)
+    kernel_1 = ConstantKernel(1.0, (1e-3, 1e3)) * RBF(10, (1e-2, 1e2))
+    kernel_2 = ConstantKernel(1.0, (1e-3, 1e3)) * Matern(10, (1e-2, 1e2))
+    model_0 = RandomSampler()
+    model_1 = GaussianProcessSampler(kernel=kernel_1, acquisition_method='EI',
+                                     n_stop_train=30)
+    model_2 = GaussianProcessSampler(kernel=kernel_1, acquisition_method='MU',
+                                     n_stop_train=30)
+    model_3 = GaussianProcessSampler(kernel=kernel_1, acquisition_method='STD',
+                                     n_stop_train=30)
+    model_4 = GaussianProcessSampler(kernel=kernel_2, acquisition_method='EI',
+                                     n_stop_train=30)
+    model_5 = GaussianProcessSampler(kernel=kernel_2, acquisition_method='MU',
+                                     n_stop_train=30)
+    model_6 = GaussianProcessSampler(kernel=kernel_2, acquisition_method='STD',
+                                     n_stop_train=30)
+    return model_3
 
 
 def bayesian_optimisation():

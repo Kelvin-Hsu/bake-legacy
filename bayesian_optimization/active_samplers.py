@@ -441,6 +441,7 @@ class GaussianProcessSampler(GaussianProcessRegressor):
         self.alpha_ = cho_solve((self.L_, True), self.y_train_)  # Line 3
 
         # TODO: Not sure which way is correct
+
         # self.log_marginal_likelihood_value_ = self.log_marginal_likelihood()
         # print(self.log_marginal_likelihood_value_)
         # self.log_marginal_likelihood_value_ = \
