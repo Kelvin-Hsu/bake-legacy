@@ -59,6 +59,7 @@ branin_hoo.x_opt = np.array([[-np.pi, 12.275],
                              [np.pi, 2.275],
                              [9.42478, 2.475]])
 branin_hoo.f_opt = branin_hoo(branin_hoo.x_opt)
+branin_hoo.name = 'Branin Hoo'
 
 
 def griewank(x):
@@ -85,6 +86,7 @@ griewank.x_min = np.array([-5., -5.])
 griewank.x_max = np.array([5., 5.])
 griewank.x_opt = np.array([[0., 0.]])
 griewank.f_opt = griewank(griewank.x_opt)
+griewank.name = 'Griewank'
 
 
 def levy(x):
@@ -114,6 +116,7 @@ levy.x_min = np.array([-5., -5.])
 levy.x_max = np.array([5., 5.])
 levy.x_opt = np.array([[1., 1.]])
 levy.f_opt = levy(levy.x_opt)
+levy.name = 'Levy'
 
 
 def schaffer(x):
@@ -131,3 +134,4 @@ schaffer.x_min = np.array([-2., -2.])
 schaffer.x_max = np.array([2., 2.])
 schaffer.x_opt = np.array([[0., 0.]])
 schaffer.f_opt = schaffer(schaffer.x_opt)
+schaffer.name = 'Schaffer'

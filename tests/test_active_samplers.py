@@ -11,7 +11,7 @@ from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel
 # TODO: REMEMBER CORRECTNESS AND SIMPLICITY BEATS OPTIMIZED CODE FOR SPEED
 
 
-def setup_test_func():
+def setup_test_funcs():
 
     return [utils.benchmark.branin_hoo,
             utils.benchmark.griewank,
@@ -61,7 +61,7 @@ def create_starting_data(test_func, x_query, n_start=10, seed=20):
     """
     # Ensure that the query points make sense in the context of the function
     n_dim = test_func.n_dim
-    assert n_dim == x_query.shape
+    assert n_dim == x_query.shape[1]
 
     # Select points from the query points as the starting points
     n_query, n_dim = x_query.shape
@@ -89,39 +89,34 @@ def setup_samplers():
                    for kernel in kernels
                    for acquisition_method in acquisition_methods
                    for n_stop_train in n_stop_trains]
+
+    kernel_names = ['Gaussian', 'Matern']
+    acquisition_names = acquisition_methods
+    n_stop_train_names = [str(n_stop_train) for n_stop_train in n_stop_trains]
+
+    sampler_names = ['Gaussian Process Sampler with %s kernel, '
+                      '%s acquisition, and %s training threshold'
+                      % (kernel_name, acquisition_name, n_stop_train_name)
+                      for kernel_name in kernel_names
+                      for acquisition_name in acquisition_names
+                      for n_stop_train_name in n_stop_train_names]
+
     samplers.append(RandomSampler())
+    sampler_names.append('Random Sampler')
+    for i, name in enumerate(sampler_names):
+        samplers[i].name = sampler_names[i]
     return samplers
 
 
-def test_opt_loc_metric(test_func, sampler, x_start, y_start, x_query,
-                        n_trials=30):
-    """
-    Run Bayesian Optimisation.
-    """
+def simulate_performance_metric(test_func, sampler, x_start, y_start, x_query,
+                                n_trials=30):
     assert x_start.shape[1] == x_query.shape[1]
     assert x_start.shape[0] == y_start.shape[0]
-    n_start, = y_start.shape
-    n_query, n_dim = x_query.shape
-
-    # Ground Truth
-    y_q_true = test_func(x_query)
-    y_q_true_mesh = np.reshape(y_q_true, (n_query, n_query))
-    vmin = np.min(y_q_true)
-    vmax = np.max(y_q_true)
-
-    # Best observation so far
-    i_opt = np.argmax(y)
-    x_opt_init = x[[i_opt]]
-    y_opt_init = y[i_opt]
-    x_opt = x[[i_opt]]
-
-    # The proposed points
     x_stars = []
     y_stars = []
-
-    # Start Bayesian Optimisation
     sampler.fit(x_start, y_start)
     metric_success_trial = np.inf
+
     for i in range(n_trials):
 
         # Pick a location to observe
@@ -142,21 +137,65 @@ def test_opt_loc_metric(test_func, sampler, x_start, y_start, x_query,
         if utils.benchmark.success_opt_loc(loss_value) \
                 and metric_success_trial == np.inf:
             metric_success_trial = i + 1
-            print('Success at %d steps with loss %f' % (metric_success_trial,
-                                                        loss_value))
-        print('Step %d' % (i + 1))
+            print('\t\tSuccess at %d steps with loss %f'
+                  % (metric_success_trial, loss_value))
+        print('\t\tStep %d' % (i + 1))
 
+    x_opt = x_query[[np.argmax(np.append(y_start, y_stars))]]
     final_loss_value = utils.benchmark.loss_opt_loc(x=x_opt,
                                                     function=test_func,
                                                     dist_ratio=0.01)
 
     if metric_success_trial < np.inf:
-        print('Number of steps taken to succeed (up to %d): %d' % (
+        print('\t\tNumber of steps taken to succeed (up to %d): %d' % (
             n_trials, metric_success_trial))
     else:
-        print('Did not succeed after %d steps' % n_trials)
-    print('Final loss value after %d steps: %f' % (n_trials, final_loss_value))
+        print('\t\tDid not succeed after %d steps' % n_trials)
+    print('\t\tFinal loss value after %d steps: %f'
+          % (n_trials, final_loss_value))
 
+    return final_loss_value
+
+
+def average_performance_metric(test_func, sampler, n_query=250, n_start=10,
+                               n_trials=50):
+
+    x_query = create_query_data(test_func, n_query=n_query)
+
+    seeds = 100*np.arange(10)
+    metrics = np.zeros(seeds.shape)
+    for i, seed in enumerate(seeds):
+        print('\tSimulating performance with seed %d' % seed)
+        x_start, y_start = create_starting_data(test_func, x_query,
+                                                n_start=n_start, seed=seed)
+        metric = simulate_performance_metric(test_func, sampler,
+                                             x_start, y_start, x_query,
+                                             n_trials=n_trials)
+        metrics[i] = metric
+    return np.mean(metrics)
+
+
+def benchmark_active_samplers(n_query=250, n_start=10, n_trials=30):
+
+    samplers = setup_samplers()
+    test_funcs = setup_test_funcs()
+
+    results = np.zeros((len(samplers), len(test_funcs)))
+    for i, sampler in enumerate(samplers):
+        for j, test_func in enumerate(test_funcs):
+            print('Benchmarking: "%s" on "%s"' %
+                  (samplers[i].names, test_func.name))
+            results[i, j] = average_performance_metric(test_func, sampler,
+                                                       n_query=n_query,
+                                                       n_start=n_start,
+                                                       n_trials=n_trials)
+    np.savez('active_sampler_benchmark.npz', results=results,
+                                             samplers=samplers,
+                                             test_funcs=test_funcs,
+                                             n_query = n_query,
+                                             n_start = n_start,
+                                             n_trials = n_trials)
+    return results
 
 if __name__ == "__main__":
-    utils.misc.time_module(test_opt_loc_metric)
+    utils.misc.time_module(benchmark_active_samplers)
