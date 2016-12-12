@@ -12,6 +12,10 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from bayesian_optimization.acquisition_functions import \
     gaussian_expected_improvement
+import logging
+
+# TODO: USE KERNEL HERDING TO JUMP START ACTIVE SAMPLER
+
 
 class __ANY_SUPER_CLASS__():
     """
@@ -227,9 +231,6 @@ class __EXAMPLE_SAMPLER__(__ANY_SUPER_CLASS__):
         """
         acquisition_query = self.acquisition(X_query)
         return X_query[[np.argmax(acquisition_query)]]
-        # n_query, n_dim = X_query.shape
-        # random_index = np.random.randint(n_query)
-        # return X_query[[random_index]]
 
     def update(self, X_new, y_new, **kwargs):
         """
@@ -292,6 +293,8 @@ class GaussianProcessSampler(GaussianProcessRegressor):
     ----------
     acquisition : str
         A string indicating the type of acquisition function used.
+    n_start : int
+        The number of random samples to collect before actual active sampling.
     n_stop_train : int
         When the model has collected more than 'n_stop_train' data points, the
         hyperparameters will be kept fixed and no longer trained.
@@ -307,8 +310,9 @@ class GaussianProcessSampler(GaussianProcessRegressor):
     def __init__(self, kernel=None, alpha=1e-10,
                  optimizer="fmin_l_bfgs_b", n_restarts_optimizer=20,
                  normalize_y=False, copy_X_train=True, random_state=None,
-                 acquisition_method='EI', n_stop_train=np.inf):
+                 acquisition_method='EI', n_start=10, n_stop_train=np.inf):
         self.acquisition_method = acquisition_method
+        self.n_start = n_start
         self.n_stop_train = n_stop_train
         super().__init__(kernel=kernel,
                          alpha=alpha,
@@ -377,8 +381,15 @@ class GaussianProcessSampler(GaussianProcessRegressor):
         numpy.ndarray
             One single query point of size (1, n_dim), NOT of size (n_dim,)
         """
-        acquisition_query = self.acquisition(X_query)
-        return X_query[[np.argmax(acquisition_query)]]
+        if not hasattr(self, "X_train_") \
+                or self.X_train_.shape[0] < self.n_start:
+            logging.debug('picking new points randomly')
+            n_query, n_dim = X_query.shape
+            random_index = np.random.randint(n_query)
+            return X_query[[random_index]]
+        else:
+            acquisition_query = self.acquisition(X_query)
+            return X_query[[np.argmax(acquisition_query)]]
 
     def update(self, X_new, y_new):
         """
@@ -396,12 +407,21 @@ class GaussianProcessSampler(GaussianProcessRegressor):
         self
             The current instance of the sampler.
         """
+        # If no training data has been collected before, just fit to the
+        # initial data
+        if not hasattr(self, "X_train_"):
+            logging.debug('"update" called before "fit"; '
+                          'fitting to incoming data')
+            return self.fit(X_new, y_new)
+
         # Determine if we should train or not
         if self.X_train_.shape[0] > self.n_stop_train:
             # If not, then just add the data points with a Cholesky update
+            logging.debug('adding data without re-training')
             return self.add(X_new, y_new)
         else:
             # Otherwise, add the data points and refit the model.
+            logging.debug('retraining...')
             X_new, y_new = check_X_y(X_new, y_new)
             self.X_train_ = np.concatenate((self.X_train_, X_new), axis=0)
             self.y_train_ = np.concatenate((self.y_train_, y_new), axis=0)

@@ -1,8 +1,12 @@
 """
-Testing framework for active samplers.
+Benchmark framework for active samplers.
+
+This script benchmarks the performance of active samplers on standard 2D test
+functions.
 """
 import utils
 import numpy as np
+import logging
 
 from bayesian_optimization.active_samplers import \
     GaussianProcessSampler, RandomSampler
@@ -10,6 +14,12 @@ from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel
 
 # TODO: REMEMBER CORRECTNESS AND SIMPLICITY BEATS OPTIMIZED CODE FOR SPEED
 
+# TODO: LOAD NPZ FILES AND DUMP TEMPORARY INFORMATION IN FOR DIAGNOSTICS AND VISUALISATION
+
+N_QUERY = 250
+N_TRIALS = 50
+
+logging.basicConfig(level=logging.DEBUG)
 
 def setup_test_funcs():
 
@@ -19,7 +29,7 @@ def setup_test_funcs():
             utils.benchmark.schaffer]
 
 
-def create_query_data(test_func, n_query=250):
+def create_query_data(test_func, n_query=N_QUERY):
 
     # Extract test function characteristics
     n_dim = test_func.n_dim
@@ -38,38 +48,38 @@ def create_query_data(test_func, n_query=250):
     return x_query
 
 
-def create_starting_data(test_func, x_query, n_start=10, seed=20):
-    """
-    Create starting data.
-
-    For testing purposes, we will select starting points from a given set of
-    query points.
-
-    Parameters
-    ----------
-    x_query : numpy.ndarray
-        The query locations to select training locations from
-    n_start, optional: int
-        The number of starting (training) data points
-
-    Returns
-    -------
-    np.ndarray
-        The input data of size (n, d)
-    np.ndarray
-        The output data of size (n,)
-    """
-    # Ensure that the query points make sense in the context of the function
-    n_dim = test_func.n_dim
-    assert n_dim == x_query.shape[1]
-
-    # Select points from the query points as the starting points
-    n_query, n_dim = x_query.shape
-    np.random.seed(seed)
-    random_indices = np.random.permutation(np.arange(n_query))[:n_start]
-    x_start = x_query[random_indices]
-    y_start = test_func(x_start)
-    return x_start, y_start
+# def create_starting_data(test_func, x_query, n_start=N_START, seed=0):
+#     """
+#     Create starting data.
+#
+#     For testing purposes, we will select starting points from a given set of
+#     query points.
+#
+#     Parameters
+#     ----------
+#     x_query : numpy.ndarray
+#         The query locations to select training locations from
+#     n_start, optional: int
+#         The number of starting (training) data points
+#
+#     Returns
+#     -------
+#     np.ndarray
+#         The input data of size (n, d)
+#     np.ndarray
+#         The output data of size (n,)
+#     """
+#     # Ensure that the query points make sense in the context of the function
+#     n_dim = test_func.n_dim
+#     assert n_dim == x_query.shape[1]
+#
+#     # Select points from the query points as the starting points
+#     n_query, n_dim = x_query.shape
+#     np.random.seed(seed)
+#     random_indices = np.random.permutation(np.arange(n_query))[:n_start]
+#     x_start = x_query[random_indices]
+#     y_start = test_func(x_start)
+#     return x_start, y_start
 
 
 def setup_samplers():
@@ -81,7 +91,7 @@ def setup_samplers():
 
     kernels = [gaussian_kernel, matern_kernel]
     acquisition_methods = ['EI', 'STD']
-    n_stop_trains = [15, 30]
+    n_stop_trains = [30]
 
     samplers = [GaussianProcessSampler(kernel=kernel,
                                        acquisition_method=acquisition_method,
@@ -108,13 +118,14 @@ def setup_samplers():
     return samplers
 
 
-def simulate_performance_metric(test_func, sampler, x_start, y_start, x_query,
-                                n_trials=30):
-    assert x_start.shape[1] == x_query.shape[1]
-    assert x_start.shape[0] == y_start.shape[0]
+def simulate_performance_metric(test_func, sampler, n_query=N_QUERY,
+                                n_trials=N_TRIALS):
+    # assert x_start.shape[1] == x_query.shape[1]
+    # assert x_start.shape[0] == y_start.shape[0]
+    x_query = create_query_data(test_func, n_query=n_query)
     x_stars = []
     y_stars = []
-    sampler.fit(x_start, y_start)
+    # sampler.fit(x_start, y_start)
     metric_success_trial = np.inf
 
     for i in range(n_trials):
@@ -137,45 +148,48 @@ def simulate_performance_metric(test_func, sampler, x_start, y_start, x_query,
         if utils.benchmark.success_opt_loc(loss_value) \
                 and metric_success_trial == np.inf:
             metric_success_trial = i + 1
-            print('\t\tSuccess at %d steps with loss %f'
+            logging.info('\t\tSuccess at %d steps with loss %f'
                   % (metric_success_trial, loss_value))
-        print('\t\tStep %d' % (i + 1))
+            logging.info('\t\tStep %d' % (i + 1))
 
-    x_opt = x_query[[np.argmax(np.append(y_start, y_stars))]]
+    x_stars = np.array(x_stars)
+    y_stars = np.array(y_stars)
+
+    x_opt = x_stars[[np.argmax(y_stars)]]
     final_loss_value = utils.benchmark.loss_opt_loc(x=x_opt,
                                                     function=test_func,
                                                     dist_ratio=0.01)
 
     if metric_success_trial < np.inf:
-        print('\t\tNumber of steps taken to succeed (up to %d): %d' % (
+        logging.info('\t\tNumber of steps taken to succeed (up to %d): %d' % (
             n_trials, metric_success_trial))
     else:
-        print('\t\tDid not succeed after %d steps' % n_trials)
-    print('\t\tFinal loss value after %d steps: %f'
+        logging.info('\t\tDid not succeed after %d steps' % n_trials)
+
+    logging.info('\t\tFinal loss value after %d steps: %f'
           % (n_trials, final_loss_value))
 
     return final_loss_value
 
 
-def average_performance_metric(test_func, sampler, n_query=250, n_start=10,
-                               n_trials=50):
+# def average_performance_metric(test_func, sampler,
+#                                n_query=N_QUERY, n_trials=N_TRIALS):
+#
+#     x_query = create_query_data(test_func, n_query=n_query)
+#
+#     seeds = 100*np.arange(1)
+#     metrics = np.zeros(seeds.shape)
+#     for i, seed in enumerate(seeds):
+#         print('\tSimulating performance with seed %d' % seed)
+#         # x_start, y_start = create_starting_data(test_func, x_query,
+#         #                                         n_start=n_start, seed=seed)
+#         metric = simulate_performance_metric(test_func, sampler, x_query,
+#                                              n_trials=n_trials)
+#         metrics[i] = metric
+#     return np.mean(metrics)
 
-    x_query = create_query_data(test_func, n_query=n_query)
 
-    seeds = 100*np.arange(10)
-    metrics = np.zeros(seeds.shape)
-    for i, seed in enumerate(seeds):
-        print('\tSimulating performance with seed %d' % seed)
-        x_start, y_start = create_starting_data(test_func, x_query,
-                                                n_start=n_start, seed=seed)
-        metric = simulate_performance_metric(test_func, sampler,
-                                             x_start, y_start, x_query,
-                                             n_trials=n_trials)
-        metrics[i] = metric
-    return np.mean(metrics)
-
-
-def benchmark_active_samplers(n_query=250, n_start=10, n_trials=30):
+def benchmark_active_samplers(n_query=N_QUERY, n_trials=N_TRIALS):
 
     samplers = setup_samplers()
     test_funcs = setup_test_funcs()
@@ -184,18 +198,17 @@ def benchmark_active_samplers(n_query=250, n_start=10, n_trials=30):
     for i, sampler in enumerate(samplers):
         for j, test_func in enumerate(test_funcs):
             print('Benchmarking: "%s" on "%s"' %
-                  (samplers[i].names, test_func.name))
-            results[i, j] = average_performance_metric(test_func, sampler,
+                  (samplers[i].name, test_func.name))
+            results[i, j] = simulate_performance_metric(test_func, sampler,
                                                        n_query=n_query,
-                                                       n_start=n_start,
                                                        n_trials=n_trials)
     np.savez('active_sampler_benchmark.npz', results=results,
                                              samplers=samplers,
                                              test_funcs=test_funcs,
                                              n_query = n_query,
-                                             n_start = n_start,
                                              n_trials = n_trials)
     return results
+
 
 if __name__ == "__main__":
     utils.misc.time_module(benchmark_active_samplers)
