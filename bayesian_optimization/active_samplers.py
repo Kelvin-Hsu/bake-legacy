@@ -90,7 +90,7 @@ class __EXAMPLE_SAMPLER__(__ANY_SUPER_CLASS__):
         -------
         Anything
         """
-        return None
+        pass
 
     def fit(self, X, y, **kwargs):
         """

@@ -120,7 +120,19 @@ levy.name = 'Levy'
 
 
 def schaffer(x):
+    """
+    Schaffer Function.
 
+    Parameters
+    ----------
+    x : numpy.ndarray
+        The input to the function of size (n, 2)
+
+    Returns
+    -------
+    numpy.ndarray
+        The output from the function of size (n,)
+    """
     x1 = x[:, 0]
     x2 = x[:, 1]
 
