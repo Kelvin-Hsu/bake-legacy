@@ -5,7 +5,7 @@ This script benchmarks the performance of active samplers on standard 2D test
 functions.
 """
 from . import benchmark_functions, benchmark_metrics
-import numpy as np
+import autograd.numpy as np
 import logging
 import matplotlib.pyplot as plt
 from matplotlib import cm

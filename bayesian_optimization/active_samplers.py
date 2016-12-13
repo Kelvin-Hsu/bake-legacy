@@ -10,7 +10,7 @@ import autograd.numpy as np
 from scipy.linalg import cholesky, cho_solve
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.utils.validation import check_X_y, check_is_fitted
-from bayesian_optimization.acquisition_functions import \
+from .acquisition_functions import \
     gaussian_expected_improvement
 import logging
 
