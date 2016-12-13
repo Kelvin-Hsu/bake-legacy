@@ -95,8 +95,32 @@ def default_setup_sampler_initializers():
     n_stop_trains = [30]
 
     def make_gp_sampler_initializer(kernel, acquisition_method, n_stop_train):
+        """
+        Make an initializer function for a Gaussian process active sampler.
 
+        Parameters
+        ----------
+        kernel : sklearn.gaussian_process.kernels.Kernel
+            The kernel used for the Gaussian process regressor
+        acquisition_method : str
+            The acquisition method
+        n_stop_train : int
+            The number of training points it will collect before training stops
+
+        Returns
+        -------
+        callable
+            An initializer function with no arguments
+        """
         def initializer():
+            """
+            Initialize a Gaussian process active sampler.
+
+            Returns
+            -------
+            bake.bayesian_optimization.active_samplers.GaussianProcessSampler
+                An instance of a Gaussian process active sampler
+            """
             return GaussianProcessSampler(
                 kernel=kernel,
                 acquisition_method=acquisition_method,
