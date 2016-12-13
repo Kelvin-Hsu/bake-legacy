@@ -415,6 +415,7 @@ class GaussianProcessSampler(GaussianProcessRegressor):
             return self.fit(X_new, y_new)
 
         # Determine if we should train or not
+        logging.debug('sampler now has %d data points' % self.X_train_.shape[0])
         if self.X_train_.shape[0] > self.n_stop_train:
             # If not, then just add the data points with a Cholesky update
             logging.debug('adding data without re-training')

@@ -4,7 +4,7 @@ Benchmark framework for active samplers.
 This script benchmarks the performance of active samplers on standard 2D test
 functions.
 """
-import utils
+from . import benchmark_functions, benchmark_metrics
 import numpy as np
 import logging
 import matplotlib.pyplot as plt
@@ -28,17 +28,17 @@ def setup_test_funcs():
     Setup test functions.
 
     The test functions must be 2D and adhere to the format
-    given in 'benchmark.py'.
+    given in 'benchmark_functions.py'.
 
     Returns
     -------
     lists
         A list of test functions.
     """
-    return [utils.benchmark.branin_hoo,
-            utils.benchmark.griewank,
-            utils.benchmark.levy,
-            utils.benchmark.schaffer]
+    return [benchmark_functions.branin_hoo,
+            benchmark_functions.griewank,
+            benchmark_functions.levy,
+            benchmark_functions.schaffer]
 
 
 def create_query_data(test_func, n_query=N_QUERY):
@@ -69,17 +69,16 @@ def create_query_data(test_func, n_query=N_QUERY):
     assert n_dim == 2
 
     # Create a uniform grid of query points!
-    x_1_lim = (x_min[0], x_max[0])
-    x_2_lim = (x_min[1], x_max[1])
-    _, _, x_q_1_mesh, x_q_2_mesh = \
-        utils.visuals.uniform_query(x_1_lim, x_2_lim, n_query, n_query)
+    x_q_array = np.linspace(x_min[0], x_max[0], n_query)
+    y_q_array = np.linspace(x_min[1], x_max[1], n_query)
+    x_q_1_mesh, x_q_2_mesh = np.meshgrid(x_q_array, y_q_array)
     x_query = np.array([x_q_1_mesh.ravel(), x_q_2_mesh.ravel()]).T
     return x_query
 
 
-def setup_sampler_initializers():
+def default_setup_sampler_initializers():
     """
-    Setup sampler initializers.
+    Setup sampler initializers (Default).
 
     This is where each sampler is initialized with its initial settings.
 
@@ -92,16 +91,24 @@ def setup_sampler_initializers():
     matern_kernel = ConstantKernel(1.0, (1e-3, 1e3)) * Matern(10, (1e-2, 1e2))
 
     kernels = [gaussian_kernel, matern_kernel]
-    acquisition_methods = ['EI']
-    n_stop_trains = [25]
+    acquisition_methods = ['EI', 'STD']
+    n_stop_trains = [30]
 
-    sampler_initializers = [lambda: GaussianProcessSampler(
-        kernel=kernel,
-        acquisition_method=acquisition_method,
-        n_stop_train=n_stop_train)
-            for kernel in kernels
-            for acquisition_method in acquisition_methods
-            for n_stop_train in n_stop_trains]
+    def make_gp_sampler_initializer(kernel, acquisition_method, n_stop_train):
+
+        def initializer():
+            return GaussianProcessSampler(
+                kernel=kernel,
+                acquisition_method=acquisition_method,
+                n_stop_train=n_stop_train)
+        return initializer
+
+    sampler_initializers = [make_gp_sampler_initializer(kernel,
+                                                        acquisition_method,
+                                                        n_stop_train)
+                            for kernel in kernels
+                            for acquisition_method in acquisition_methods
+                            for n_stop_train in n_stop_trains]
 
     kernel_names = ['Gaussian', 'Matern']
     acquisition_names = acquisition_methods
@@ -178,10 +185,10 @@ def simulate_performance_metric(test_func, sampler_initializer,
         sampler.update(x_star, y_star)
 
         # Use a loss metric to measure the current performance
-        loss_value = utils.benchmark.loss_opt_loc(x=x_star,
+        loss_value = benchmark_metrics.loss_opt_loc(x=x_star,
                                                   function=test_func,
                                                   dist_ratio=0.01)
-        if utils.benchmark.success_opt_loc(loss_value) \
+        if benchmark_metrics.success_opt_loc(loss_value) \
                 and success_trial == np.inf:
             success_trial = i + 1
             logging.info('\t\tSuccess at %d steps with loss %f'
@@ -192,7 +199,7 @@ def simulate_performance_metric(test_func, sampler_initializer,
     x_stars = np.array(x_stars)
     y_stars = np.array(y_stars)
     x_opt = x_stars[[np.argmax(y_stars)]]
-    final_loss_value = utils.benchmark.loss_opt_loc(x=x_opt,
+    final_loss_value = benchmark_metrics.loss_opt_loc(x=x_opt,
                                                     function=test_func,
                                                     dist_ratio=0.01)
 
@@ -213,7 +220,7 @@ def simulate_performance_metric(test_func, sampler_initializer,
 
 
 def benchmark_active_samplers(setup_sampler_initializers=
-                              setup_sampler_initializers,
+                              default_setup_sampler_initializers,
                               result_filename='active_sampler_benchmark.npz',
                               n_query=N_QUERY, n_trials=N_TRIALS, seed=0):
     """
@@ -236,7 +243,6 @@ def benchmark_active_samplers(setup_sampler_initializers=
     -------
     None
     """
-    np.random.seed(seed)
     sampler_initializers, sampler_names = setup_sampler_initializers()
     test_funcs = setup_test_funcs()
 
@@ -246,6 +252,7 @@ def benchmark_active_samplers(setup_sampler_initializers=
     for i, sampler_initializer in enumerate(sampler_initializers):
         visual_data_list = []
         for j, test_func in enumerate(test_funcs):
+            np.random.seed(seed)
             test_case = '"%s" on "%s"' % (sampler_names[i], test_func.name)
             logging.info('Benchmarking: %s' % test_case)
             final_loss_values[i, j], success_trial[i, j], visual_data = \
@@ -288,6 +295,75 @@ def extract_result(result_file):
         test_funcs=result_file['test_funcs'],
         n_query=result_file['n_query'],
         n_trials=result_file['n_trials'])
+
+
+def combine_result(result_filename, result_file_1, result_file_2):
+    """
+    Combine results from files and save it into a new file.
+
+    Parameters
+    ----------
+    result_filename : str
+        The filename to save the new results to
+    result_file_1 : numpy.lib.npyio.NpzFile
+        The first npz file storing the results from 'benchmark_active_samplers'
+    result_file_2 : numpy.lib.npyio.NpzFile
+        The second npz file storing the results from 'benchmark_active_samplers'
+
+    Returns
+    -------
+    None
+    """
+    final_loss_values_1 = result_file_1['final_loss_values'],
+    success_trial_1 = result_file_1['success_trial'],
+    visual_data_matrix_1 = result_file_1['visual_data_matrix'],
+    sampler_names_1 = result_file_1['sampler_names'],
+    test_funcs_1 = result_file_1['test_funcs'],
+    n_query_1 = result_file_1['n_query'],
+    n_trials_1 = result_file_1['n_trials']
+
+    final_loss_values_2 = result_file_2['final_loss_values'],
+    success_trial_2 = result_file_2['success_trial'],
+    visual_data_matrix_2 = result_file_2['visual_data_matrix'],
+    sampler_names_2 = result_file_2['sampler_names'],
+    test_funcs_2 = result_file_2['test_funcs'],
+    n_query_2 = result_file_2['n_query'],
+    n_trials_2 = result_file_2['n_trials']
+
+    if n_query_1 != n_query_2:
+        logging.warning('Number of query points used for benchmarking differs. '
+                        'Combining results may not be meaningful.')
+    n_query = n_query_1
+    if n_trials_1 != n_trials_2:
+        logging.warning('Number of optimization iteration used for'
+                        'benchmarking differs. '
+                        'Combining results may not be meaningful.')
+    n_trials = n_trials_1
+    if len(test_funcs_1) != len(test_funcs_2):
+        logging.warning('Number of test functions used differs. '
+                        'Cannot combine results.')
+        return
+    test_funcs_equal = np.all([test_funcs_1[i] == test_funcs_2[i]
+                               for i in range(len(test_funcs_1))])
+    if not test_funcs_equal:
+        logging.warning('Test functions differ. Cannot combine results.')
+        return
+    test_funcs = test_funcs_1
+
+    final_loss_values = np.concatenate((final_loss_values_1,
+                                        final_loss_values_2), axis=0)
+    success_trial = np.concatenate((success_trial_1, success_trial_2), axis=0)
+    visual_data_matrix = visual_data_matrix_1 + visual_data_matrix_2
+    sampler_names = sampler_names_1 + sampler_names_2
+
+    np.savez(result_filename,
+             final_loss_values=final_loss_values,
+             success_trial=success_trial,
+             visual_data_matrix=visual_data_matrix,
+             sampler_names=sampler_names,
+             test_funcs=test_funcs,
+             n_query=n_query,
+             n_trials=n_trials)
 
 
 def visualize_benchmark(sampler, test_func, x_query, x_stars, y_stars):
@@ -399,7 +475,7 @@ def visualize_benchmark(sampler, test_func, x_query, x_stars, y_stars):
 
     fig = plt.figure()
     ax = fig.gca(projection='3d')
-    X, Y, Z = x_1_mesh, x_2_mesh, y_pred_mesh
+    X, Y, Z = x_1_mesh, x_2_mesh, y_true_mesh
     ax.plot_surface(X, Y, Z, alpha=0.3, cmap=cm.jet, linewidth=0,
                     antialiased=False)
     ax.contour(X, Y, Z, zdir='z', offset=np.min(Z), cmap=cm.jet)
@@ -524,7 +600,3 @@ class BenchmarkResult():
         print('Final loss value after %d steps: %f'
               % (self.n_trials, self.final_loss_values[i, j]))
         return visualize_benchmark(*visual_data)
-
-
-if __name__ == "__main__":
-    utils.misc.time_module(benchmark_active_samplers)

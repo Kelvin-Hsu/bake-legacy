@@ -1,1 +1,1 @@
-from . import benchmark_active_samplers
+from . import benchmark_functions, benchmark_active_samplers
