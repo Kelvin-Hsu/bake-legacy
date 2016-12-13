@@ -243,7 +243,7 @@ class __EXAMPLE_SAMPLER__(__ANY_SUPER_CLASS__):
         During the testing phase, this function would be repeated called in
         each iteration.
 
-        Usually only one new data point is available, but some tests may
+        Usually only one new data point is available, but some benchmark may
         input more, so the function must be written for the general case.
         That is 'n_new' is usually 1, but the method would be written to take
         inputs with arbitrary 'n_new'.
