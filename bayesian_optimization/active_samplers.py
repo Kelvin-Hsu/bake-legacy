@@ -13,6 +13,7 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from .acquisition_functions import \
     gaussian_expected_improvement
 import logging
+import bake
 
 # TODO: USE KERNEL HERDING TO JUMP START ACTIVE SAMPLER
 
@@ -474,5 +475,254 @@ class GaussianProcessSampler(GaussianProcessRegressor):
         return self
 
 
+class FixedGaussianConditionalEmbeddingSampler():
+    """
+    An empty template to demonstrate the basic building blocks of an active
+    sampler.
 
+    There are no restrictions to the type of superclass the active sampler
+    inherits from.
+
+    The active sampler must have the following methods. It is allowed to have
+    more methods, but they will not be explicitly called during the testing
+    stage.
+    """
+    def __init__(self, *args, **kwargs):
+        """
+        Initialize the active sampler.
+
+        No specific formats required. This part is kept general so that the
+        model can be specified as specifically as required when it is
+        initialized, because for testing purposes no intervention can be made
+        after this stage by an expert.
+
+        The test script will call a function or module that sets up each
+        active sampler for comparison in which we would write ourselves. This is
+        the only part we can modify. We may even create several instances of
+        the same samplers, but with different initial parameters, and compare
+        them against each other.
+
+        For example, the exploration-exploitation trade-off ratio can be set
+        here. For kernel-based active samplers, the kernel chosen can be
+        set here. If these choices are to be changed during the actual run,
+        then it should be inbuilt into the algorithm using one of the standard
+        methods below. An example would be to increase the rate at which the
+        sampler exploits during the 'update' stage, perhaps by some flag which
+        is set when the sampler has explored enough.
+
+        It is suggested to keep an internal memory of the current state of the
+        active sampling procedure. For example, keep a copy of the training data
+        collected so far. There will be a copy of that in the testing script,
+        but it will not be fed into the active sampler explicitly.
+
+        Parameters
+        ----------
+        args
+            Any arguments
+        kwargs
+            Any keyword arguments
+
+        Returns
+        -------
+        Anything
+        """
+        self.theta, self.zeta = 2.0, 0.1
+
+
+    def fit(self, X, y, **kwargs):
+        """
+        Fit a model to the training data.
+
+        For model based active samplers, the sampler would learn a model from
+        the training data X and y. For model free active samplers, this function
+        still has to exist, but it can do nothing within this function.
+
+        During the testing stage, this function is only called once in the
+        beginning where it would be initialised with some training dataset.
+        If the model is to be refitted, it should do this during the 'update'
+        stage. This is why it is important to keep a copy of the training data
+        as an attribute of the sampler, since the 'update' method only takes
+        new data points as the input and often the model would need both
+        the old training data and new data points to be refitted.
+
+        Keyword arguments are allowed, but they are not used during the testing
+        stage, meaning that only their default values will be used.
+
+        Parameters
+        ----------
+        X : numpy.ndarray
+            A set of training inputs of size (n, n_dim)
+        y : numpy.ndarray
+            A set of training outputs of size (n,)
+        kwargs
+            Any keyword arguments
+
+        Returns
+        -------
+        Anything
+        """
+        self.X_train_ = X.copy()
+        self.y_train_ = y.copy()
+
+        return None
+
+    def predict(self, X_query, **kwargs):
+        """
+        Predict the outputs at the given query points.
+
+        For model based active samplers, the sampler would predict the target
+        outputs at the given query points 'X_query' using its model.
+        For model free active samplers, this function still has the exist,
+        but it can just output all zeros or garbage, as long as an array of
+        prediction corresponding to the size of 'X_query' is returned.
+
+        This function is really for visualisation purposes. It is not
+        called for numerical benchmarking.
+
+        Keyword arguments are allowed, but they are not used during the testing
+        stage, meaning that only their default values will be used.
+
+        Parameters
+        ----------
+        X_query : numpy.ndarray
+            A set of query inputs of size (n_query, n_dim)
+        kwargs
+            Any keyword arguments
+
+        Returns
+        -------
+        numpy.ndarray
+            A set of query outputs of size (n_query,)
+        """
+        w_q = bake.infer.conditional_weights(self.X_train_, self.theta, X_query,
+                                             zeta=self.zeta)
+        y_query_expected = bake.infer.expectance(self.y_train_, w_q)
+        return y_query_expected
+
+    def acquisition(self, X_query, **kwargs):
+        """
+        Compute the acquisition function used for this active sampler.
+
+        Output an acquisition value at each query location.
+        For model based active samplers, the sampler would compute the
+        acquisition value at the given query points 'X_query' using its model.
+        For model free active samplers, this function still has the exist,
+        but it can just output all zeros or garbage, as long as an array of
+        prediction corresponding to the size of 'X_query' is returned.
+
+        For example, a Delaunay active sampler would not need an acquisition
+        function, but an active sampling decision can still be encoded in the
+        pick function described in the next block.
+
+        This function is really for visualisation purposes. It is not
+        called for numerical benchmarking.
+
+        Keyword arguments are allowed, but they are not used during the testing
+        stage, meaning that only their default values will be used.
+
+        Parameters
+        ----------
+        X_query : numpy.ndarray
+            A set of query inputs of size (n_query, n_dim)
+        kwargs
+            Any keyword arguments
+
+        Returns
+        -------
+        numpy.ndarray
+            An array of acquisition values of size (n_query,)
+        """
+        w_q = bake.infer.conditional_weights(self.X_train_, self.theta, X_query,
+                                             zeta=self.zeta)
+
+        def softplus(t):
+            return np.log(1 + np.exp(t))
+
+        y_star = np.max(self.y_train_)
+        acquisition_query = np.dot(softplus(self.y_train_ - y_star), w_q)
+        # acquisition_query = np.dot(np.clip(self.y_train_ - np.sort(self.y_train_)[-2], 0, np.inf), w_q)
+        # print(acquisition_query)
+        return acquisition_query
+
+    def pick(self, X_query, **kwargs):
+        """
+        Pick a query location to sample from a set of given query locations.
+
+        This is an essential function of the active sampler.
+
+        If a valid acquisition method is written, then a typical pick method
+        would be written as follows.
+        >>> def pick(self, X_query):
+        >>>     # Pick the query location with the highest acquisition value
+        >>>     acquisition_query = self.acquisition(X_query)
+        >>>     return X_query[[np.argmax(acquisition_query)]]
+
+        During the testing stage, this function would be repeated called in
+        each iteration.
+
+        Warning: Make sure that the returned location is still a
+        two dimensional array, but with one row, and not a one dimensional array
+
+        Keyword arguments are allowed, but they are not used during the testing
+        stage, meaning that only their default values will be used.
+
+        Parameters
+        ----------
+        X_query : numpy.ndarray
+            A set of query inputs of size (n_query, n_dim)
+        kwargs
+            Any keyword arguments
+
+        Returns
+        -------
+        numpy.ndarray
+            One single query point of size (1, n_dim), NOT of size (n_dim,)
+        """
+        if not hasattr(self, "X_train_") or self.X_train_.shape[0] < 50:
+            logging.debug('picking new points randomly')
+            n_query, n_dim = X_query.shape
+            random_index = np.random.randint(n_query)
+            return X_query[[random_index]]
+        else:
+            acquisition_query = self.acquisition(X_query)
+            # print(X_query[[np.argmax(acquisition_query)]])
+            return X_query[[np.argmax(acquisition_query)]]
+
+    def update(self, X_new, y_new, **kwargs):
+        """
+        Update the active sampler with a new observation.
+
+        For model based active samplers, the sampler would re-learn a model from
+        the training data X and y. For model free active samplers, this function
+        still has to exist, but it can do nothing within this function.
+
+        During the testing phase, this function would be repeated called in
+        each iteration.
+
+        Usually only one new data point is available, but some benchmark may
+        input more, so the function must be written for the general case.
+        That is 'n_new' is usually 1, but the method would be written to take
+        inputs with arbitrary 'n_new'.
+
+        Keyword arguments are allowed, but they are not used during the testing
+        stage, meaning that only their default values will be used.
+
+        Parameters
+        ----------
+        X_new : numpy.ndarray
+            A set of new inputs of size (n_new, n_dim)
+        y_new : numpy.ndarray
+            A set of new outputs of size (n_new,)
+        kwargs
+            Any keyword arguments
+        Returns
+        -------
+        Anything
+        """
+        if not hasattr(self, "X_train_"):
+            self.X_train_ = X_new.copy()
+            self.y_train_ = y_new.copy()
+        else:
+            self.X_train_ = np.concatenate((self.X_train_, X_new), axis=0)
+            self.y_train_ = np.concatenate((self.y_train_, y_new), axis=0)
 

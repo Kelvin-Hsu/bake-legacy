@@ -27,7 +27,7 @@ def loss_opt_loc(x=None, function=None, dist_ratio=0.01):
     """
     dists = cdist(x, function.x_opt, 'euclidean')
     success_radius = dist_ratio * np.min(function.x_max - function.x_min)
-    return np.min(dists/success_radius)
+    return np.min(dists / success_radius)
 
 
 def success_opt_loc(loss_opt_loc_value):

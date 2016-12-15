@@ -5,14 +5,15 @@ This script benchmarks the performance of active samplers on standard 2D test
 functions.
 """
 from . import benchmark_functions, benchmark_metrics
-import autograd.numpy as np
+import numpy as np
 import logging
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from mpl_toolkits.mplot3d import axes3d
 
 from bayesian_optimization.active_samplers import \
-    GaussianProcessSampler, RandomSampler
+    GaussianProcessSampler, FixedGaussianConditionalEmbeddingSampler, \
+    RandomSampler
 from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel
 
 # TODO: REMEMBER CORRECTNESS AND SIMPLICITY BEATS OPTIMIZED CODE FOR SPEED
@@ -91,7 +92,7 @@ def default_setup_sampler_initializers():
     matern_kernel = ConstantKernel(1.0, (1e-3, 1e3)) * Matern(10, (1e-2, 1e2))
 
     kernels = [gaussian_kernel, matern_kernel]
-    acquisition_methods = ['EI', 'STD']
+    acquisition_methods = ['EI']
     n_stop_trains = [30]
 
     def make_gp_sampler_initializer(kernel, acquisition_method, n_stop_train):
@@ -144,6 +145,11 @@ def default_setup_sampler_initializers():
                       for kernel_name in kernel_names
                       for acquisition_name in acquisition_names
                       for n_stop_train_name in n_stop_train_names]
+
+    s = [lambda: FixedGaussianConditionalEmbeddingSampler()]
+    sn = ['Fixed Gaussian Kernel Conditional Embedding Sampler']
+    sampler_initializers = s
+    sampler_names = sn
 
     sampler_initializers.append(lambda: RandomSampler())
     sampler_names.append('Random Sampler')

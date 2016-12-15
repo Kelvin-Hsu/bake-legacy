@@ -57,7 +57,7 @@ def griewank(x):
     """
     r = 4000
     s = np.sqrt(1 + np.arange(x.shape[1]))
-    f = np.sum(x**2/r, axis=1) - np.prod(np.cos(x/s), axis=1) + 1
+    f = np.sum(x**2 / r, axis=1) - np.prod(np.cos(x / s), axis=1) + 1
     return -f
 
 griewank.n_dim = 2
@@ -84,9 +84,9 @@ def levy(x):
     """
     x1 = x[:, 0]
     x2 = x[:, 1]
-    a = np.sin(3*np.pi*x1)**2
-    b = (x1 - 1)**2 * (1 + np.sin(3*np.pi*x2)**2)
-    c = (x2 - 1)**2 * (1 + np.sin(2*np.pi*x2)**2)
+    a = np.sin(3 * np.pi * x1)**2
+    b = (x1 - 1)**2 * (1 + np.sin(3 * np.pi * x2)**2)
+    c = (x2 - 1)**2 * (1 + np.sin(2 * np.pi * x2)**2)
     f = a + b + c
     return -f
 
@@ -116,8 +116,8 @@ def schaffer(x):
     x2 = x[:, 1]
 
     a = np.sin(x1**2 - x2**2)**2 - 0.5
-    b = 1 + 0.001*(x1**2 + x2**2)
-    f = 0.5 + a/(b**2)
+    b = 1 + 0.001 * (x1**2 + x2**2)
+    f = 0.5 + a / (b**2)
     return -f
 
 schaffer.n_dim = 2
