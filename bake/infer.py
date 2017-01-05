@@ -652,6 +652,24 @@ def softmax_normalize(w):
     return w_softmax / np.sum(w_softmax, axis=0)
 
 
+def softplus_normalize(w):
+    """
+    Use the softplus method to normalize weights.
+
+    Parameters
+    ----------
+    w : numpy.ndarray
+        The conditional or posterior weight matrix (n, n_q)
+
+    Returns
+    -------
+    numpy.ndarray
+        The softplus-normalized conditional or posterior weight matrix (n, n_q)
+    """
+    w_softplus = np.log(1 + np.exp(w))
+    return w_softplus / np.sum(w_softplus, axis=0)
+
+
 def clip_normalize(w):
     """
     Use the clipping method to normalize weights.

@@ -127,3 +127,15 @@ def kronecker_delta(x_p, x_q, *args):
         return np.ones(x_p.shape[0])
     # return (cdist(x_q, x_q, 'sqeuclidean') < 1e-8).astype(float)
     return (cdist(x_p, x_q, 'sqeuclidean') == 0).astype(float)
+
+
+# class Kernel():
+#
+#     def __init__(self):
+#         self.theta = 1
+#
+#     def __call__(self, x_p, x_q):
+#         return gaussian(x_p, x_q, self.theta)
+#
+#     def __mul__(self, ):
+#     def __add__(self):

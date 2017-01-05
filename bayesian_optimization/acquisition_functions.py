@@ -29,4 +29,4 @@ def gaussian_expected_improvement(mu, std, best):
     abs_diff = np.abs(diff)
     clip_diff = np.clip(diff, 0, np.inf)
     return clip_diff + std * norm.pdf(diff / std) - \
-           abs_diff * norm.cdf(- abs_diff / std)
+        abs_diff * norm.cdf(- abs_diff / std)
