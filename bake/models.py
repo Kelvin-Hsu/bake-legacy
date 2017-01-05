@@ -5,14 +5,15 @@ import autograd.numpy as np
 from .infer import conditional_weights as _conditional_weights
 from .infer import expectance as _expectance
 from .kernels import gaussian as _gaussian
-
+from sklearn.model_selection import KFold as _KFold
+from .optimize import explore_optimization as _explore_optimization
 
 class Classifier():
 
     def __init__(self, kernel=_gaussian):
         self.kernel = kernel
 
-    def fit(self, X, y, hyperparam=None):
+    def fit(self, X, y, hyperparam=None, h_min=None, h_max=None, h_init=None, n_splits=10, verbose=True):
 
         self.X_train_ = X.copy()
         self.y_train_ = y.copy()
@@ -21,9 +22,44 @@ class Classifier():
         self.n_classes = self.classes.shape[0]
 
         if hyperparam is None:
-            # Do Learning
-            self.theta = 1.0
-            self.zeta = 0.1
+
+            kf = _KFold(n_splits=n_splits)
+
+            self.best_so_far = np.inf
+
+            def objective(hyperparam):
+
+                theta, zeta = hyperparam[:-1], hyperparam[-1]
+
+                total_score = 0
+                for train, test in kf.split(self.X_train_):
+                    X_train, X_test, y_train, y_test = self.X_train_[train], \
+                                                       self.X_train_[test], \
+                                                       self.y_train_[train], \
+                                                       self.y_train_[test]
+                    w_query = _conditional_weights(X_train, theta, X_test,
+                                                   zeta=zeta, k_x=self.kernel)
+                    p_query = _expectance(y_train == self.classes, w_query)
+                    y_query = self.classes[np.argmax(p_query, axis=0)]
+                    accuracy = np.mean(y_query == y_test)
+                    total_score += accuracy
+                score = -total_score / n_splits
+                if verbose:
+                    if score < self.best_so_far:
+                        print('Hyperparam: ', hyperparam, '|| Score: ', score, '  *IMPROVEMENT*')
+                        self.best_so_far = score
+                    else:
+                        print('Hyperparam: ', hyperparam, '|| Score: ', score)
+                return score
+
+            h_opt, score = _explore_optimization(objective, h_min, h_max, n_samples=250)
+
+            self.theta, self.zeta = h_opt[:-1], h_opt[-1]
+            if verbose:
+                print('The final hyperparameters are: ', self.theta, self.zeta)
+            # # Do Learning
+            # self.theta = 1.0
+            # self.zeta = 0.1
         else:
             self.theta, self.zeta = hyperparam
 

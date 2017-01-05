@@ -16,6 +16,7 @@ d = 2
 
 
 def create_spiral_data():
+
     np.random.seed(100)
     N = 100  # number of points per class
     D = 2  # dimensionality
@@ -50,176 +51,12 @@ def create_training_data():
     n = 100
     x = utils.data.generate_uniform_data(n, d, x_min, x_max, seed=seed)
     y = true_phenomenon(x)
-    return x, y
+    return x, y.astype(int)
 
-
-def split_one(x, y, i, n):
-    x_q = x[[i]]
-    y_q = y[[i]]
-    others = np.arange(n) != i
-    x_t = x[others]
-    y_t = y[others]
-    return x_t, y_t, x_q, y_q
-
-def train_classifier(x, y):
-
-    n = x.shape[0]
-    classes = np.arange(np.unique(y).shape[0])
-    # theta, zeta = 1.0, 1e-4
-    #
-    # hyperparam = np.array([theta, zeta])
-
-    def objective(hyperparam, i):
-
-        theta, zeta = hyperparam[0], hyperparam[1]
-
-        # p_sum = 0
-        # for j in range(n):
-        #     x_t, y_t, x_q, y_q = split_one(x, y, j, n)
-        #     w_q = bake.infer.conditional_weights(x_t, theta, x_q, zeta=zeta)
-        #     p = bake.infer.expectance(y_t == y_q[0, 0], w_q)[0][0]
-        #     p_sum += p
-        #
-        # value = p_sum / n
-        x_q = x
-        w_q = bake.infer.conditional_weights(x, theta, x_q, zeta=zeta)
-        p = np.array([bake.infer.expectance(y == c, w_q)[0] for c in classes])
-
-        i_pred = np.argmax(p, axis=0)
-        y_pred = classes[i_pred]
-        loss = y != y_pred
-        # value = np.mean(y.ravel() == y_pred) - zeta ** 2 * w_q.sum() / n
-
-        p_want = p[y.ravel(), np.arange(n)]
-        value = np.mean(p_want * loss)
-        print(i, value)
-        return value
-
-    n_theta_q = 10
-    n_zeta_q = 10
-    theta_q = np.linspace(0.5, 6, num=n_theta_q)
-    zeta_q = np.logspace(-6, 1, num=n_zeta_q)
-    theta_q_grid, zeta_q_grid = np.meshgrid(theta_q, zeta_q)
-    hyperparams = np.array([theta_q_grid.ravel(), zeta_q_grid.ravel()]).T
-    objective_values = [objective(h, i) for i, h in enumerate(hyperparams)]
-    print(hyperparams.shape)
-    i_best = np.argmax(objective_values)
-    hyperparam_best = hyperparams[i_best]
-
-    plt.figure()
-    values_grid = np.reshape(objective_values, (n_zeta_q, n_theta_q))
-    print(theta_q_grid.shape, zeta_q_grid.shape, values_grid.shape)
-    plt.pcolormesh(theta_q_grid, np.log10(zeta_q_grid), values_grid)
-    plt.title('Learning Objective')
-    plt.xlabel(r'\theta')
-    plt.ylabel(r'\zeta')
-    plt.colorbar()
-    return hyperparam_best[0], hyperparam_best[1]
-
-
-def train_bayes_classifier(x, y):
-
-    n = x.shape[0]
-    classes = np.arange(np.unique(y).shape[0])
-    x_classes = [x[y == c] for c in classes]
-    print(x_classes[0].shape)
-    m = classes.shape[0]
-
-
-    def objective(theta_x):
-        p_classes = [bake.infer.embedding(x_c, theta_x) for x_c in x_classes]
-        prior = 1/m
-        # [print(y.ravel()[i]) for i in range(n)]
-        print(x[[0]])
-        print(p_classes[y.ravel()[0]](x[[0]]))
-        log_marginal_likelihood = np.prod([p_classes[y.ravel()[i]](x[[i], :]) * prior for i in range(n)])
-        return log_marginal_likelihood
-
-
-    n_theta_q = 50
-    theta_q = np.linspace(0.5, 6, num=n_theta_q)
-    objective_values = [objective(theta) for theta in theta_q]
-    i_best = np.argmax(objective_values)
-    theta_x = theta_q[i_best]
-    return theta_x
-
-
-def log(x):
-    answer = np.log(x)
-    answer[x <= 0] = 0
-    return answer
-
-
-def train_cross_val(x, y):
-    from sklearn.model_selection import KFold
-    n = x.shape[0]
-    classes = np.arange(np.unique(y).shape[0])
-
-    k = 5
-    X = ["a", "b", "c", "d", "e"]
-    kf = KFold(n_splits=10)
-
-    def objective(hyperparam, j):
-
-        theta, zeta = hyperparam[0], hyperparam[1]
-
-        total_value = 0
-        for train, test in kf.split(x):
-            # print(train, test)
-            X_train, X_test, y_train, y_test = x[train], x[test], y[train], y[test]
-            w_q = bake.infer.conditional_weights(X_train, theta, X_test,
-                                                 zeta=zeta)
-            p = np.array(
-                [bake.infer.expectance(y_train == c, w_q)[0] for c in classes])
-            i_pred = np.argmax(p, axis=0)
-            y_pred = classes[i_pred]
-            loss = y_test != y_pred
-            p_want = p[y_test.ravel(), np.arange(y_test.shape[0])]
-            value = np.mean(np.clip(p_want, 0, np.inf) * loss)
-            total_value += value
-            # plt.scatter(X_train[:, 0], X_train[:, 1], c='g')
-            # plt.scatter(X_test[:, 0], X_test[:, 1], c='c')
-            # plt.show()
-        print(j, total_value/k)
-        return total_value/k
-
-    n_theta_q = 20
-    n_zeta_q = 20
-    theta_q = np.linspace(0.1, 6, num=n_theta_q)
-    zeta_q = np.logspace(-6, 1, num=n_zeta_q)
-    theta_q_grid, zeta_q_grid = np.meshgrid(theta_q, zeta_q)
-    hyperparams = np.array([theta_q_grid.ravel(), zeta_q_grid.ravel()]).T
-    objective_values = [objective(h, i) for i, h in enumerate(hyperparams)]
-    print(hyperparams.shape)
-    i_best = np.argmin(objective_values)
-    hyperparam_best = hyperparams[i_best]
-
-    plt.figure()
-    values_grid = np.reshape(objective_values, (n_zeta_q, n_theta_q))
-    print(theta_q_grid.shape, zeta_q_grid.shape, values_grid.shape)
-    plt.pcolormesh(theta_q_grid, np.log10(zeta_q_grid), values_grid)
-    plt.title('Learning Objective')
-    plt.xlabel(r'\theta')
-    plt.ylabel(r'\zeta')
-    plt.colorbar()
-    return hyperparam_best[0], hyperparam_best[1]
 
 def multiclass_classification(x, y):
 
-    # Set the hyperparameters
-    theta_x, zeta = 2.77768405, 0.05
-    # theta_x, zeta = train_classifier(x, y)
-    # theta_x = train_bayes_classifier(x, y)
-    # theta_x, zeta = train_cross_val(x, y)
-    # hyper_min = ([0.1], [0.01], [1e-2])
-    # hyper_max = ([5.], [5.], [5.])
-    # theta_x, psi_x, sigma_x = bake.learn.optimal_joint_embedding(x,
-    #                                                              hyper_min,
-    #                                                              hyper_max)
-    # print(theta_x, psi_x, sigma_x)
-    # zeta = sigma_x
-    print(theta_x, zeta)
-
+    theta_x, zeta = np.array([4.23728543]),  0.644524255345
     # Generate the query points
     n_query = 250
     x_1_array = np.linspace(*x_1_lim, num=n_query)
@@ -227,7 +64,12 @@ def multiclass_classification(x, y):
     x_1_mesh, x_2_mesh = np.meshgrid(x_1_array, x_2_array)
     x_query = np.array([x_1_mesh.ravel(), x_2_mesh.ravel()]).T
 
-    classifier = bake.Classifier().fit(x, y, hyperparam=(theta_x, zeta))
+    # classifier = bake.Classifier().fit(x, y, hyperparam=(theta_x, zeta))
+    h_min = np.array([1.0, 0.01])
+    h_max = np.array([2.0, 1.0])
+    h_init = np.array([1.0, 0.1])
+    classifier = bake.Classifier().fit(x, y, h_min=h_min, h_max=h_max,
+                                       h_init=h_init, n_splits=10)
     y_query, p_query, h_query = classifier.infer(x_query)
 
     p_norm = bake.infer.clip_normalize(p_query)

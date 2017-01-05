@@ -45,7 +45,7 @@ def sample_optimization(objective, t_min, t_max, n_samples=1000):
     for i, t in enumerate(t_samples):
         f = objective(t)
         if f < f_opt:
-            print(t_opt, f_opt)
+            # print(t_opt, f_opt)
             t_opt = t
             f_opt = f
             logging.debug('Iteration: %d | Hyperparameters: %s | Objective: %f'
