@@ -72,16 +72,16 @@ def multiclass_classification(x, y, x_test, y_test):
     x_query = np.array([x_1_mesh.ravel(), x_2_mesh.ravel()]).T
 
     # kec = bake.Classifier().fit(x, y, hyperparam=np.array([0.39338538, 1.51047729, 0.0492809341234]))
-    kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-        [2.0, 5.0, 1.0]))
-    kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-        [2.0, 3.0, 1.0]))
-    kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-        [2.0, 1.0, 1.0]))
-    kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-        [20.0, 1.0, 1.0]))
-    kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-        [2.0, 1.0, 1.0]))
+    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
+    #     [2.0, 5.0, 1.0]))
+    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
+    #     [2.0, 3.0, 1.0]))
+    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
+    #     [2.0, 1.0, 1.0]))
+    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
+    #     [20.0, 1.0, 1.0]))
+    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
+    #     [2.0, 1.0, 1.0]))
     # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
     #     [0.2, 1.0, 1.0]))
     # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
@@ -91,11 +91,10 @@ def multiclass_classification(x, y, x_test, y_test):
     # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
     #     [2.0, 1.0, 0.01]))
 
-    # h_min = np.array([0.0, 1.0, 0.01])
-    # h_max = np.array([1, 2.0, 1.0])
-    # h_init = np.array([1, 1.0, 0.1])
-    # classifier = bake.Classifier().fit(x, y, h_min=h_min, h_max=h_max,
-    #                                    h_init=h_init, n_splits=10)
+    h_min = np.array([0.0, 0.5, 0.01])
+    h_max = np.array([2, 3.0, 1.0])
+    h_init = np.array([0.5, 1.0, 0.1])
+    kec = bake.Classifier().fit(x, y, h_min=h_min, h_max=h_max, h_init=h_init)
     kec_y_query, kec_p_query, kec_h_query = kec.infer(x_query)
     kec_h_query = np.clip(kec_h_query, 0, np.inf)
     kec_p_query = bake.infer.clip_normalize(kec_p_query)
