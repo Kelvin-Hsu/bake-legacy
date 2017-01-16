@@ -2,7 +2,7 @@
 Miscellaneous Module.
 """
 import time
-
+import matplotlib.pyplot as plt
 
 def time_module(module, *args, **kwargs):
     """
@@ -28,3 +28,21 @@ def time_module(module, *args, **kwargs):
     t_module = t_finish - t_start
     print('Module %s finished in: %f seconds' % (module.__name__, t_module))
     return output, t_module
+
+
+def save_all_figures(full_directory,
+                     axis_equal=True, tight=True,
+                     extension='eps', rcparams=None):
+
+    if rcparams is not None:
+        plt.rc_context(rcparams)
+
+    # Go through each figure and save them
+    for i in plt.get_fignums():
+        fig = plt.figure(i)
+        if axis_equal:
+            plt.gca().set_aspect('equal', adjustable='box')
+        if tight:
+            fig.tight_layout()
+        fig.savefig('%sfigure%d.%s' % (full_directory, i, extension))
+    print('Figures Saved.')

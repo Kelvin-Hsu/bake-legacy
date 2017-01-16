@@ -15,6 +15,11 @@ from scipy.spatial.distance import cdist
 #   Chi-Squared Kernel
 
 
+def s_gaussian(x_p, x_q, theta):
+    s = theta[0]
+    l = theta[1:]
+    return s**2 * gaussian(x_p, x_q, l)
+
 def gaussian(x_p, x_q, theta):
     """
     Defines the Gaussian or squared exponential kernel.

@@ -4,7 +4,7 @@ Models Module.
 import autograd.numpy as np
 from .infer import conditional_weights as _conditional_weights
 from .infer import expectance as _expectance
-from .kernels import gaussian as _gaussian
+from .kernels import s_gaussian as _gaussian
 from sklearn.model_selection import KFold as _KFold
 from .optimize import explore_optimization as _explore_optimization
 
@@ -52,17 +52,18 @@ class Classifier():
                         print('Hyperparam: ', hyperparam, '|| Score: ', score)
                 return score
 
-            h_opt, score = _explore_optimization(objective, h_min, h_max, n_samples=250)
+            h_opt, score = _explore_optimization(objective, h_min, h_max, n_samples=2000)
 
             self.theta, self.zeta = h_opt[:-1], h_opt[-1]
             if verbose:
                 print('The final hyperparameters are: ', self.theta, self.zeta)
-            # # Do Learning
-            # self.theta = 1.0
-            # self.zeta = 0.1
-        else:
-            self.theta, self.zeta = hyperparam
 
+        else:
+            self.theta, self.zeta = hyperparam[:-1], hyperparam[-1]
+
+        # w = _conditional_weights(self.X_train_, self.theta, self.X_train_,
+        #                      zeta=self.zeta, k_x=self.kernel)
+        # print(np.sum(w**2))
         return self
 
     def probability(self, X_query):
