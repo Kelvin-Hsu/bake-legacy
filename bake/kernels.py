@@ -20,6 +20,11 @@ def s_gaussian(x_p, x_q, theta):
     l = theta[1:]
     return s**2 * gaussian(x_p, x_q, l)
 
+def s_matern3on2(x_p, x_q, theta):
+    s = theta[0]
+    l = theta[1:]
+    return s**2 * matern3on2(x_p, x_q, l)
+
 def gaussian(x_p, x_q, theta):
     """
     Defines the Gaussian or squared exponential kernel.
@@ -43,10 +48,10 @@ def gaussian(x_p, x_q, theta):
         The corresponding gram matrix if "x_q" is given (n_p x n_q)
         The diagonal of the gram matrix if "x_q" is given as "None" (n_p)
     """
-    c = np.prod(np.sqrt(2*np.pi)*theta*np.ones(x_p.shape[1]))
+    # c = np.prod(np.sqrt(2*np.pi)*theta*np.ones(x_p.shape[1]))
     if x_q is None:
-        return np.ones(x_p.shape[0])/c
-    return np.exp(-0.5 * cdist(x_p/theta, x_q/theta, 'sqeuclidean'))/c
+        return np.ones(x_p.shape[0])
+    return np.exp(-0.5 * cdist(x_p/theta, x_q/theta, 'sqeuclidean'))
 
 
 def laplace(x_p, x_q, theta):

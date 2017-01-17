@@ -104,7 +104,8 @@ def conditional_weights(x, theta_x, x_q,
         The conditional weights for the embedding(s)
     """
     k_xx = k_x(x, x, theta_x) if not k_xx else k_xx
-    k_xx_reg = k_xx + zeta ** 2 * np.eye(x.shape[0])
+    n = x.shape[0]
+    k_xx_reg = k_xx + n * zeta ** 2 * np.eye(n)
     return _solve_posdef(k_xx_reg, k_x(x, x_q, theta_x))[0]
 
 

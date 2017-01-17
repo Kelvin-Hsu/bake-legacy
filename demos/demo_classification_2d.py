@@ -9,13 +9,7 @@ import numpy as np
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.model_selection import train_test_split
-
-seed = 200
-x_min = -5
-x_max = +5
-x_1_lim = (x_min, x_max)
-x_2_lim = (x_min, x_max)
-d = 2
+from sklearn import datasets
 
 
 def create_spiral_data():
@@ -30,12 +24,16 @@ def create_spiral_data():
         ix = range(n * j, n * (j + 1))
         r = np.linspace(0.05, 1.05, n)  # radius
         t = np.linspace(j * 4, (j + 1) * 4, n) + np.random.randn(n) * 0.2
-        x[ix] = np.c_[r * np.sin(2*t), r * np.cos(2*t)]
+        x[ix] = np.c_[r * np.sin(t), r * np.cos(t)]
         y[ix] = j
-    return 5*x, y[:, np.newaxis]
+    return x, y[:, np.newaxis]
 
 
 def true_phenomenon(x):
+
+    x_min = -5
+    x_max = +5
+    d = 2
 
     n_class = 3
     r_max = 4
@@ -48,13 +46,26 @@ def true_phenomenon(x):
     return y
 
 
-def create_training_data():
+def create_patch_data():
+
+    seed = 200
+    x_min = -5
+    x_max = +5
+    d = 2
 
     n = 100
     x = utils.data.generate_uniform_data(n, d, x_min, x_max, seed=seed)
     y = true_phenomenon(x)
     return x, y.astype(int)
 
+
+def create_iris_data():
+    iris = datasets.load_iris()
+    x = iris.data[:, :2]  # we only take the first two features.
+    x = (x - x.mean(axis=0))/x.std(axis=0)
+    x = x / np.abs(x).max(axis=0)
+    y = iris.target
+    return x, y[:, np.newaxis]
 
 def log(x):
     answer = np.log(x)
@@ -63,6 +74,11 @@ def log(x):
 
 
 def multiclass_classification(x, y, x_test, y_test):
+
+    x_1_min, x_1_max = x[:, 0].min() - .1, x[:, 0].max() + .1
+    x_2_min, x_2_max = x[:, 1].min() - .1, x[:, 1].max() + .1
+    x_1_lim = (x_1_min, x_1_max)
+    x_2_lim = (x_2_min, x_2_max)
 
     # Generate the query points
     n_query = 250
@@ -89,15 +105,19 @@ def multiclass_classification(x, y, x_test, y_test):
     # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
     #     [2.0, 1.0, 0.1]))
     # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-    #     [2.0, 1.0, 0.01]))
+    #     [0.76884856,  2.75110879, -0.00406757]))
 
-    h_min = np.array([0.0, 0.5, 0.01])
-    h_max = np.array([2, 3.0, 1.0])
-    h_init = np.array([0.5, 1.0, 0.1])
-    kec = bake.Classifier().fit(x, y, h_min=h_min, h_max=h_max, h_init=h_init)
+    kernel = bake.kernels.s_gaussian
+    h_min = np.array([0.5, 0.25, 0.001])
+    h_max = np.array([2.0, 2.0, 1.0])
+    h_init = np.array([1.0, 1.0, 0.01])
+    kec = bake.Classifier(kernel=kernel).fit(x, y, h_min=h_min, h_max=h_max, h_init=h_init)
     kec_y_query, kec_p_query, kec_h_query = kec.infer(x_query)
     kec_h_query = np.clip(kec_h_query, 0, np.inf)
     kec_p_query = bake.infer.clip_normalize(kec_p_query)
+    # print(kec_p_query[:, int(n_query/2)])
+    # print(np.sum(kec_p_query, axis=0))
+    # kec_p_query = np.clip(kec_p_query, 0, 1)
     kec_h_query_alt = -np.sum(kec_p_query * log(kec_p_query), axis=0)
 
     # Convert to mesh
@@ -122,16 +142,16 @@ def multiclass_classification(x, y, x_test, y_test):
     gpc_h_mesh = np.reshape(gpc_h_query, (n_query, n_query))
 
     visualize_classifier('Kernel Embedding Classifier', x, y, x_test, y_test,
-                         x_1_mesh, x_2_mesh,
+                         x_1_mesh, x_2_mesh, x_1_lim, x_2_lim,
                          y_mesh=kec_y_mesh, h_mesh=kec_h_mesh,
                          h_mesh_alt=kec_h_mesh_alt, p=kec_p_query.T,
                          entropy_method='(RKHS Expectation)',
                          entropy_method_alt='(Clip Normalized)')
     visualize_classifier('Support Vector Classifier', x, y, x_test, y_test,
-                         x_1_mesh, x_2_mesh,
+                         x_1_mesh, x_2_mesh, x_1_lim, x_2_lim,
                          y_mesh=svc_y_mesh, h_mesh=svc_h_mesh, p=svc_p_query)
     visualize_classifier('Gaussian Process Classifier', x, y, x_test, y_test,
-                         x_1_mesh, x_2_mesh,
+                         x_1_mesh, x_2_mesh, x_1_lim, x_2_lim,
                          y_mesh=gpc_y_mesh, h_mesh=gpc_h_mesh, p=gpc_p_query)
 
     kec_y_pred = kec.predict(x)
@@ -150,13 +170,14 @@ def multiclass_classification(x, y, x_test, y_test):
 
 
 
-    # full_directory = './'
-    # utils.misc.save_all_figures(full_directory,
-    #                             axis_equal=True, tight=True,
-    #                             extension='eps', rcparams=None)
+    full_directory = './'
+    utils.misc.save_all_figures(full_directory,
+                                axis_equal=True, tight=True,
+                                extension='eps', rcparams=None)
 
 
 def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
+                         x_1_lim, x_2_lim,
                          y_mesh=None, h_mesh=None, h_mesh_alt=None, p=None,
                          entropy_method='',
                          entropy_method_alt=''):
@@ -225,7 +246,7 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
 
             plt.figure()
             Z = np.reshape(p, (n_query, n_query, n_classes))[:, :, ::-1]
-            plt.imshow(Z, extent=(x_min, x_max, x_min, x_max), origin="lower")
+            plt.imshow(Z, extent=(x_1_lim[0], x_1_lim[1], x_2_lim[0], x_2_lim[1]), origin="lower")
             plt.contour(x_1_mesh, x_2_mesh, y_mesh, colors='k', label='Decision Boundaries')
             plt.scatter(x[:, 0], x[:, 1], c=np.array(["b", "g", "r"])[y.ravel()], label='Training Data')
             plt.scatter(x_test[:, 0], x_test[:, 1],
@@ -264,7 +285,7 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
 if __name__ == "__main__":
     x, y = create_spiral_data()
     x_train, x_test, y_train, y_test = train_test_split(x, y,
-                                                        test_size=0.5,
+                                                        test_size=0.8,
                                                         random_state=0)
     utils.misc.time_module(multiclass_classification,
                            x_train, y_train, x_test, y_test)

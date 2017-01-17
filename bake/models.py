@@ -4,7 +4,7 @@ Models Module.
 import autograd.numpy as np
 from .infer import conditional_weights as _conditional_weights
 from .infer import expectance as _expectance
-from .kernels import s_gaussian as _gaussian
+from .kernels import s_gaussian as _s_gaussian
 from sklearn.model_selection import KFold as _KFold
 from .optimize import explore_optimization as _explore_optimization
 from scipy.optimize import minimize as _minimize
@@ -12,7 +12,7 @@ from scipy.optimize import minimize as _minimize
 
 class Classifier():
 
-    def __init__(self, kernel=_gaussian):
+    def __init__(self, kernel=_s_gaussian):
         self.kernel = kernel
 
     # def fit(self, X, y, hyperparam=None, h_min=None, h_max=None, h_init=None, n_splits=10, verbose=True):
@@ -86,7 +86,12 @@ class Classifier():
                 p = _expectance(self.y_train_ == self.classes, w)
                 y_pred = self.classes[np.argmax(p, axis=0)]
                 c = np.mean(y_pred == self.y_train_.ravel()) - 1
-                print(c)
+                if verbose:
+                    f = objective(hypers)
+                    # f = np.sum((w ** 2).diagonal())
+                    # f = np.sum(np.dot(w.T, w).diagonal())
+                    string = 'Training Error: %f || Objective: %f' % (-c, f)
+                    print('Hyperparameters: ', hypers, string)
                 return c
 
             def objective(hypers):
@@ -94,26 +99,36 @@ class Classifier():
                 w = _conditional_weights(self.X_train_, theta,
                                          self.X_train_, zeta=zeta,
                                          k_x=self.kernel)
-                f = np.sum(w**2)
-                # print(f)
+                # f = np.sum(w)
+                # f = np.sum(w**2)
+                # f = np.sum((w**2).diagonal())
+                f = np.sum(np.dot(w.T, w).diagonal())
+                # f = w.diagonal().sum()
                 return f
 
             method = 'COBYLA'
-            options = {'disp': True, 'maxls': 20, 'gtol': 1e-10,
-                       'eps': 1e-12, 'maxiter': 15000, 'ftol': 1e-9,
+            options = {'disp': True, 'maxls': 20, 'gtol': 1e-2, 'ctol': 1e-10,
+                       'eps': 1e-12, 'maxiter': 15000,
                        'maxcor': 20, 'maxfun': 15000}
             bounds = [(h_min[i], h_max[i]) for i in range(len(h_init))]
-            constraints = {'type': 'ineq',
+            constraints_ineq = {'type': 'ineq',
                            'fun': constraint}
+            constraints_eq = {'type': 'eq',
+                           'fun': constraint}
+            constraints = (constraints_ineq)
+            # optimal_result = _minimize(objective, h_init,
+            #                            method=method, bounds=bounds,
+            #                            constraints=constraints,
+            #                            options=options)
             optimal_result = _minimize(objective, h_init,
-                                       method=method, bounds=bounds,
-                                       constraints=constraints,
-                                       options=options)
+                                       bounds=bounds,
+                                       constraints=constraints)
             h_opt, f_opt = optimal_result.x, optimal_result.fun
-            print(h_opt, objective(h_opt), constraint(h_opt))
-
             self.theta, self.zeta = h_opt[:-1], h_opt[-1]
             if verbose:
+                print('Optimal Hyperparameters:', h_opt)
+                print('Training Error: %f || Objective: %f' % (
+                -constraint(h_opt), objective(h_opt)))
                 print('The final hyperparameters are: ', self.theta, self.zeta)
 
         else:
@@ -173,7 +188,7 @@ class Classifier():
 
 class Regressor():
 
-    def __init__(self, kernel=_gaussian):
+    def __init__(self, kernel=_s_gaussian):
         self.kernel = kernel
 
     def fit(self, X, y, hyperparam=None):
