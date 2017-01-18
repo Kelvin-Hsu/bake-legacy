@@ -581,14 +581,14 @@ def expectance(y, w):
     y : numpy.ndarray
         The training outputs (n, d_y)
     w : numpy.ndarray
-        The conditional or posterior weight matrix (n, n_q,)
+        The conditional or posterior weight matrix (n, n_q)
 
     Returns
     -------
     numpy.ndarray
-        The conditional expected value of the output (d_y, n_q,)
+        The conditional expected value of the output (d_y, n_q)
     """
-    return np.dot(y.T, w)
+    return np.dot(y.T, w).T
 
 
 def variance(y, w):
@@ -919,5 +919,43 @@ def multiple_quantile_regression(probabilities, w_q_pdf, y, theta_y):
     # Return the quantiles
     return y_quantiles
 
+
+def classify(p, classes=None):
+    """
+    Classify or predict based on a discrete probability distribution.
+
+    Parameters
+    ----------
+    p : numpy.ndarray
+        Discrete probability distribution of size (n, m)
+    classes : numpy.ndarray
+        The unique class labels of size (m,) where the default is [0, 1, ..., m]
+
+    Returns
+    -------
+    numpy.ndarray
+        The classification predictions of size (n,)
+    """
+    if classes is None:
+        classes = np.arange(p.shape[1])
+    return classes[np.argmax(p, axis=1)]
+
+def entropy(p):
+    """
+    Compute the entropy of a discrete probability distribution.
+
+    Parameters
+    ----------
+    p : numpy.ndarray
+        Discrete probability distribution of size (n, m)
+
+    Returns
+    -------
+    numpy.ndarray
+        The entropy of size (n,)
+    """
+    p_copy = p.copy()
+    p_copy[p_copy <= 0] = 1
+    return -np.sum(p_copy * np.log(p_copy), axis=1)
 
 # def expected_improvement(x_q, ):

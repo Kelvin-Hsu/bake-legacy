@@ -2,28 +2,45 @@
 Models Module.
 """
 import autograd.numpy as np
-from .infer import conditional_weights as _conditional_weights
 from .infer import expectance as _expectance
+from .infer import clip_normalize as _clip_normalize
+from .infer import classify as _classify
 from .kernels import s_gaussian as _s_gaussian
-from sklearn.model_selection import KFold as _KFold
 from .optimize import explore_optimization as _explore_optimization
+from .linalg import solve_posdef as _solve_posdef
+from sklearn.model_selection import KFold as _KFold
+
 from scipy.optimize import minimize as _minimize
 
 
 class Classifier():
 
     def __init__(self, kernel=_s_gaussian):
+        """
+        Initialize the classifier.
+
+        Parameters
+        ----------
+        kernel : callable, optional
+            A kernel function
+        """
         self.kernel = kernel
 
-    # def fit(self, X, y, hyperparam=None, h_min=None, h_max=None, h_init=None, n_splits=10, verbose=True):
+    # def fit_cross_val(self, x, y,
+    #                   h=None,
+    #                   h_min=np.array([0.00, 0.00, 0.001]),
+    #                   h_max=np.array([10.0, 10.0, 1.000]),
+    #                   h_init=np.array([1.0, 1.00, 0.010]),
+    #                   n_splits=10,
+    #                   verbose=True):
     #
-    #     self.X_train_ = X.copy()
-    #     self.y_train_ = y.copy()
-    #     self.classes = np.unique(self.y_train_)
+    #     self.x = x.copy()
+    #     self.y = y.copy()
+    #     self.classes = np.unique(self.y)
     #     self.class_indices = np.arange(self.classes.shape[0])
     #     self.n_classes = self.classes.shape[0]
     #
-    #     if hyperparam is None:
+    #     if h is None:
     #
     #         kf = _KFold(n_splits=n_splits)
     #
@@ -34,11 +51,11 @@ class Classifier():
     #             theta, zeta = hyperparam[:-1], hyperparam[-1]
     #
     #             total_score = 0
-    #             for train, test in kf.split(self.X_train_):
-    #                 X_train, X_test, y_train, y_test = self.X_train_[train], \
-    #                                                    self.X_train_[test], \
-    #                                                    self.y_train_[train], \
-    #                                                    self.y_train_[test]
+    #             for train, test in kf.split(self.x):
+    #                 X_train, X_test, y_train, y_test = self.x[train], \
+    #                                                    self.x[test], \
+    #                                                    self.y[train], \
+    #                                                    self.y[test]
     #                 w_query = _conditional_weights(X_train, theta, X_test,
     #                                                zeta=zeta, k_x=self.kernel)
     #                 p_query = _expectance(y_train == self.classes, w_query)
@@ -61,155 +78,182 @@ class Classifier():
     #             print('The final hyperparameters are: ', self.theta, self.zeta)
     #
     #     else:
-    #         self.theta, self.zeta = hyperparam[:-1], hyperparam[-1]
+    #         self.theta, self.zeta = h[:-1], h[-1]
     #
-    #     # w = _conditional_weights(self.X_train_, self.theta, self.X_train_,
-    #     #                      zeta=self.zeta, k_x=self.kernel)
-    #     # print(np.sum(w**2))
+    #     self.k = self.kernel(self.x, self.x, self.theta)
+    #     self.k_reg = self.k + self.n * (self.zeta ** 2) * np.eye(self.n)
     #     return self
 
-    def fit(self, X, y, hyperparam=None, h_min=None, h_max=None, h_init=None, verbose=True):
+    def fit(self, x, y,
+            h=None,
+            h_min=np.array([0.20, 0.20, 0.001]),
+            h_max=np.array([10.0, 10.0, 1.000]),
+            h_init=np.array([1.0, 1.00, 0.010]),
+            verbose=True):
+        """
+        Fit the kernel embedding classifier.
 
-        self.X_train_ = X.copy()
-        self.y_train_ = y.copy()
-        self.classes = np.unique(self.y_train_)
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The training inputs of size (n, d)
+        y : numpy.ndarray
+            The training outputs of size (n, 1)
+        h : numpy.ndarray, optional
+            The hyperparameters to be set (training will be skipped)
+        h_min : numpy.ndarray, optional
+            The lower bound of the hyperparameters
+        h_max : numpy.ndarray, optional
+            The upper bound of the hyperparameters
+        h_init : numpy.ndarray, optional
+            The initial values of the hyperparameters
+        verbose : bool, optional
+            Display the training process
+
+        Returns
+        -------
+        bake.Classifier
+            The trained classifier
+        """
+        self.x = x.copy()
+        self.y = y.copy()
+        self.n, self.d = self.x.shape
+        self.classes = np.unique(self.y)
         self.class_indices = np.arange(self.classes.shape[0])
         self.n_classes = self.classes.shape[0]
 
-        if hyperparam is None:
+        if h is None:
 
             def constraint(hypers):
-                theta, zeta = hypers[:-1], hypers[-1]
-                w = _conditional_weights(self.X_train_, theta,
-                                         self.X_train_, zeta=zeta,
-                                         k_x=self.kernel)
-                p = _expectance(self.y_train_ == self.classes, w)
-                y_pred = self.classes[np.argmax(p, axis=0)]
-                c = np.mean(y_pred == self.y_train_.ravel()) - 1
+                self.update(hypers[:-1], hypers[-1])
+                w = self.predict_weights(x)
+                y_pred = self.predict(x)
+                c = np.mean(y_pred == self.y.ravel()) - 1
                 if verbose:
                     f = np.sum(np.dot(w.T, w).diagonal())
-                    # f = np.sum((w ** 2).diagonal())
-                    # f = np.sum(np.dot(w.T, w).diagonal())
-                    string = 'Training Error: %f || Objective: %f' % (-c, f)
-                    print('Hyperparameters: ', hypers, string)
+                    s = 'Training Accuracy: %f || Objective: %f' % (1 + c, f)
+                    print('Hyperparameters: ', hypers, s)
                 return c
 
             def objective(hypers):
-                theta, zeta = hypers[:-1], hypers[-1]
-                w = _conditional_weights(self.X_train_, theta,
-                                         self.X_train_, zeta=zeta,
-                                         k_x=self.kernel)
-                # f = np.sum(w)
-                # f = np.sum(w**2)
-                # f = np.sum((w**2).diagonal())
+                self.update(hypers[:-1], hypers[-1])
+                w = self.predict_weights(x)
                 f = np.sum(np.dot(w.T, w).diagonal())
-                # f = w.diagonal().sum()
                 return f
 
-            method = 'COBYLA'
-            # options = {'disp': True, 'maxls': 20, 'gtol': 1e-2, 'ctol': 1e-10,
-            #            'eps': 1e-12, 'maxiter': 15000,
-            #            'maxcor': 20, 'maxfun': 15000}
             options = {'maxiter': 50}
             bounds = [(h_min[i], h_max[i]) for i in range(len(h_init))]
-            constraints_ineq = {'type': 'ineq',
-                           'fun': constraint}
-            constraints_eq = {'type': 'eq',
-                           'fun': constraint}
-            constraints = (constraints_ineq)
-            # optimal_result = _minimize(objective, h_init,
-            #                            method=method, bounds=bounds,
-            #                            constraints=constraints,
-            #                            options=options)
+            constraints_ineq = {'type': 'ineq', 'fun': constraint}
+            constraints = constraints_ineq
             optimal_result = _minimize(objective, h_init,
                                        bounds=bounds,
                                        constraints=constraints,
                                        options=options)
-            h_opt, f_opt = optimal_result.x, optimal_result.fun
-            self.theta, self.zeta = h_opt[:-1], h_opt[-1]
+            h = optimal_result.x
             if verbose:
-                print('Optimal Hyperparameters:', h_opt)
-                print('Training Error: %f || Objective: %f' % (
-                -constraint(h_opt), objective(h_opt)))
-                print('The final hyperparameters are: ', self.theta, self.zeta)
+                print('Training Completed.')
 
-        else:
-            self.theta, self.zeta = hyperparam[:-1], hyperparam[-1]
+        self.update(h[:-1], h[-1])
 
-        # w = _conditional_weights(self.X_train_, self.theta, self.X_train_,
-        #                      zeta=self.zeta, k_x=self.kernel)
-        # print(np.sum(w**2))
         return self
 
-    def probability(self, X_query):
+    def update(self, theta, zeta):
+        """
+        Update the hyperparameters of the classifier.
 
-        w_query = _conditional_weights(self.X_train_, self.theta, X_query,
-                                  zeta=self.zeta, k_x=self.kernel)
-        return _expectance(self.y_train_ == self.classes, w_query)
+        Parameters
+        ----------
+        theta : numpy.ndarray
+            The hyperparameters of the kernel
+        zeta : float
+            The regularisation parameter of the conditional embedding
 
-    def predict(self, X_query):
+        Returns
+        -------
+        bake.Classifier
+            The updated classifier
+        """
+        self.theta = theta
+        self.zeta = zeta
+        self.k = self.kernel(self.x, self.x, self.theta)
+        self.k_reg = self.k + self.n * (self.zeta ** 2) * np.eye(self.n)
+        return self
 
-        w_query = _conditional_weights(self.X_train_, self.theta, X_query,
-                                  zeta=self.zeta, k_x=self.kernel)
-        p_query = _expectance(self.y_train_ == self.classes, w_query)
-        return self.classes[np.argmax(p_query, axis=0)]
+    def predict_weights(self, x_query):
+        """
+        Predict the query weights for classification.
 
-    def entropy(self, X_query):
+        Parameters
+        ----------
+        x_query : numpy.ndarray
+            The query points of size (n_query, d)
 
-        w_query = _conditional_weights(self.X_train_, self.theta, X_query,
-                                  zeta=self.zeta, k_x=self.kernel)
-        p_query = _expectance(self.y_train_ == self.classes, w_query)
-        p_field = p_query[self.y_train_.ravel(), :] # (n_train, n_query)
+        Returns
+        -------
+        numpy.ndarray
+            The query weights of size (n, n_query)
+        """
+        k_query = self.kernel(self.x, x_query, self.theta)
+        w_query = _solve_posdef(self.k_reg, k_query)[0]
+        return w_query
 
-        def log(x):
-            answer = np.log(x)
-            answer[x <= 0] = 0
-            return answer
+    def predict_proba(self, x_query, normalize=True):
+        """
+        Predict the probabilities for classification.
 
-        return np.einsum('ij,ji->i', -log(p_field).T, w_query)
+        Parameters
+        ----------
+        x_query : numpy.ndarray
+            The query points of size (n_query, d)
+        normalize : bool
+            Normalize the probabilities properly
 
-    def infer(self, X_query):
+        Returns
+        -------
+        numpy.ndarray
+            The query probability estimates of size (n_query, n_class)
+        """
+        w_query = self.predict_weights(x_query)
+        p_query = _expectance(self.y == self.classes, w_query)
+        return _clip_normalize(p_query.T).T if normalize else p_query
 
-        w_query = _conditional_weights(self.X_train_, self.theta, X_query,
-                                  zeta=self.zeta, k_x=self.kernel)
-        p_query = _expectance(self.y_train_ == self.classes, w_query)
+    def predict(self, x_query):
+        """
+        Predict the targets for classification.
 
-        y_query = self.classes[np.argmax(p_query, axis=0)]
+        Parameters
+        ----------
+        x_query : numpy.ndarray
+            The query points of size (n_query, d)
 
-        # BE CAREFUL: Cannot always assume label and index are the same
-        p_field = p_query[self.y_train_.ravel(), :] # (n_train, n_query)
+        Returns
+        -------
+        numpy.ndarray
+            The query targets of size (n_query,)
+        """
+        p_query = self.predict_proba(x_query, normalize=False)
+        y_query = _classify(p_query, classes=self.classes)
+        return y_query
 
-        def log(x):
-            x[x <= 0] = 1
-            return np.log(x)
+    def predict_entropy(self, x_query, clip=True):
+        """
+        Predict the entropy of the predictions.
 
-        h_query = np.einsum('ij,ji->i', -log(p_field).T, w_query)
+        Parameters
+        ----------
+        x_query : numpy.ndarray
+            The query points of size (n_query, d)
+        clip : bool
+            Make sure the entropy estimate is non-negative
 
-        return y_query, p_query, h_query
-
-
-class Regressor():
-
-    def __init__(self, kernel=_s_gaussian):
-        self.kernel = kernel
-
-    def fit(self, X, y, hyperparam=None):
-
-        self.X_train_ = X.copy()
-        self.y_train_ = y.copy()
-
-        if hyperparam is None:
-            # Do Learning
-            self.theta = 1.0
-            self.zeta = 0.1
-        else:
-            self.theta, self.zeta = hyperparam
-
-        self.k_xx_ = self.kernel(self.X_train_, self.X_train_, self.theta)
-
-    def predict(self, X_query):
-
-        w_q = _conditional_weights(self.X_train_, self.theta, X_query,
-                                   zeta=self.zeta, k_x=self.kernel,
-                                   k_xx=self.k_xx_)
-        return _expectance(self.y_train_, w_q)
+        Returns
+        -------
+        numpy.ndarray
+            The query entropy of size (n_query,)
+        """
+        w_query = self.predict_weights(x_query)
+        p_query = _expectance(self.y == self.classes, w_query)
+        p_field = p_query[:, self.y.ravel()]  # (n_query, n_train)
+        p_field[p_field <= 0] = 1
+        h_query = np.einsum('ij,ji->i', -np.log(p_field), w_query)
+        return np.clip(h_query, 0, np.inf) if clip else h_query

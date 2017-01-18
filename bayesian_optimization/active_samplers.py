@@ -382,7 +382,7 @@ class GaussianProcessSampler(GaussianProcessRegressor):
         numpy.ndarray
             One single query point of size (1, n_dim), NOT of size (n_dim,)
         """
-        if not hasattr(self, "X_train_") \
+        if not hasattr(self, "x") \
                 or self.X_train_.shape[0] < self.n_start:
             logging.debug('picking new points randomly')
             n_query, n_dim = X_query.shape
@@ -410,7 +410,7 @@ class GaussianProcessSampler(GaussianProcessRegressor):
         """
         # If no training data has been collected before, just fit to the
         # initial data
-        if not hasattr(self, "X_train_"):
+        if not hasattr(self, "x"):
             logging.debug('"update" called before "fit"; '
                           'fitting to incoming data')
             return self.fit(X_new, y_new)
@@ -467,10 +467,10 @@ class GaussianProcessSampler(GaussianProcessRegressor):
         # self.log_marginal_likelihood_value_ = self.log_marginal_likelihood()
         # print(self.log_marginal_likelihood_value_)
         # self.log_marginal_likelihood_value_ = \
-        #     -0.5 * self.y_train_[np.newaxis, :].dot(
+        #     -0.5 * self.y[np.newaxis, :].dot(
         #         self.alpha_[:, np.newaxis])[0, 0] - \
         #     np.sum(np.log(np.diag(self.L_))) - \
-        #     self.X_train_.shape[0] / 2 * np.log(2 * np.pi)
+        #     self.x.shape[0] / 2 * np.log(2 * np.pi)
         # print(self.log_marginal_likelihood_value_)
         return self
 
@@ -640,7 +640,7 @@ class FixedGaussianConditionalEmbeddingSampler():
 
         y_star = np.max(self.y_train_)
         acquisition_query = np.dot(softplus(self.y_train_ - y_star), w_q)
-        # acquisition_query = np.dot(np.clip(self.y_train_ - np.sort(self.y_train_)[-2], 0, np.inf), w_q)
+        # acquisition_query = np.dot(np.clip(self.y - np.sort(self.y)[-2], 0, np.inf), w_q)
         # print(acquisition_query)
         return acquisition_query
 
@@ -678,7 +678,7 @@ class FixedGaussianConditionalEmbeddingSampler():
         numpy.ndarray
             One single query point of size (1, n_dim), NOT of size (n_dim,)
         """
-        if not hasattr(self, "X_train_") or self.X_train_.shape[0] < 50:
+        if not hasattr(self, "x") or self.X_train_.shape[0] < 50:
             logging.debug('picking new points randomly')
             n_query, n_dim = X_query.shape
             random_index = np.random.randint(n_query)
@@ -719,7 +719,7 @@ class FixedGaussianConditionalEmbeddingSampler():
         -------
         Anything
         """
-        if not hasattr(self, "X_train_"):
+        if not hasattr(self, "x"):
             self.X_train_ = X_new.copy()
             self.y_train_ = y_new.copy()
         else:

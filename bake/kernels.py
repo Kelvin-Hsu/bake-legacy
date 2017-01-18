@@ -20,6 +20,7 @@ def s_gaussian(x_p, x_q, theta):
     l = theta[1:]
     return s**2 * gaussian(x_p, x_q, l)
 
+
 def s_matern3on2(x_p, x_q, theta):
     s = theta[0]
     l = theta[1:]
