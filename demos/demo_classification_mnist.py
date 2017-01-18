@@ -7,25 +7,33 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn import datasets
 from sklearn.metrics import log_loss
+from tensorflow.examples.tutorials.mnist import input_data
 
 
-def create_digits_data():
-    digits = datasets.load_digits()
-    x = digits.data
-    y = digits.target
+def create_mnist_data():
+
+    mnist = input_data.read_data_sets("MNIST_data/", one_hot=False)
+    x = mnist.train.images
+    y = mnist.train.labels
+    n = x.shape[0]
+    images = np.reshape(x, (n, 28, 28))
+
+    n_sample = 20000
+    x = x[:n_sample]
+    y = y[:n_sample]
+    images = images[:n_sample]
     x = x / np.max(x)
-    return x, y[:, np.newaxis], digits.images
+    return x, y[:, np.newaxis], images
 
 
 def digit_classification():
 
-    x_all, y_all, images = create_digits_data()
+    x_all, y_all, images = create_mnist_data()
     n_samples = x_all.shape[0]
     classes = np.unique(y_all)
 
-    i_break = int(0.2 * n_samples)
+    i_break = int(0.05 * n_samples)
     np.random.seed(0)
     indices = np.random.permutation(n_samples)
     i_train = indices[:i_break]
@@ -43,7 +51,7 @@ def digit_classification():
     # h_impose = np.array([0.92, 2.25, 0.08])
     # kec = bake.Classifier(kernel=kernel).fit(x, y, hyperparam=h_impose)
 
-    h_min = np.array([0.25, 0.25, 0.001])
+    h_min = np.array([0.2, 0.25, 0.001])
     h_max = np.array([2.0, 5.0, 0.1])
     h_init = np.array([1.0, 2.0, 0.01])
 
@@ -51,8 +59,11 @@ def digit_classification():
                                              h_min=h_min,
                                              h_max=h_max,
                                              h_init=h_init)
+    print('KEC Training Finished')
     svc = SVC(probability=True).fit(x, y)
+    print('SVC Training Finished')
     gpc = GaussianProcessClassifier().fit(x, y)
+    print('GPC Training Finished')
 
     kec_p = kec.predict_proba(x)
     svc_p = svc.predict_proba(x)
@@ -94,7 +105,7 @@ def digit_classification():
 
     fig = plt.figure(0)
     n_row = 3
-    n_col = 6
+    n_col = 5
     n_pic = n_row * n_col
     images_and_labels = list(zip(images[i_test], y_test,
                                  kec_y_test, kec_p_pred,

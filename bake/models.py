@@ -9,7 +9,7 @@ from .kernels import s_gaussian as _s_gaussian
 from .optimize import explore_optimization as _explore_optimization
 from .linalg import solve_posdef as _solve_posdef
 from sklearn.model_selection import KFold as _KFold
-
+from scipy.linalg import cholesky as _cholesky
 from scipy.optimize import minimize as _minimize
 
 
@@ -124,13 +124,18 @@ class Classifier():
 
         if h is None:
 
+            def model_complexity(w):
+                # f = np.sum(w.diagonal())
+                f = np.sum(np.dot(w.T, w).diagonal())
+                return np.log(f)
+
             def constraint(hypers):
                 self.update(hypers[:-1], hypers[-1])
                 w = self.predict_weights(x)
                 y_pred = self.predict(x)
                 c = np.mean(y_pred == self.y.ravel()) - 1
                 if verbose:
-                    f = np.sum(np.dot(w.T, w).diagonal())
+                    f = model_complexity(w)
                     s = 'Training Accuracy: %f || Objective: %f' % (1 + c, f)
                     print('Hyperparameters: ', hypers, s)
                 return c
@@ -138,7 +143,7 @@ class Classifier():
             def objective(hypers):
                 self.update(hypers[:-1], hypers[-1])
                 w = self.predict_weights(x)
-                f = np.sum(np.dot(w.T, w).diagonal())
+                f = model_complexity(w)
                 return f
 
             options = {'maxiter': 50}

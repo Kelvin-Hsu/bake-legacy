@@ -280,7 +280,7 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
 
 if __name__ == "__main__":
 
-    x, y = create_iris_data()
+    x, y = create_spiral_data()
     test_size = 0.25
     x_train, x_test, y_train, y_test = train_test_split(x, y,
                                                         test_size=test_size,

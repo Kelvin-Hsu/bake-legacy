@@ -940,6 +940,7 @@ def classify(p, classes=None):
         classes = np.arange(p.shape[1])
     return classes[np.argmax(p, axis=1)]
 
+
 def entropy(p):
     """
     Compute the entropy of a discrete probability distribution.
