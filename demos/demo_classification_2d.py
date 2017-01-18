@@ -26,7 +26,7 @@ def create_spiral_data():
         t = np.linspace(j * 4, (j + 1) * 4, n) + np.random.randn(n) * 0.2
         x[ix] = np.c_[r * np.sin(t), r * np.cos(t)]
         y[ix] = j
-    return x, y[:, np.newaxis]
+    return 2*x, y[:, np.newaxis]
 
 
 def true_phenomenon(x):
@@ -67,6 +67,7 @@ def create_iris_data():
     y = iris.target
     return x, y[:, np.newaxis]
 
+
 def log(x):
     answer = np.log(x)
     answer[x <= 0] = 0
@@ -87,25 +88,8 @@ def multiclass_classification(x, y, x_test, y_test):
     x_1_mesh, x_2_mesh = np.meshgrid(x_1_array, x_2_array)
     x_query = np.array([x_1_mesh.ravel(), x_2_mesh.ravel()]).T
 
-    # kec = bake.Classifier().fit(x, y, hyperparam=np.array([0.39338538, 1.51047729, 0.0492809341234]))
     # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-    #     [2.0, 5.0, 1.0]))
-    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-    #     [2.0, 3.0, 1.0]))
-    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-    #     [2.0, 1.0, 1.0]))
-    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-    #     [20.0, 1.0, 1.0]))
-    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-    #     [2.0, 1.0, 1.0]))
-    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-    #     [0.2, 1.0, 1.0]))
-    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-    #     [2.0, 1.0, 1.0]))
-    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-    #     [2.0, 1.0, 0.1]))
-    # kec = bake.Classifier().fit(x, y, hyperparam=np.array(
-    #     [0.76884856,  2.75110879, -0.00406757]))
+    #     [0.5,         0.8579387,   0.00102962]))
 
     kernel = bake.kernels.s_gaussian
     h_min = np.array([0.5, 0.25, 0.001])
@@ -221,7 +205,7 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
 
     if h_mesh_alt is not None:
         plt.figure()
-        plt.pcolormesh(x_1_mesh, x_2_mesh, h_mesh, cmap=cm.coolwarm,
+        plt.pcolormesh(x_1_mesh, x_2_mesh, h_mesh_alt, cmap=cm.coolwarm,
                        label='Entropy')
         plt.colorbar()
         plt.contour(x_1_mesh, x_2_mesh, y_mesh, colors='k',
@@ -260,7 +244,7 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
             plt.legend(loc='lower left', bbox_to_anchor=(0, 0),
                 fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
 
-        else:
+        elif n_classes <= 10:
             for c in np.unique(y):
                 plt.figure()
                 plt.pcolormesh(x_1_mesh, x_2_mesh,
@@ -283,10 +267,13 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
                 plt.title('%s: Probability for Class %d' % (name, c))
 
 if __name__ == "__main__":
+
     x, y = create_spiral_data()
+    test_size = 0.25
     x_train, x_test, y_train, y_test = train_test_split(x, y,
-                                                        test_size=0.8,
+                                                        test_size=test_size,
                                                         random_state=0)
     utils.misc.time_module(multiclass_classification,
                            x_train, y_train, x_test, y_test)
+    print('Percentage of data withheld for testing: %f%%' % (100 * test_size))
     plt.show()

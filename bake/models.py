@@ -87,7 +87,7 @@ class Classifier():
                 y_pred = self.classes[np.argmax(p, axis=0)]
                 c = np.mean(y_pred == self.y_train_.ravel()) - 1
                 if verbose:
-                    f = objective(hypers)
+                    f = np.sum(np.dot(w.T, w).diagonal())
                     # f = np.sum((w ** 2).diagonal())
                     # f = np.sum(np.dot(w.T, w).diagonal())
                     string = 'Training Error: %f || Objective: %f' % (-c, f)
@@ -107,9 +107,10 @@ class Classifier():
                 return f
 
             method = 'COBYLA'
-            options = {'disp': True, 'maxls': 20, 'gtol': 1e-2, 'ctol': 1e-10,
-                       'eps': 1e-12, 'maxiter': 15000,
-                       'maxcor': 20, 'maxfun': 15000}
+            # options = {'disp': True, 'maxls': 20, 'gtol': 1e-2, 'ctol': 1e-10,
+            #            'eps': 1e-12, 'maxiter': 15000,
+            #            'maxcor': 20, 'maxfun': 15000}
+            options = {'maxiter': 50}
             bounds = [(h_min[i], h_max[i]) for i in range(len(h_init))]
             constraints_ineq = {'type': 'ineq',
                            'fun': constraint}
@@ -122,7 +123,8 @@ class Classifier():
             #                            options=options)
             optimal_result = _minimize(objective, h_init,
                                        bounds=bounds,
-                                       constraints=constraints)
+                                       constraints=constraints,
+                                       options=options)
             h_opt, f_opt = optimal_result.x, optimal_result.fun
             self.theta, self.zeta = h_opt[:-1], h_opt[-1]
             if verbose:

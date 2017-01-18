@@ -45,4 +45,4 @@ def save_all_figures(full_directory,
         if tight:
             fig.tight_layout()
         fig.savefig('%sfigure%d.%s' % (full_directory, i, extension))
-    print('Figures Saved.')
+    print('figures saved.')
