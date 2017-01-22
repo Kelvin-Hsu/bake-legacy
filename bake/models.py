@@ -223,6 +223,7 @@ class Classifier():
         """
         w_query = self.predict_weights(x_query)
         p_query = _expectance(self.y == self.classes, w_query)
+        print(w_query.sum(axis=0).mean(), p_query.sum(axis=1).mean())
         return _clip_normalize(p_query.T).T if normalize else p_query
 
     def predict(self, x_query):

@@ -12,6 +12,7 @@ from sklearn.model_selection import train_test_split
 from sklearn import datasets
 from sklearn.metrics import log_loss
 
+
 def create_spiral_data():
 
     np.random.seed(100)

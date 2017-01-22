@@ -54,10 +54,10 @@ def image_classification():
 
     label_names = load_cifar_10_names()
 
-    # n_sample_train = 2000
-    # x_train = x_train[:n_sample_train]
-    # y_train = y_train[:n_sample_train]
-    # images_train = images_train[:n_sample_train]
+    n_sample_train = 2000
+    x_train = x_train[:n_sample_train]
+    y_train = y_train[:n_sample_train]
+    images_train = images_train[:n_sample_train]
     #
     # n_sample_test = 20000
     # x_test = x_test[:n_sample_test]
@@ -66,17 +66,17 @@ def image_classification():
 
     kernel = bake.kernels.s_gaussian
 
-    h_impose = np.array([0.5, 0.5, 0.01])
-    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
+    # h_impose = np.array([0.5, 0.5, 0.01])
+    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
 
-    # h_min = np.array([0.5, 0.1, 0.001])
-    # h_max = np.array([2.0, 5.0, 0.1])
-    # h_init = np.array([1.0, 2.0, 0.01])
-    #
-    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
-    #                                          h_min=h_min,
-    #                                          h_max=h_max,
-    #                                          h_init=h_init)
+    h_min = np.array([0.2, 0.1, 0.001])
+    h_max = np.array([2.0, 5.0, 10.0])
+    h_init = np.array([1.0, 2.0, 0.01])
+
+    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
+                                             h_min=h_min,
+                                             h_max=h_max,
+                                             h_init=h_init)
     print('KEC Training Finished')
     svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
