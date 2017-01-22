@@ -122,42 +122,45 @@ class Classifier():
         self.class_indices = np.arange(self.classes.shape[0])
         self.n_classes = self.classes.shape[0]
 
+        def model_complexity(w):
+            # f = np.sum(w.diagonal())
+            f = np.sum(np.dot(w.T, w).diagonal())
+            return np.log(f)
+
+        def constraint(hypers):
+            self.update(hypers[:-1], hypers[-1])
+            w = self.predict_weights(x)
+            y_pred = self.predict(x)
+            c = np.mean(y_pred == self.y.ravel()) - 1
+            if verbose:
+                f = model_complexity(w)
+                s = 'Training Accuracy: %f || Objective: %f' % (1 + c, f)
+                print('Hyperparameters: ', hypers, s)
+            return c
+
+        def objective(hypers):
+            self.update(hypers[:-1], hypers[-1])
+            w = self.predict_weights(x)
+            f = model_complexity(w)
+            return f
+
         if h is None:
 
-            def model_complexity(w):
-                # f = np.sum(w.diagonal())
-                f = np.sum(np.dot(w.T, w).diagonal())
-                return np.log(f)
-
-            def constraint(hypers):
-                self.update(hypers[:-1], hypers[-1])
-                w = self.predict_weights(x)
-                y_pred = self.predict(x)
-                c = np.mean(y_pred == self.y.ravel()) - 1
-                if verbose:
-                    f = model_complexity(w)
-                    s = 'Training Accuracy: %f || Objective: %f' % (1 + c, f)
-                    print('Hyperparameters: ', hypers, s)
-                return c
-
-            def objective(hypers):
-                self.update(hypers[:-1], hypers[-1])
-                w = self.predict_weights(x)
-                f = model_complexity(w)
-                return f
-
-            options = {'maxiter': 50}
+            # options = {'maxiter': 50}
             bounds = [(h_min[i], h_max[i]) for i in range(len(h_init))]
             constraints_ineq = {'type': 'ineq', 'fun': constraint}
             constraints = constraints_ineq
             optimal_result = _minimize(objective, h_init,
                                        bounds=bounds,
-                                       constraints=constraints,
-                                       options=options)
+                                       constraints=constraints)
             h = optimal_result.x
             if verbose:
                 print('Training Completed.')
 
+        c = constraint(h)
+        f = objective(h)
+        s = 'Training Accuracy: %f || Objective: %f' % (1 + c, f)
+        print('Hyperparameters: ', h, s)
         self.update(h[:-1], h[-1])
 
         return self

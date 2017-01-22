@@ -16,10 +16,10 @@ def create_mnist_data():
     mnist = input_data.read_data_sets("MNIST_data/", one_hot=False)
     x = mnist.train.images
     y = mnist.train.labels
-    n = x.shape[0]
+    n, d = x.shape
     images = np.reshape(x, (n, 28, 28))
 
-    n_sample = 20000
+    n_sample = 2000
     x = x[:n_sample]
     y = y[:n_sample]
     images = images[:n_sample]
