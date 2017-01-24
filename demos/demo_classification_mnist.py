@@ -14,60 +14,68 @@ from tensorflow.examples.tutorials.mnist import input_data
 def create_mnist_data():
 
     mnist = input_data.read_data_sets("MNIST_data/", one_hot=False)
-    x = mnist.train.images
-    y = mnist.train.labels
-    n, d = x.shape
-    images = np.reshape(x, (n, 28, 28))
 
-    n_sample = 2000
+    x_train = mnist.train.images
+    y_train = mnist.train.labels[:, np.newaxis]
+    n_train, d = x_train.shape
+    images_train = np.reshape(x_train, (n_train, 28, 28))
+
+    x_valid = mnist.validation.images
+    y_valid = mnist.validation.labels[:, np.newaxis]
+    n_valid, d = x_valid.shape
+    images_valid = np.reshape(x_valid, (n_valid, 28, 28))
+
+    x = np.concatenate((x_train, x_valid), axis=0)
+    y = np.concatenate((y_train, y_valid), axis=0)
+    images = np.concatenate((images_train, images_valid), axis=0)
+
+    x_test = mnist.test.images
+    y_test = mnist.test.labels[:, np.newaxis]
+    n_test, d = x_test.shape
+    images_test = np.reshape(x_test, (n_test, 28, 28))
+
+    n_sample = 1000
     x = x[:n_sample]
     y = y[:n_sample]
     images = images[:n_sample]
-    x = x / np.max(x)
-    return x, y[:, np.newaxis], images
+
+    x /= np.max(x)
+    print('Training Size: %d, Validation Size: %d, Testing Size: %d'
+          % (n_train, n_valid, n_test))
+    return x, y, images, x_test, y_test, images_test
 
 
 def digit_classification():
 
-    x_all, y_all, images = create_mnist_data()
-    n_samples = x_all.shape[0]
-    classes = np.unique(y_all)
+    x_train, y_train, images, x_test, y_test, images_test = create_mnist_data()
+    classes = np.unique(y_train)
 
-    i_break = int(0.05 * n_samples)
-    np.random.seed(0)
-    indices = np.random.permutation(n_samples)
-    i_train = indices[:i_break]
-    i_test = indices[i_break:]
+    # kernel = bake.kernels.s_gaussian
+    # h_min = np.array([0.2, 0.25, 0.001])
+    # h_max = np.array([2.0, 5.0, 0.1])
+    # h_init = np.array([1.0, 2.0, 0.01])
 
-    test_size = i_test.shape[0] / n_samples
+    kernel = bake.kernels.gaussian
+    h_min = np.array([0.25, 0.001])
+    h_max = np.array([5.0, 0.1])
+    h_init = np.array([2.0, 0.01])
 
-    x = x_all[i_train]
-    y = y_all[i_train]
-    x_test = x_all[i_test]
-    y_test = y_all[i_test]
+    # h_impose = np.array([1, 1.0, 0.01])
+    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
 
-    kernel = bake.kernels.s_gaussian
-
-    # h_impose = np.array([0.92, 2.25, 0.08])
-    # kec = bake.Classifier(kernel=kernel).fit(x, y, hyperparam=h_impose)
-
-    h_min = np.array([0.2, 0.25, 0.001])
-    h_max = np.array([2.0, 5.0, 0.1])
-    h_init = np.array([1.0, 2.0, 0.01])
-
-    kec = bake.Classifier(kernel=kernel).fit(x, y,
+    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
                                              h_min=h_min,
                                              h_max=h_max,
                                              h_init=h_init)
     print('KEC Training Finished')
-    svc = SVC(probability=True).fit(x, y)
+    svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
-    gpc = GaussianProcessClassifier().fit(x, y)
+    gpc = GaussianProcessClassifier().fit(x_train, y_train)
     print('GPC Training Finished')
 
-    kec_p = kec.predict_proba(x)
-    svc_p = svc.predict_proba(x)
-    gpc_p = gpc.predict_proba(x)
+    kec_p = kec.predict_proba(x_train)
+    svc_p = svc.predict_proba(x_train)
+    gpc_p = gpc.predict_proba(x_train)
 
     kec_y = bake.infer.classify(kec_p, classes=classes)
     svc_y = bake.infer.classify(svc_p, classes=classes)
@@ -81,17 +89,20 @@ def digit_classification():
     svc_y_test = bake.infer.classify(svc_p_test, classes=classes)
     gpc_y_test = bake.infer.classify(gpc_p_test, classes=classes)
 
-    print('kec training accuracy: %.9f' % (np.mean(kec_y == y.ravel())))
-    print('svc training accuracy: %.9f' % (np.mean(svc_y == y.ravel())))
-    print('gpc training accuracy: %.9f' % (np.mean(gpc_y == y.ravel())))
+    print('Training on %d images' % y_train.shape[0])
+    print('Testing on %d images' % y_test.shape[0])
+
+    print('kec training accuracy: %.9f' % (np.mean(kec_y == y_train.ravel())))
+    print('svc training accuracy: %.9f' % (np.mean(svc_y == y_train.ravel())))
+    print('gpc training accuracy: %.9f' % (np.mean(gpc_y == y_train.ravel())))
 
     print('kec test accuracy: %.9f' % (np.mean(kec_y_test == y_test.ravel())))
     print('svc test accuracy: %.9f' % (np.mean(svc_y_test == y_test.ravel())))
     print('gpc test accuracy: %.9f' % (np.mean(gpc_y_test == y_test.ravel())))
 
-    print('kec training log loss: %.9f' % log_loss(y.ravel(), kec_p))
-    print('svc training log loss: %.9f' % log_loss(y.ravel(), svc_p))
-    print('gpc training log loss: %.9f' % log_loss(y.ravel(), gpc_p))
+    print('kec training log loss: %.9f' % log_loss(y_train.ravel(), kec_p))
+    print('svc training log loss: %.9f' % log_loss(y_train.ravel(), svc_p))
+    print('gpc training log loss: %.9f' % log_loss(y_train.ravel(), gpc_p))
 
     print('kec test log loss: %.9f' % log_loss(y_test.ravel(), kec_p_test))
     print('svc test log loss: %.9f' % log_loss(y_test.ravel(), svc_p_test))
@@ -101,13 +112,11 @@ def digit_classification():
     svc_p_pred = svc_p_test[np.arange(x_test.shape[0]), svc_y_test]
     gpc_p_pred = gpc_p_test[np.arange(x_test.shape[0]), gpc_y_test]
 
-    print('Percentage of data withheld for testing: %f%%' % (100 * test_size))
-
     fig = plt.figure(0)
     n_row = 3
     n_col = 5
     n_pic = n_row * n_col
-    images_and_labels = list(zip(images[i_test], y_test,
+    images_and_labels = list(zip(images_test, y_test,
                                  kec_y_test, kec_p_pred,
                                  svc_y_test, svc_p_pred,
                                  gpc_y_test, gpc_p_pred))

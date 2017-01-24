@@ -85,10 +85,15 @@ def multiclass_classification(x, y, x_test, y_test):
     x_1_mesh, x_2_mesh = np.meshgrid(x_1_array, x_2_array)
     x_query = np.array([x_1_mesh.ravel(), x_2_mesh.ravel()]).T
 
-    kernel = bake.kernels.s_gaussian
-    h_min = np.array([0.2, 0.25, 0.001])
-    h_max = np.array([2.0, 2.0, 1.0])
-    h_init = np.array([1.0, 1.0, 0.01])
+    # kernel = bake.kernels.s_gaussian
+    # h_min = np.array([0.2, 0.25, 0.001])
+    # h_max = np.array([2.0, 2.0, 1.0])
+    # h_init = np.array([1.0, 1.0, 0.01])
+
+    kernel = bake.kernels.gaussian
+    h_min = np.array([0.25, 0.001])
+    h_max = np.array([2.0, 1.0])
+    h_init = np.array([1.0, 0.01])
 
     kec = bake.Classifier(kernel=kernel).fit(x, y,
                                              h_min=h_min,

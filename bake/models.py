@@ -133,10 +133,18 @@ class Classifier():
             y_pred = self.predict(x)
             c = np.mean(y_pred == self.y.ravel()) - 1
             if verbose:
+                p = w.sum(axis=0).mean()
                 f = model_complexity(w)
-                s = 'Training Accuracy: %f || Objective: %f' % (1 + c, f)
+                s = 'Training Accuracy: %f || Objective: %f || MSW: %f' \
+                    % (1 + c, f, p)
                 print('Hyperparameters: ', hypers, s)
             return c
+
+        def constraint_prob(hypers):
+            self.update(hypers[:-1], hypers[-1])
+            w = self.predict_weights(x)
+            p = w.sum(axis=0).mean()
+            return p - 0.5
 
         def objective(hypers):
             self.update(hypers[:-1], hypers[-1])
@@ -148,8 +156,9 @@ class Classifier():
 
             # options = {'maxiter': 50}
             bounds = [(h_min[i], h_max[i]) for i in range(len(h_init))]
-            constraints_ineq = {'type': 'ineq', 'fun': constraint}
-            constraints = constraints_ineq
+            c_1 = {'type': 'ineq', 'fun': constraint}
+            c_2 = {'type': 'ineq', 'fun': constraint_prob}
+            constraints = (c_1, c_2)
             optimal_result = _minimize(objective, h_init,
                                        bounds=bounds,
                                        constraints=constraints)
@@ -223,7 +232,6 @@ class Classifier():
         """
         w_query = self.predict_weights(x_query)
         p_query = _expectance(self.y == self.classes, w_query)
-        print(w_query.sum(axis=0).mean(), p_query.sum(axis=1).mean())
         return _clip_normalize(p_query.T).T if normalize else p_query
 
     def predict(self, x_query):

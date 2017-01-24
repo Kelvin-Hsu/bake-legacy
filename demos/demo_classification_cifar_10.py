@@ -54,7 +54,7 @@ def image_classification():
 
     label_names = load_cifar_10_names()
 
-    n_sample_train = 2000
+    n_sample_train = 1000
     x_train = x_train[:n_sample_train]
     y_train = y_train[:n_sample_train]
     images_train = images_train[:n_sample_train]
