@@ -6,6 +6,7 @@ from .infer import expectance as _expectance
 from .infer import clip_normalize as _clip_normalize
 from .infer import classify as _classify
 from .kernels import s_gaussian as _s_gaussian
+from .kernels import kronecker_delta as _kronecker_delta
 from .optimize import explore_optimization as _explore_optimization
 from .linalg import solve_posdef as _solve_posdef
 from sklearn.model_selection import KFold as _KFold
@@ -194,6 +195,8 @@ class Classifier():
         self.zeta = zeta
         self.k = self.kernel(self.x, self.x, self.theta)
         self.k_reg = self.k + self.n * (self.zeta ** 2) * np.eye(self.n)
+        self.l = _kronecker_delta(self.y, self.y)
+        self.l_reg = self.l + self.n * (self.zeta ** 2) * np.eye(self.n)
         return self
 
     def predict_weights(self, x_query):
@@ -274,3 +277,14 @@ class Classifier():
         p_field[p_field <= 0] = 1
         h_query = np.einsum('ij,ji->i', -np.log(p_field), w_query)
         return np.clip(h_query, 0, np.inf) if clip else h_query
+
+    def reverse_weights(self, y_query):
+
+        l_query = _kronecker_delta(self.y, y_query)
+        v_query = _solve_posdef(self.l_reg, l_query)[0]
+        return v_query
+
+    def reverse_embedding(self, y_query, x_query):
+
+        v_query = self.reverse_weights(y_query)
+        return np.dot(self.kernel(x_query, self.x, self.theta), v_query)
