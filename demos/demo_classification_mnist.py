@@ -4,9 +4,11 @@ Demonstration of simple kernel embeddings.
 import bake
 import utils
 import matplotlib.pyplot as plt
+from matplotlib import gridspec
 import numpy as np
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from sklearn.metrics import log_loss
 from tensorflow.examples.tutorials.mnist import input_data
 
@@ -55,22 +57,28 @@ def digit_classification():
     # h_max = np.array([2.0, 5.0, 0.1])
     # h_init = np.array([1.0, 2.0, 0.01])
 
-    kernel = bake.kernels.gaussian
-    h_min = np.array([0.25, 0.001])
-    h_max = np.array([5.0, 0.1])
-    h_init = np.array([2.0, 0.01])
+    # kernel = bake.kernels.gaussian
+    # h_min = np.array([0.25, 0.001])
+    # h_max = np.array([5.0, 0.1])
+    # h_init = np.array([2.0, 0.01])
 
-    # h_impose = np.array([1, 1.0, 0.01])
-    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
+    kernel = bake.kernels.s_gaussian
+    h_min = np.array([0.5, 0.75, 0.001])
+    h_max = np.array([1.25, 4.0, 0.1])
+    h_init = np.array([1.0, 1.0, 0.01])
 
-    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
-                                             h_min=h_min,
-                                             h_max=h_max,
-                                             h_init=h_init)
+    h_impose = np.array([0.95,  3.2,  0.06])
+    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
+
+    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
+    #                                          h_min=h_min,
+    #                                          h_max=h_max,
+    #                                          h_init=h_init)
     print('KEC Training Finished')
     svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
-    gpc = GaussianProcessClassifier().fit(x_train, y_train)
+    gpc = GaussianProcessClassifier(
+        kernel=C() * RBF(length_scale=1.0)).fit(x_train, y_train)
     print('GPC Training Finished')
 
     kec_p = kec.predict_proba(x_train)
@@ -112,7 +120,6 @@ def digit_classification():
     svc_p_pred = svc_p_test[np.arange(x_test.shape[0]), svc_y_test]
     gpc_p_pred = gpc_p_test[np.arange(x_test.shape[0]), gpc_y_test]
 
-    fig = plt.figure(0)
     n_row = 3
     n_col = 5
     n_pic = n_row * n_col
@@ -120,33 +127,98 @@ def digit_classification():
                                  kec_y_test, kec_p_pred,
                                  svc_y_test, svc_p_pred,
                                  gpc_y_test, gpc_p_pred))
-    plt.figure()
-    for index, (image, label,
-                kec_pred, kec_p,
-                svc_pred, svc_p,
-                gpc_pred, gpc_p) in enumerate(images_and_labels[:n_pic]):
-        plt.subplot(n_row, n_col, index + 1)
+
+    for j in range(12):
+        fig = plt.figure()
+        for index, (image, label,
+                    kec_pred, kec_p,
+                    svc_pred, svc_p,
+                    gpc_pred, gpc_p) in enumerate(
+            images_and_labels[j*n_pic:(j + 1)*n_pic]):
+            plt.subplot(n_row, n_col, index + 1)
+            plt.axis('off')
+            plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
+            plt.title('Truth: %d'
+                      '\nKEC: %d (%.1f%%)'
+                      '\nSVC: %d (%.1f%%)'
+                      '\nGPC: %d (%.1f%%)' % (label,
+                                              kec_pred, 100*kec_p,
+                                              svc_pred, 100*svc_p,
+                                              gpc_pred, 100*gpc_p))
+        fig.set_size_inches(18, 14, forward=True)
+
+    for j in range(10):
+        fig = plt.figure()
+        gs = gridspec.GridSpec(1, 2,
+                               width_ratios=[1, 2.5],
+                               height_ratios=[1, 1])
+        plt.subplot(gs[0])
+        plt.axis('off')
+        plt.imshow(images_test[j], cmap=plt.cm.gray_r, interpolation='nearest')
+        plt.title('Truth: %d' % y_test[j])
+        plt.subplot(gs[1])
+        bar_width = 0.2
+        opacity = 0.4
+        plt.bar(classes, tuple(svc_p_test[j]), bar_width,
+                alpha=opacity,
+                color='r',
+                label='SVC')
+        plt.bar(classes + bar_width, tuple(kec_p_test[j]), bar_width,
+                alpha=opacity,
+                color='g',
+                label='KEC')
+        plt.bar(classes + 2 * bar_width, tuple(gpc_p_test[j]), bar_width,
+                alpha=opacity,
+                color='b',
+                label='GPC')
+        plt.xlabel('Classes')
+        plt.ylabel('Probabilities')
+        plt.ylim((0, 1))
+        plt.title('Prediction Probabilities')
+        plt.xticks(classes + 1.5 * bar_width, tuple([str(c) for c in classes]))
+        # Shrink current axis's height by 10% on the bottom
+        box = plt.gca().get_position()
+        plt.gca().set_position([box.x0, box.y0 + box.height * 0.1,
+                               box.width, box.height * 0.9])
+        # Put a legend below current axis
+        plt.gca().legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
+                         fancybox=True, shadow=True, ncol=3)
+        plt.tight_layout()
+        fig.set_size_inches(18, 4, forward=True)
+
+    input_expectance = kec.input_expectance()
+    input_expectance_images = np.reshape(input_expectance, (10, 28, 28))
+
+    fig = plt.figure()
+    for index, image in enumerate(input_expectance_images):
+        plt.subplot(3, 4, index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Truth: %i'
-                  '\nKEC: %i (%.1f%%)'
-                  '\nSVC: %i (%.1f%%)'
-                  '\nGPC: %i (%.1f%%)' % (label,
-                                          kec_pred, 100*kec_p,
-                                          svc_pred, 100*svc_p,
-                                          gpc_pred, 100*gpc_p))
+        plt.title('Input Expectance for %d' % index)
+    fig.set_size_inches(18, 14, forward=True)
 
     input_variance = kec.input_variance()
     input_variance_images = np.reshape(input_variance, (10, 28, 28))
 
-    plt.figure()
+    fig = plt.figure()
     for index, image in enumerate(input_variance_images):
-        plt.subplot(3, 4, index)
+        plt.subplot(3, 4, index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Variations for %d' % index)
-
+        plt.title('Input Variance for %d' % index)
     fig.set_size_inches(18, 14, forward=True)
+
+    input_mode = kec.input_mode(x_candidates=x_test)
+    input_mode_images = np.reshape(input_mode, (10, 28, 28))
+
+    fig = plt.figure()
+    for index, image in enumerate(input_mode_images):
+        plt.subplot(3, 4, index + 1)
+        plt.axis('off')
+        plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
+        plt.title('Input Mode for %d' % index)
+    fig.set_size_inches(18, 14, forward=True)
+
     full_directory = './'
     utils.misc.save_all_figures(full_directory,
                                 axis_equal=True, tight=True,

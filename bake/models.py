@@ -280,19 +280,58 @@ class Classifier():
         return np.clip(h_query, 0, np.inf) if clip else h_query
 
     def reverse_weights(self, y_query):
+        """
+        Compute the weights for the reverse embedding.
 
+        Parameters
+        ----------
+        y_query : numpy.ndarray
+            The query outputs to condition the reverse embedding on
+
+        Returns
+        -------
+        numpy.ndarray
+            The weights for the reverse embedding (n, n_query)
+        """
         l_query = _kronecker_delta(self.y, y_query)
         v_query = _solve_posdef(self.l_reg, l_query)[0]
         return v_query
 
     def reverse_embedding(self, y_query, x_query):
+        """
+        Evaluate the reverse embedding.
 
+        Parameters
+        ----------
+        y_query : numpy.ndarray
+            The query outputs to condition the reverse embedding on
+        x_query : numpy.ndarray
+            The query inputs to evaluate the reverse embedding on
+
+        Returns
+        -------
+        numpy.ndarray
+            The evaluated reverse embedding of size (n_x_query, n_y_query)
+        """
         v_query = self.reverse_weights(y_query)
         return np.dot(self.kernel(x_query, self.x, self.theta), v_query)
 
+    def input_expectance(self):
+        """
+        Predict the expectance of the input conditioned on a class.
+
+        Returns
+        -------
+        numpy.ndarray
+            The expectance of each feature for each class (n_class, d)
+        """
+        y_query = self.classes[:, np.newaxis]
+        v_query = self.reverse_weights(y_query)
+        return _expectance(self.x, v_query)
+
     def input_variance(self):
         """
-        Predict the variance of the input conditioned on a class
+        Predict the variance of the input conditioned on a class.
 
         Returns
         -------
@@ -302,3 +341,74 @@ class Classifier():
         y_query = self.classes[:, np.newaxis]
         v_query = self.reverse_weights(y_query)
         return _variance(self.x, v_query)
+
+    def input_mode_optimized(self, x_inits=None):
+        """
+        Predict the mode of the condition input using posterior mode decoding.
+
+        Returns
+        -------
+        numpy.ndarray
+            The mode of each feature for each class (n_class, d)
+        """
+        y_query = self.classes[:, np.newaxis]
+        x_modes = np.zeros((self.n_classes, self.d))
+        x_inits = self.input_expectance() if x_inits is None else x_inits
+
+        for i, y in enumerate(y_query):
+            v_query = self.reverse_weights(y[:, np.newaxis])
+
+            def embedding(x):
+                x_2d = np.array([x])
+                return np.dot(self.kernel(x_2d, self.x, self.theta), v_query)
+
+            def objective(x):
+                f = -embedding(x)[0][0]
+                # print('\tObjective: %f' % -f)
+                return f
+
+            x_init = x_inits[i]
+            x_class = self.x[self.y.ravel() == i]
+            x_min = np.min(x_class, axis=0)
+            x_max = np.max(x_class, axis=0)
+            bounds = [(x_min[i], x_max[i]) for i in range(len(x_init))]
+            print('Starting Mode Decoding for Class %d' % i)
+            optimal_result = _minimize(objective, x_init, bounds=bounds)
+            x_modes[i, :] = optimal_result.x
+        return x_modes
+
+    def input_mode_enumerated(self, x_candidates):
+        """
+        Predict the mode of the conditioned input by picking from candidates.
+
+        Parameters
+        ----------
+        x_candidates : numpy.ndarray
+            The set of candidate points of size (n_cand, d)
+
+        Returns
+        -------
+        numpy.ndarray
+            The mode of each feature for each class (n_class, d)
+        """
+        y_query = self.classes[:, np.newaxis]
+        reverse_embedding = self.reverse_embedding(y_query, x_candidates)
+        ind = np.argmax(reverse_embedding, axis=0)
+        return self.input_mode_optimized(x_inits=x_candidates[ind])
+
+    def input_mode(self, x_candidates=None):
+        """
+        Predict the mode of the conditioned input.
+
+        Parameters
+        ----------
+        x_candidates : numpy.ndarray, optional
+            The set of candidate points of size (n_cand, d)
+
+        Returns
+        -------
+        numpy.ndarray
+            The mode of each feature for each class (n_class, d)
+        """
+        return self.input_mode_optimized() if x_candidates is None \
+            else self.input_mode_enumerated(x_candidates)
