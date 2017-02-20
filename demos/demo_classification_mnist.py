@@ -8,7 +8,7 @@ from matplotlib import gridspec
 import numpy as np
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as C
 from sklearn.metrics import log_loss
 from tensorflow.examples.tutorials.mnist import input_data
 
@@ -62,7 +62,7 @@ def digit_classification():
     # h_max = np.array([5.0, 0.1])
     # h_init = np.array([2.0, 0.01])
 
-    kernel = bake.kernels.s_gaussian
+    kernel = bake.kernels.s_matern3on2
     h_min = np.array([0.5, 0.75, 0.001])
     h_max = np.array([1.25, 4.0, 0.1])
     h_init = np.array([1.0, 1.0, 0.01])
@@ -77,8 +77,9 @@ def digit_classification():
     print('KEC Training Finished')
     svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
-    gpc = GaussianProcessClassifier(
-        kernel=C() * RBF(length_scale=1.0)).fit(x_train, y_train)
+    gp_kernel = C() * Matern(length_scale=1.0, nu=1.5)
+    gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x_train, y_train)
+    print('Gaussian Process Hyperparameters: ', gpc.kernel_.theta)
     print('GPC Training Finished')
 
     kec_p = kec.predict_proba(x_train)
@@ -186,38 +187,62 @@ def digit_classification():
         plt.tight_layout()
         fig.set_size_inches(18, 4, forward=True)
 
+    x_train_mean = np.array([np.mean(x_train[y_train.ravel() == i], axis=0)
+                             for i in classes])
+    x_train_var = np.array([np.var(x_train[y_train.ravel() == i], axis=0)
+                            for i in classes])
+
+    x_train_mean_images = np.reshape(x_train_mean, (10, 28, 28))
+    x_train_var_images = np.reshape(x_train_var, (10, 28, 28))
+
+    fig = plt.figure()
+    for index, image in enumerate(x_train_mean_images):
+        plt.subplot(2, 5, index + 1)
+        plt.axis('off')
+        plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
+        plt.title('Empirical Expectance for %d' % index)
+    fig.set_size_inches(18, 9, forward=True)
+
+    fig = plt.figure()
+    for index, image in enumerate(x_train_var_images):
+        plt.subplot(2, 5, index + 1)
+        plt.axis('off')
+        plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
+        plt.title('Empirical Variance for %d' % index)
+    fig.set_size_inches(18, 9, forward=True)
+
     input_expectance = kec.input_expectance()
     input_expectance_images = np.reshape(input_expectance, (10, 28, 28))
 
     fig = plt.figure()
     for index, image in enumerate(input_expectance_images):
-        plt.subplot(3, 4, index + 1)
+        plt.subplot(2, 5, index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('Input Expectance for %d' % index)
-    fig.set_size_inches(18, 14, forward=True)
+    fig.set_size_inches(18, 9, forward=True)
 
     input_variance = kec.input_variance()
     input_variance_images = np.reshape(input_variance, (10, 28, 28))
 
     fig = plt.figure()
     for index, image in enumerate(input_variance_images):
-        plt.subplot(3, 4, index + 1)
+        plt.subplot(2, 5, index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('Input Variance for %d' % index)
-    fig.set_size_inches(18, 14, forward=True)
+    fig.set_size_inches(18, 9, forward=True)
 
     input_mode = kec.input_mode(x_candidates=x_test)
     input_mode_images = np.reshape(input_mode, (10, 28, 28))
 
     fig = plt.figure()
     for index, image in enumerate(input_mode_images):
-        plt.subplot(3, 4, index + 1)
+        plt.subplot(2, 5, index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('Input Mode for %d' % index)
-    fig.set_size_inches(18, 14, forward=True)
+    fig.set_size_inches(18, 9, forward=True)
 
     full_directory = './'
     utils.misc.save_all_figures(full_directory,
