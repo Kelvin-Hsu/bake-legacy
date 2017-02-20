@@ -3,6 +3,7 @@ Models Module.
 """
 import autograd.numpy as np
 from .infer import expectance as _expectance
+from .infer import variance as _variance
 from .infer import clip_normalize as _clip_normalize
 from .infer import classify as _classify
 from .kernels import s_gaussian as _s_gaussian
@@ -288,3 +289,16 @@ class Classifier():
 
         v_query = self.reverse_weights(y_query)
         return np.dot(self.kernel(x_query, self.x, self.theta), v_query)
+
+    def input_variance(self):
+        """
+        Predict the variance of the input conditioned on a class
+
+        Returns
+        -------
+        numpy.ndarray
+            The variance of each feature for each class (n_class, d)
+        """
+        y_query = self.classes[:, np.newaxis]
+        v_query = self.reverse_weights(y_query)
+        return _variance(self.x, v_query)

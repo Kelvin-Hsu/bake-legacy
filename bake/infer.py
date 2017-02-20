@@ -586,7 +586,7 @@ def expectance(y, w):
     Returns
     -------
     numpy.ndarray
-        The conditional expected value of the output (d_y, n_q)
+        The conditional expected value of the output (n_q, d_y)
     """
     return np.dot(y.T, w).T
 
@@ -605,17 +605,17 @@ def variance(y, w):
     Returns
     -------
     numpy.ndarray
-        The conditional covariance value of the output (d_y, n_q)
+        The conditional covariance value of the output (n_q, d_y)
     """
     # w = clip_normalize(w)
     # Compute the expectance (d_y, n_q)
-    y_q_exp = np.dot(y.T, w)
+    y_q_exp = expectance(y, w)
 
     # Compute the expectance of squares (d_y, n_q)
-    y_q_exp_sq = np.dot((y ** 2).T, w)
+    y_q_exp_sq = expectance(y ** 2, w)
 
-    # Compute the variance (d_y, n_q)
-    return y_q_exp_sq - (y_q_exp ** 2)
+    # Compute the variance (n_q, d_y)
+    return y_q_exp_sq - y_q_exp ** 2
 
 
 def normalize(w):

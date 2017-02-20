@@ -120,6 +120,7 @@ def digit_classification():
                                  kec_y_test, kec_p_pred,
                                  svc_y_test, svc_p_pred,
                                  gpc_y_test, gpc_p_pred))
+    plt.figure()
     for index, (image, label,
                 kec_pred, kec_p,
                 svc_pred, svc_p,
@@ -134,6 +135,16 @@ def digit_classification():
                                           kec_pred, 100*kec_p,
                                           svc_pred, 100*svc_p,
                                           gpc_pred, 100*gpc_p))
+
+    input_variance = kec.input_variance()
+    input_variance_images = np.reshape(input_variance, (10, 28, 28))
+
+    plt.figure()
+    for index, image in enumerate(input_variance_images):
+        plt.subplot(3, 4, index)
+        plt.axis('off')
+        plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
+        plt.title('Variations for %d' % index)
 
     fig.set_size_inches(18, 14, forward=True)
     full_directory = './'

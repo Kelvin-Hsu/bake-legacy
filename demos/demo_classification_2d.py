@@ -175,6 +175,9 @@ def multiclass_classification(x, y, x_test, y_test):
 
     y_query = classes[:, np.newaxis]
     reverse_embedding = kec.reverse_embedding(y_query, x_query) # (n_query ** 2, 3)
+    i_qrep = reverse_embedding.argmax(axis=0)
+    x_qrep = x_query[i_qrep]
+    y_qrep = kec.predict(x_qrep)
 
     reverse_embedding_images = np.reshape(np.swapaxes(reverse_embedding, 0, 1),
                                           (classes.shape[0], n_query, n_query))
@@ -196,6 +199,8 @@ def multiclass_classification(x, y, x_test, y_test):
                     cmap=cm.coolwarm, label='Embedding Weights')
         plt.scatter(x_rep[c, 0], x_rep[c, 1], c=y_rep[c], marker='x', s=40,
                     cmap=cm.jet, label='Representative Sample')
+        plt.scatter(x_qrep[c, 0], x_qrep[c, 1], c=y_qrep[c], marker='+', s=40,
+                    cmap=cm.jet, label='Representative Prediction')
         plt.xlim(x_1_lim)
         plt.ylim(x_2_lim)
         plt.xlabel('$x_{1}$')
@@ -318,7 +323,7 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
 
 if __name__ == "__main__":
 
-    x, y = create_spiral_data()
+    x, y = create_iris_data()
     test_size = 0.25
     x_train, x_test, y_train, y_test = train_test_split(x, y,
                                                         test_size=test_size,
