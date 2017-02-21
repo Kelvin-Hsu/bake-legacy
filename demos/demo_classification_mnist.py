@@ -62,23 +62,24 @@ def digit_classification():
     # h_max = np.array([5.0, 0.1])
     # h_init = np.array([2.0, 0.01])
 
-    kernel = bake.kernels.s_matern3on2
-    h_min = np.array([0.5, 0.75, 0.001])
-    h_max = np.array([1.25, 4.0, 0.1])
-    h_init = np.array([1.0, 1.0, 0.01])
+    kernel = bake.kernels.s_gaussian
+    # h_min = np.array([0.5, 0.75, 0.001])
+    # h_max = np.array([1.25, 4.0, 0.1])
+    # h_init = np.array([1.0, 1.0, 0.01])
 
-    # h_impose = np.array([0.95,  3.2,  0.06])
-    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
+    h_impose = np.array([0.95,  3.2,  0.06])  # Gaussian
+    # h_impose = np.array([0.88, 1.73, 0.078])  # Matern
+    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
 
-    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
-                                             h_min=h_min,
-                                             h_max=h_max,
-                                             h_init=h_init)
+    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
+    #                                          h_min=h_min,
+    #                                          h_max=h_max,
+    #                                          h_init=h_init)
     print('KEC Training Finished')
     svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
-    gp_kernel = C() * Matern(length_scale=1.0, nu=1.5)
-    gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x_train, y_train)
+    gp_kernel = C() * RBF(length_scale=1.0)
+    gpc = GaussianProcessClassifier().fit(x_train, y_train)
     print('Gaussian Process Hyperparameters: ', gpc.kernel_.theta)
     print('GPC Training Finished')
 
@@ -233,7 +234,7 @@ def digit_classification():
         plt.title('Input Variance for %d' % index)
     fig.set_size_inches(18, 9, forward=True)
 
-    input_mode = kec.input_mode(x_candidates=x_test)
+    input_mode = kec.input_mode()
     input_mode_images = np.reshape(input_mode, (10, 28, 28))
 
     fig = plt.figure()

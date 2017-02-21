@@ -368,13 +368,14 @@ class Classifier():
                 return f
 
             x_init = x_inits[i]
-            x_class = self.x[self.y.ravel() == i]
-            x_min = np.min(x_class, axis=0)
-            x_max = np.max(x_class, axis=0)
-            bounds = [(x_min[i], x_max[i]) for i in range(len(x_init))]
+            # x_class = self.x[self.y.ravel() == i]
+            # x_min = np.min(x_class, axis=0)
+            # x_max = np.max(x_class, axis=0)
+            # bounds = [(x_min[i], x_max[i]) for i in range(len(x_init))]
             print('Starting Mode Decoding for Class %d' % i)
-            optimal_result = _minimize(objective, x_init, bounds=bounds)
+            optimal_result = _minimize(objective, x_init)
             x_modes[i, :] = optimal_result.x
+            print('Embedding Value at Mode: %f' % -optimal_result.fun)
         return x_modes
 
     def input_mode_enumerated(self, x_candidates):
