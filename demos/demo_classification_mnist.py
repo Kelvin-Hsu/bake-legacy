@@ -67,13 +67,13 @@ def digit_classification():
     h_max = np.array([1.25, 4.0, 0.1])
     h_init = np.array([1.0, 1.0, 0.01])
 
-    h_impose = np.array([0.95,  3.2,  0.06])
-    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
+    # h_impose = np.array([0.95,  3.2,  0.06])
+    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
 
-    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
-    #                                          h_min=h_min,
-    #                                          h_max=h_max,
-    #                                          h_init=h_init)
+    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
+                                             h_min=h_min,
+                                             h_max=h_max,
+                                             h_init=h_init)
     print('KEC Training Finished')
     svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
