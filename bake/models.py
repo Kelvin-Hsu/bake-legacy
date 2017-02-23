@@ -146,7 +146,7 @@ class Classifier():
             self.update(hypers[:-1], hypers[-1])
             w = self.predict_weights(x)
             p = w.sum(axis=0).mean()
-            return p - 0.5
+            return p - 1
 
         def objective(hypers):
             self.update(hypers[:-1], hypers[-1])

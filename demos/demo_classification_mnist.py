@@ -36,7 +36,7 @@ def create_mnist_data():
     n_test, d = x_test.shape
     images_test = np.reshape(x_test, (n_test, 28, 28))
 
-    n_sample = 1000
+    n_sample = 750
     x = x[:n_sample]
     y = y[:n_sample]
     images = images[:n_sample]
@@ -63,23 +63,27 @@ def digit_classification():
     # h_init = np.array([2.0, 0.01])
 
     kernel = bake.kernels.s_gaussian
-    # h_min = np.array([0.5, 0.75, 0.001])
-    # h_max = np.array([1.25, 4.0, 0.1])
-    # h_init = np.array([1.0, 1.0, 0.01])
+    h_min = np.array([0.5, 0.75, 0.001])
+    h_max = np.array([1.25, 4.0, 0.1])
+    h_init = np.array([1.0, 1.0, 0.01])
 
-    h_impose = np.array([0.95,  3.2,  0.06])  # Gaussian
+    # h_impose = np.array([0.95,  3.2,  0.06])  # Gaussian
     # h_impose = np.array([0.88, 1.73, 0.078])  # Matern
-    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
+    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
 
-    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
-    #                                          h_min=h_min,
-    #                                          h_max=h_max,
-    #                                          h_init=h_init)
+    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
+                                             h_min=h_min,
+                                             h_max=h_max,
+                                             h_init=h_init)
     print('KEC Training Finished')
     svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
     gp_kernel = C() * RBF(length_scale=1.0)
-    gpc = GaussianProcessClassifier().fit(x_train, y_train)
+    gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x_train, y_train)
+    # gpc.kernel_.theta = [8.61054557,   4.69104134,   6.21786594,   3.18163096,   6.43194262,
+    #  3.54138893,   1.42851834,  11.50875373,   7.59981382,   4.1378445,
+    #  5.96836802,   3.26368002,   7.42462236,   4.10011076,   8.52584324,
+    #  4.52560051,   5.87781367,   3.34329839,   6.0895301,    3.36819753]
     print('Gaussian Process Hyperparameters: ', gpc.kernel_.theta)
     print('GPC Training Finished')
 

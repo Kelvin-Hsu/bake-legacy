@@ -8,6 +8,7 @@ from matplotlib import cm
 import numpy as np
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as C
 from sklearn.model_selection import train_test_split
 from sklearn import datasets
 from sklearn.metrics import log_loss
@@ -90,18 +91,19 @@ def multiclass_classification(x, y, x_test, y_test):
     # h_max = np.array([2.0, 2.0, 1.0])
     # h_init = np.array([1.0, 1.0, 0.01])
 
-    kernel = bake.kernels.gaussian
-    h_min = np.array([0.25, 0.001])
-    h_max = np.array([2.0, 1.0])
-    h_init = np.array([1.0, 0.01])
-    h = np.array([1.02854365,  0.0206256])
-    kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
-    # kec = bake.Classifier(kernel=kernel).fit(x, y,
-    #                                          h_min=h_min,
-    #                                          h_max=h_max,
-    #                                          h_init=h_init)
+    kernel = bake.kernels.s_gaussian
+    h_min = np.array([0.25, 1.0, 0.001])
+    h_max = np.array([1.5, 5.0, 1.0])
+    h_init = np.array([1.0, 2.0, 0.01])
+    h = np.array([1.0, 1.02854365,  0.0206256])
+    # kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
+    kec = bake.Classifier(kernel=kernel).fit(x, y,
+                                             h_min=h_min,
+                                             h_max=h_max,
+                                             h_init=h_init)
     svc = SVC(probability=True).fit(x, y)
-    gpc = GaussianProcessClassifier().fit(x, y)
+    gp_kernel = C() * RBF(length_scale=1.0)
+    gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x, y)
 
     kec_p_query = kec.predict_proba(x_query)
     svc_p_query = svc.predict_proba(x_query)
