@@ -126,7 +126,8 @@ class Classifier():
 
         def model_complexity(w):
             # f = np.sum(w.diagonal())
-            f = np.sum(np.dot(w.T, w).diagonal())
+            # f = np.sum(np.dot(w.T, w).diagonal())
+            f = w.diagonal().sum()
             return np.log(f)
 
         def constraint(hypers):
@@ -372,7 +373,7 @@ class Classifier():
             # x_min = np.min(x_class, axis=0)
             # x_max = np.max(x_class, axis=0)
             # bounds = [(x_min[i], x_max[i]) for i in range(len(x_init))]
-            print('Starting Mode Decoding for Class %d' % i)
+            print('Starting Mode Decoding for Class %d' % y)
             optimal_result = _minimize(objective, x_init)
             x_modes[i, :] = optimal_result.x
             print('Embedding Value at Mode: %f' % -optimal_result.fun)

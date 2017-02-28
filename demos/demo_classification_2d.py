@@ -92,10 +92,10 @@ def multiclass_classification(x, y, x_test, y_test):
     # h_init = np.array([1.0, 1.0, 0.01])
 
     kernel = bake.kernels.s_gaussian
-    h_min = np.array([0.25, 1.0, 0.001])
-    h_max = np.array([1.5, 5.0, 1.0])
-    h_init = np.array([1.0, 2.0, 0.01])
-    h = np.array([1.0, 1.02854365,  0.0206256])
+    h_min = np.array([0.5, 0.5, 0.5, 0.001])
+    h_max = np.array([1.5, 3.0, 3.0, 1.0])
+    h_init = np.array([1.0, 1.0, 1.0, 0.01])
+    # h = np.array([1.0, 1.02854365,  0.0206256])
     # kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
     kec = bake.Classifier(kernel=kernel).fit(x, y,
                                              h_min=h_min,
@@ -325,7 +325,7 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
 
 if __name__ == "__main__":
 
-    x, y = create_iris_data()
+    x, y = create_spiral_data()
     test_size = 0.25
     x_train, x_test, y_train, y_test = train_test_split(x, y,
                                                         test_size=test_size,
