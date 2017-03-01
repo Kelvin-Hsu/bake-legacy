@@ -35,13 +35,24 @@ def create_mnist_data():
     n_test, d = x_test.shape
     images_test = np.reshape(x_test, (n_test, 28, 28))
 
+    # digits = np.array([4, 7, 9])
+    #
+    # indices = np.any(y == digits, axis=1)
+    # x = x[indices]
+    # y = y[indices]
+    # images = images[indices]
+    #
+    # indices = np.any(y_test == digits, axis=1)
+    # x_test = x_test[indices]
+    # y_test = y_test[indices]
+    # images_test = images_test[indices]
+
     n_sample = 500
     x = x[:n_sample]
     y = y[:n_sample]
     images = images[:n_sample]
 
-    print('Training Size: %d, Validation Size: %d, Testing Size: %d'
-          % (n_train, n_valid, n_test))
+    print('Training Size: %d, Testing Size: %d' % (x.shape[0], x_test.shape[0]))
     return x, y, images, x_test, y_test, images_test
 
 
@@ -63,17 +74,17 @@ def digit_classification():
     kernel = bake.kernels.s_gaussian
 
     # FOR ISOTROPIC TEST
-    h_min = np.array([0.5, 0.75, 0.001])
-    h_max = np.array([2.0, 4.0, 0.1])
-    h_init = np.array([1.0, 1.0, 0.01])
+    # h_min = np.array([0.5, 0.75, 0.001])
+    # h_max = np.array([2.0, 4.0, 0.1])
+    # h_init = np.array([1.0, 1.0, 0.01])
 
     # FOR ANISOTROPIC TEST
     t_min = 0.75 * np.ones(x_train.shape[1])
-    t_max = 4.0 * np.ones(x_train.shape[1])
+    t_max = 10.0 * np.ones(x_train.shape[1])
     t_init = 1.0 * np.ones(x_train.shape[1])
 
     h_min = np.concatenate(([0.5], t_min, [0.001]))
-    h_max = np.concatenate(([2.0], t_max, [0.1]))
+    h_max = np.concatenate(([5.0], t_max, [0.1]))
     h_init = np.concatenate(([1.0], t_init, [0.01]))
 
     # FOR ANISOTROPIC TEST
@@ -82,14 +93,15 @@ def digit_classification():
     # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
 
     # FOR ISOTROPIC TEST
-    # h_impose = np.array([0.95,  3.2,  0.06])  # Gaussian
     # h_impose = np.array([0.88, 1.73, 0.078])  # Matern
+    # h_impose = np.array([0.95,  3.2,  0.06])  # Gaussian
     # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
 
     kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
                                              h_min=h_min,
                                              h_max=h_max,
                                              h_init=h_init)
+    np.savez('anisotropic_500_digits_479.npz', h=np.append(kec.theta, kec.zeta))
     print('KEC Training Finished')
     svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
@@ -137,9 +149,9 @@ def digit_classification():
     print('svc test log loss: %.9f' % log_loss(y_test.ravel(), svc_p_test))
     print('gpc test log loss: %.9f' % log_loss(y_test.ravel(), gpc_p_test))
 
-    kec_p_pred = kec_p_test[np.arange(x_test.shape[0]), kec_y_test]
-    svc_p_pred = svc_p_test[np.arange(x_test.shape[0]), svc_y_test]
-    gpc_p_pred = gpc_p_test[np.arange(x_test.shape[0]), gpc_y_test]
+    kec_p_pred = kec_p_test[np.arange(x_test.shape[0]), np.argmax(kec_p_test, axis=1)]
+    svc_p_pred = svc_p_test[np.arange(x_test.shape[0]), np.argmax(svc_p_test, axis=1)]
+    gpc_p_pred = gpc_p_test[np.arange(x_test.shape[0]), np.argmax(gpc_p_test, axis=1)]
 
     n_row = 3
     n_col = 5
@@ -207,70 +219,70 @@ def digit_classification():
         plt.tight_layout()
         fig.set_size_inches(18, 4, forward=True)
 
-    x_train_mean = np.array([np.mean(x_train[y_train.ravel() == i], axis=0)
-                             for i in classes])
-    x_train_var = np.array([np.var(x_train[y_train.ravel() == i], axis=0)
-                            for i in classes])
+    x_train_mean = np.array([np.mean(x_train[y_train.ravel() == c], axis=0)
+                             for c in classes])
+    x_train_var = np.array([np.var(x_train[y_train.ravel() == c], axis=0)
+                            for c in classes])
 
-    x_train_mean_images = np.reshape(x_train_mean, (10, 28, 28))
-    x_train_var_images = np.reshape(x_train_var, (10, 28, 28))
+    x_train_mean_images = np.reshape(x_train_mean, (classes.shape[0], 28, 28))
+    x_train_var_images = np.reshape(x_train_var, (classes.shape[0], 28, 28))
 
     fig = plt.figure()
     for index, image in enumerate(x_train_mean_images):
-        plt.subplot(2, 5, index + 1)
+        plt.subplot(1, classes.shape[0], index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Empirical Expectance for %d' % index)
+        plt.title('Empirical Expectance for %d' % classes[index])
     fig.set_size_inches(18, 9, forward=True)
 
     fig = plt.figure()
     for index, image in enumerate(x_train_var_images):
-        plt.subplot(2, 5, index + 1)
+        plt.subplot(1, classes.shape[0], index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Empirical Variance for %d' % index)
+        plt.title('Empirical Variance for %d' % classes[index])
     fig.set_size_inches(18, 9, forward=True)
 
     input_expectance = kec.input_expectance()
-    input_expectance_images = np.reshape(input_expectance, (10, 28, 28))
+    input_expectance_images = np.reshape(input_expectance, (classes.shape[0], 28, 28))
 
     fig = plt.figure()
     for index, image in enumerate(input_expectance_images):
-        plt.subplot(2, 5, index + 1)
+        plt.subplot(1, classes.shape[0], index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Input Expectance for %d' % index)
+        plt.title('Input Expectance for %d' % classes[index])
     fig.set_size_inches(18, 9, forward=True)
 
     input_variance = kec.input_variance()
-    input_variance_images = np.reshape(input_variance, (10, 28, 28))
+    input_variance_images = np.reshape(input_variance, (classes.shape[0], 28, 28))
 
     fig = plt.figure()
     for index, image in enumerate(input_variance_images):
-        plt.subplot(2, 5, index + 1)
+        plt.subplot(1, classes.shape[0], index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Input Variance for %d' % index)
+        plt.title('Input Variance for %d' % classes[index])
     fig.set_size_inches(18, 9, forward=True)
 
     input_mode = kec.input_mode()
-    input_mode_images = np.reshape(input_mode, (10, 28, 28))
+    input_mode_images = np.reshape(input_mode, (classes.shape[0], 28, 28))
 
     fig = plt.figure()
     for index, image in enumerate(input_mode_images):
-        plt.subplot(2, 5, index + 1)
+        plt.subplot(1, classes.shape[0], index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Input Mode for %d' % index)
+        plt.title('Input Mode for %d' % classes[index])
     fig.set_size_inches(18, 9, forward=True)
 
-    fig = plt.figure()
     if kec.theta.shape[0] == 28*28 + 1:
+        fig = plt.figure()
         theta_image = np.reshape(kec.theta[1:], (28, 28))
         plt.axis('off')
         plt.imshow(theta_image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Pixel Relevance for Classifying Digits 0-9')
-    fig.set_size_inches(18, 9, forward=True)
+        plt.title('Pixel Relevance for Classifying Digits ' + str(classes))
+        fig.set_size_inches(18, 9, forward=True)
 
     full_directory = './'
     utils.misc.save_all_figures(full_directory,
