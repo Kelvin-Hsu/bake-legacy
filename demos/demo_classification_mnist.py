@@ -35,17 +35,17 @@ def create_mnist_data():
     n_test, d = x_test.shape
     images_test = np.reshape(x_test, (n_test, 28, 28))
 
-    # digits = np.array([4, 7, 9])
-    #
-    # indices = np.any(y == digits, axis=1)
-    # x = x[indices]
-    # y = y[indices]
-    # images = images[indices]
-    #
-    # indices = np.any(y_test == digits, axis=1)
-    # x_test = x_test[indices]
-    # y_test = y_test[indices]
-    # images_test = images_test[indices]
+    digits = np.array([4, 7, 9])
+
+    indices = np.any(y == digits, axis=1)
+    x = x[indices]
+    y = y[indices]
+    images = images[indices]
+
+    indices = np.any(y_test == digits, axis=1)
+    x_test = x_test[indices]
+    y_test = y_test[indices]
+    images_test = images_test[indices]
 
     n_sample = 500
     x = x[:n_sample]
@@ -79,13 +79,13 @@ def digit_classification():
     # h_init = np.array([1.0, 1.0, 0.01])
 
     # FOR ANISOTROPIC TEST
-    t_min = 0.75 * np.ones(x_train.shape[1])
-    t_max = 10.0 * np.ones(x_train.shape[1])
-    t_init = 1.0 * np.ones(x_train.shape[1])
+    t_min = 0.2 * np.ones(x_train.shape[1])
+    t_max = 20.0 * np.ones(x_train.shape[1])
+    t_init = 2.0 * np.ones(x_train.shape[1])
 
-    h_min = np.concatenate(([0.5], t_min, [0.001]))
-    h_max = np.concatenate(([5.0], t_max, [0.1]))
-    h_init = np.concatenate(([1.0], t_init, [0.01]))
+    h_min = np.concatenate(([0.5], t_min, [1e-10]))
+    h_max = np.concatenate(([5.0], t_max, [1]))
+    h_init = np.concatenate(([1.0], t_init, [1e-2]))
 
     # FOR ANISOTROPIC TEST
     # file = np.load('anisotropic_500.npz')
@@ -101,16 +101,12 @@ def digit_classification():
                                              h_min=h_min,
                                              h_max=h_max,
                                              h_init=h_init)
-    np.savez('anisotropic_500_digits_479.npz', h=np.append(kec.theta, kec.zeta))
+    np.savez('anisotropic_500_digits.npz', h=np.append(kec.theta, kec.zeta))
     print('KEC Training Finished')
     svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
-    gp_kernel = C() * RBF(length_scale=1.0)
+    gp_kernel = RBF(length_scale=1.0)
     gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x_train, y_train)
-    # gpc.kernel_.theta = [8.61054557,   4.69104134,   6.21786594,   3.18163096,   6.43194262,
-    #  3.54138893,   1.42851834,  11.50875373,   7.59981382,   4.1378445,
-    #  5.96836802,   3.26368002,   7.42462236,   4.10011076,   8.52584324,
-    #  4.52560051,   5.87781367,   3.34329839,   6.0895301,    3.36819753]
     print('Gaussian Process Hyperparameters: ', gpc.kernel_.theta)
     print('GPC Training Finished')
 
@@ -232,16 +228,18 @@ def digit_classification():
         plt.subplot(1, classes.shape[0], index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Empirical Expectance for %d' % classes[index])
-    fig.set_size_inches(18, 9, forward=True)
+        plt.title('%d' % classes[index])
+    plt.suptitle('Empirical Expectance')
+    fig.set_size_inches(18, 4, forward=True)
 
     fig = plt.figure()
     for index, image in enumerate(x_train_var_images):
         plt.subplot(1, classes.shape[0], index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Empirical Variance for %d' % classes[index])
-    fig.set_size_inches(18, 9, forward=True)
+        plt.title('%d' % classes[index])
+    plt.suptitle('Empirical Variance')
+    fig.set_size_inches(18, 4, forward=True)
 
     input_expectance = kec.input_expectance()
     input_expectance_images = np.reshape(input_expectance, (classes.shape[0], 28, 28))
@@ -251,8 +249,9 @@ def digit_classification():
         plt.subplot(1, classes.shape[0], index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Input Expectance for %d' % classes[index])
-    fig.set_size_inches(18, 9, forward=True)
+        plt.title('%d' % classes[index])
+    plt.suptitle('Input Expectance')
+    fig.set_size_inches(18, 4, forward=True)
 
     input_variance = kec.input_variance()
     input_variance_images = np.reshape(input_variance, (classes.shape[0], 28, 28))
@@ -262,8 +261,9 @@ def digit_classification():
         plt.subplot(1, classes.shape[0], index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Input Variance for %d' % classes[index])
-    fig.set_size_inches(18, 9, forward=True)
+        plt.title('%d' % classes[index])
+    plt.suptitle('Input Variance')
+    fig.set_size_inches(18, 4, forward=True)
 
     input_mode = kec.input_mode()
     input_mode_images = np.reshape(input_mode, (classes.shape[0], 28, 28))
@@ -273,8 +273,9 @@ def digit_classification():
         plt.subplot(1, classes.shape[0], index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
-        plt.title('Input Mode for %d' % classes[index])
-    fig.set_size_inches(18, 9, forward=True)
+        plt.title('%d' % classes[index])
+    plt.suptitle('Input Modes')
+    fig.set_size_inches(18, 4, forward=True)
 
     if kec.theta.shape[0] == 28*28 + 1:
         fig = plt.figure()

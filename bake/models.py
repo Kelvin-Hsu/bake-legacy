@@ -127,7 +127,7 @@ class Classifier():
         def model_complexity(w):
             # f = np.sum(w.diagonal())
             # f = np.sum(np.dot(w.T, w).diagonal())
-            f = w.diagonal().sum()
+            f = w.dot(w).diagonal().sum()
             return np.log(f)
 
         def constraint(hypers):
@@ -157,8 +157,8 @@ class Classifier():
 
         if h is None:
 
-            # options = {'maxiter': 50}
             bounds = [(h_min[i], h_max[i]) for i in range(len(h_init))]
+            bounds = None
             c_1 = {'type': 'ineq', 'fun': constraint}
             c_2 = {'type': 'ineq', 'fun': constraint_prob}
             constraints = (c_1, c_2)
