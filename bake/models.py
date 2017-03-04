@@ -127,7 +127,9 @@ class Classifier():
         def model_complexity(w):
             # f = np.sum(w.diagonal())
             # f = np.sum(np.dot(w.T, w).diagonal())
-            f = w.dot(w).diagonal().sum()
+            print('w:', w.diagonal().sum())
+            print('w**2:', w.dot(w).diagonal().sum())
+            f = w.diagonal().sum()
             return np.log(f)
 
         def constraint(hypers):

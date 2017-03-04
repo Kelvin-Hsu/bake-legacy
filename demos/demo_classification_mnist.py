@@ -35,17 +35,17 @@ def create_mnist_data():
     n_test, d = x_test.shape
     images_test = np.reshape(x_test, (n_test, 28, 28))
 
-    digits = np.array([4, 7, 9])
-
-    indices = np.any(y == digits, axis=1)
-    x = x[indices]
-    y = y[indices]
-    images = images[indices]
-
-    indices = np.any(y_test == digits, axis=1)
-    x_test = x_test[indices]
-    y_test = y_test[indices]
-    images_test = images_test[indices]
+    # digits = np.array([4, 7, 9])
+    #
+    # indices = np.any(y == digits, axis=1)
+    # x = x[indices]
+    # y = y[indices]
+    # images = images[indices]
+    #
+    # indices = np.any(y_test == digits, axis=1)
+    # x_test = x_test[indices]
+    # y_test = y_test[indices]
+    # images_test = images_test[indices]
 
     n_sample = 500
     x = x[:n_sample]
@@ -88,7 +88,7 @@ def digit_classification():
     h_init = np.concatenate(([1.0], t_init, [1e-2]))
 
     # FOR ANISOTROPIC TEST
-    # file = np.load('anisotropic_500.npz')
+    # file = np.load('./anisotropic_500_digits.npz')
     # h_impose = file['h']
     # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
 
