@@ -15,6 +15,10 @@ import os
 from scipy.spatial.distance import cdist
 import datetime
 
+now = datetime.datetime.now()
+now_string = '%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
+                                    now.hour, now.minute, now.second)
+
 
 def create_mnist_data(digits=np.arange(10), n_sample=500, sample_before=True):
     """
@@ -139,9 +143,6 @@ def digit_classification(x_train, y_train, images_train,
     print('Testing on %d images_train' % n_test)
 
     # Create full directory
-    now = datetime.datetime.now()
-    now_string = '%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
-                                        now.hour, now.minute, now.second)
     digits_str = ''.join([str(i) for i in classes])
     full_directory = './%s_mnist_digits_%s_with_%d_training_images/' \
                      % (now_string, digits_str, n_train)
@@ -252,7 +253,8 @@ def digit_classification(x_train, y_train, images_train,
     for i, c in enumerate(classes):
         dist = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
                      'euclidean').min()
-        print('Euclidean distance from mode to closest training image' % dist)
+        print('Euclidean distance from mode to closest training image '
+              'for class %d: %f', (c, dist))
 
     # Save the training results for the kernel embedding classifier
     np.savez('%smnist_training_results.npz' % full_directory,
@@ -434,6 +436,32 @@ def digit_classification(x_train, y_train, images_train,
                                 axis_equal=True, tight=True,
                                 extension='eps', rcparams=None)
     plt.close("all")
+
+    f = open('%sresults.txt' % full_directory, 'w')
+    f.write('There are %d classes for digits: %s\n' % (n_class, str(classes)))
+    f.write('Training on %d images_train\n' % n_train)
+    f.write('Testing on %d images_train\n' % n_test)
+    f.write('Kernel Embedding Hyperparameters: %s' % str(kec_h))
+    f.write('Gaussian Process Hyperparameters: %s' % str(gpc_h))
+    f.write('kec training accuracy: %.9f' % kec_train_accuracy)
+    f.write('svc training accuracy: %.9f' % svc_train_accuracy)
+    f.write('gpc training accuracy: %.9f' % gpc_train_accuracy)
+    f.write('kec test accuracy: %.9f' % kec_test_accuracy)
+    f.write('svc test accuracy: %.9f' % svc_test_accuracy)
+    f.write('gpc test accuracy: %.9f' % gpc_test_accuracy)
+    f.write('kec training log loss: %.9f' % kec_train_log_loss)
+    f.write('svc training log loss: %.9f' % svc_train_los_loss)
+    f.write('gpc training log loss: %.9f' % gpc_train_los_loss)
+    f.write('kec test log loss: %.9f' % kec_test_log_loss)
+    f.write('svc test log loss: %.9f' % svc_test_los_loss)
+    f.write('gpc test log loss: %.9f' % gpc_test_los_loss)
+    for i, c in enumerate(classes):
+        dist = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
+                     'euclidean').min()
+        f.write('Euclidean distance from mode to closest training image '
+                'for class %d: %f', (c, dist))
+    f.write()
+    f.close()
 
 
 def main():

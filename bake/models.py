@@ -28,69 +28,11 @@ class Classifier():
         """
         self.kernel = kernel
 
-    # def fit_cross_val(self, x, y,
-    #                   h=None,
-    #                   h_min=np.array([0.00, 0.00, 0.001]),
-    #                   h_max=np.array([10.0, 10.0, 1.000]),
-    #                   h_init=np.array([1.0, 1.00, 0.010]),
-    #                   n_splits=10,
-    #                   verbose=True):
-    #
-    #     self.x = x.copy()
-    #     self.y = y.copy()
-    #     self.classes = np.unique(self.y)
-    #     self.class_indices = np.arange(self.classes.shape[0])
-    #     self.n_classes = self.classes.shape[0]
-    #
-    #     if h is None:
-    #
-    #         kf = _KFold(n_splits=n_splits)
-    #
-    #         self.best_so_far = np.inf
-    #
-    #         def objective(hyperparam):
-    #
-    #             theta, zeta = hyperparam[:-1], hyperparam[-1]
-    #
-    #             total_score = 0
-    #             for train, test in kf.split(self.x):
-    #                 X_train, X_test, y_train, y_test = self.x[train], \
-    #                                                    self.x[test], \
-    #                                                    self.y[train], \
-    #                                                    self.y[test]
-    #                 w_query = _conditional_weights(X_train, theta, X_test,
-    #                                                zeta=zeta, k_x=self.kernel)
-    #                 p_query = _expectance(y_train == self.classes, w_query)
-    #                 y_query = self.classes[np.argmax(p_query, axis=0)]
-    #                 accuracy = np.mean(y_query == y_test)
-    #                 total_score += accuracy
-    #             score = -total_score / n_splits
-    #             if verbose:
-    #                 if score < self.best_so_far:
-    #                     print('Hyperparam: ', hyperparam, '|| Score: ', score, '  *IMPROVEMENT*')
-    #                     self.best_so_far = score
-    #                 else:
-    #                     print('Hyperparam: ', hyperparam, '|| Score: ', score)
-    #             return score
-    #
-    #         h_opt, score = _explore_optimization(objective, h_min, h_max, n_samples=2000)
-    #
-    #         self.theta, self.zeta = h_opt[:-1], h_opt[-1]
-    #         if verbose:
-    #             print('The final hyperparameters are: ', self.theta, self.zeta)
-    #
-    #     else:
-    #         self.theta, self.zeta = h[:-1], h[-1]
-    #
-    #     self.k = self.kernel(self.x, self.x, self.theta)
-    #     self.k_reg = self.k + self.n * (self.zeta ** 2) * np.eye(self.n)
-    #     return self
-
     def fit(self, x, y,
             h=None,
-            h_min=np.array([0.20, 0.20, 0.001]),
-            h_max=np.array([10.0, 10.0, 1.000]),
-            h_init=np.array([1.0, 1.00, 0.010]),
+            h_min=np.array([1e-8, 1e-8, 1e-8]),
+            h_max=np.array([np.inf, np.inf, np.inf]),
+            h_init=np.array([1.0, 1.0, 1e-6]),
             verbose=True):
         """
         Fit the kernel embedding classifier.
@@ -123,45 +65,31 @@ class Classifier():
         self.classes = np.unique(self.y)
         self.class_indices = np.arange(self.classes.shape[0])
         self.n_classes = self.classes.shape[0]
+        self.theta = 0 * h_init[:-1]
+        self.zeta = 0 * h_init[-1]
+        self.update(self.theta, self.zeta)
 
-        def model_complexity(w):
-            # f = np.sum(w.diagonal())
-            # f = np.sum(np.dot(w.T, w).diagonal())
-            # print('w:', w.diagonal().sum())
-            # print('w**2:', w.dot(w).diagonal().sum())
-            f = w.diagonal().sum()
-            return np.log(f)
-
-        def constraint(hypers):
-            self.update(hypers[:-1], hypers[-1])
-            w = self.predict_weights(x)
-            y_pred = self.predict(x)
-            c = np.mean(y_pred == self.y.ravel()) - 1
+        def constraint_pred(hypers):
+            self.update(hypers[:-1], hypers[-1], training=True)
+            c = self.train_accuracy - 1
             if verbose:
-                p = w.sum(axis=0).mean()
-                f = model_complexity(w)
                 s = 'Training Accuracy: %f || Objective: %f || MSW: %f' \
-                    % (1 + c, f, p)
+                    % (1 + c, self.f, self.p)
                 print('Hyperparameters: ', hypers, s)
             return c
 
         def constraint_prob(hypers):
-            self.update(hypers[:-1], hypers[-1])
-            w = self.predict_weights(x)
-            p = w.sum(axis=0).mean()
-            return p - 1
+            self.update(hypers[:-1], hypers[-1], training=True)
+            return self.p - 1
 
         def objective(hypers):
-            self.update(hypers[:-1], hypers[-1])
-            w = self.predict_weights(x)
-            f = model_complexity(w)
-            return f
+            self.update(hypers[:-1], hypers[-1], training=True)
+            return self.f
 
         if h is None:
 
             bounds = [(h_min[i], h_max[i]) for i in range(len(h_init))]
-            # bounds = None
-            c_1 = {'type': 'ineq', 'fun': constraint}
+            c_1 = {'type': 'ineq', 'fun': constraint_pred}
             c_2 = {'type': 'ineq', 'fun': constraint_prob}
             constraints = (c_1, c_2)
             optimal_result = _minimize(objective, h_init,
@@ -179,7 +107,19 @@ class Classifier():
 
         return self
 
-    def update(self, theta, zeta):
+    def model_complexity(self):
+        """
+        Compute the model complexity of the current classifier.
+
+        Returns
+        -------
+        float
+            The log of the model complexity
+        """
+        f = self.w.diagonal().sum()
+        return np.log(f)
+
+    def update(self, theta, zeta, training=False):
         """
         Update the hyperparameters of the classifier.
 
@@ -195,12 +135,21 @@ class Classifier():
         bake.Classifier
             The updated classifier
         """
+        if not training:
+            self.l = _kronecker_delta(self.y, self.y)
+            self.l_reg = self.l + self.n * (self.zeta ** 2) * np.eye(self.n)
+        if np.allclose(theta, self.theta, 1e-300) \
+                and np.allclose(zeta, self.zeta, 1e-300):
+            return self
         self.theta = theta
         self.zeta = zeta
         self.k = self.kernel(self.x, self.x, self.theta)
         self.k_reg = self.k + self.n * (self.zeta ** 2) * np.eye(self.n)
-        self.l = _kronecker_delta(self.y, self.y)
-        self.l_reg = self.l + self.n * (self.zeta ** 2) * np.eye(self.n)
+        self.w = self.predict_weights(self.x)
+        self.p = self.w.sum(axis=0).mean()
+        self.y_pred = self.predict(self.x)
+        self.train_accuracy = np.mean(self.y_pred == self.y.ravel())
+        self.f = self.model_complexity()
         return self
 
     def predict_weights(self, x_query):
