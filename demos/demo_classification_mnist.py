@@ -164,6 +164,7 @@ def digit_classification(x_train, y_train, images_train,
                                                  h_min=h_min,
                                                  h_max=h_max,
                                                  h_init=h_init)
+    kec_h = np.append(kec.theta, kec.zeta)
     print('KEC Training Finished')
 
     # Train the support vector classifier
@@ -171,19 +172,11 @@ def digit_classification(x_train, y_train, images_train,
     print('SVC Training Finished')
 
     # Train the gaussian process classifier
-    gpc_kernel = RBF(length_scale=1.0)
+    gpc_kernel = C() * RBF(length_scale=1.0)
     gpc = GaussianProcessClassifier(kernel=gpc_kernel).fit(x_train, y_train)
-    print('Gaussian Process Hyperparameters: ', gpc.kernel_.theta)
+    gpc_h = gpc.kernel_.theta
+    print('Gaussian Process Hyperparameters: ', gpc_h)
     print('GPC Training Finished')
-
-    # Save the training results for the kernel embedding classifier
-    np.savez('%smnist_training_results.npz' % full_directory,
-             classes=classes,
-             h_min=h_min,
-             h_max=h_max,
-             h_init=h_init,
-             h=np.append(kec.theta, kec.zeta),
-             gp_kernel_theta=gpc.kernel_.theta)
 
     # Predict probabilities on the training set
     kec_p = kec.predict_proba(x_train)
@@ -206,18 +199,30 @@ def digit_classification(x_train, y_train, images_train,
     gpc_y_test = bake.infer.classify(gpc_p_test, classes=classes)
 
     # Report the performance of each classifier
-    print('kec training accuracy: %.9f' % (np.mean(kec_y == y_train.ravel())))
-    print('svc training accuracy: %.9f' % (np.mean(svc_y == y_train.ravel())))
-    print('gpc training accuracy: %.9f' % (np.mean(gpc_y == y_train.ravel())))
-    print('kec test accuracy: %.9f' % (np.mean(kec_y_test == y_test.ravel())))
-    print('svc test accuracy: %.9f' % (np.mean(svc_y_test == y_test.ravel())))
-    print('gpc test accuracy: %.9f' % (np.mean(gpc_y_test == y_test.ravel())))
-    print('kec training log loss: %.9f' % log_loss(y_train.ravel(), kec_p))
-    print('svc training log loss: %.9f' % log_loss(y_train.ravel(), svc_p))
-    print('gpc training log loss: %.9f' % log_loss(y_train.ravel(), gpc_p))
-    print('kec test log loss: %.9f' % log_loss(y_test.ravel(), kec_p_test))
-    print('svc test log loss: %.9f' % log_loss(y_test.ravel(), svc_p_test))
-    print('gpc test log loss: %.9f' % log_loss(y_test.ravel(), gpc_p_test))
+    kec_train_accuracy = np.mean(kec_y == y_train.ravel())
+    svc_train_accuracy = np.mean(svc_y == y_train.ravel())
+    gpc_train_accuracy = np.mean(gpc_y == y_train.ravel())
+    kec_test_accuracy = np.mean(kec_y_test == y_test.ravel())
+    svc_test_accuracy = np.mean(svc_y_test == y_test.ravel())
+    gpc_test_accuracy = np.mean(gpc_y_test == y_test.ravel())
+    kec_train_log_loss = log_loss(y_train.ravel(), kec_p)
+    svc_train_los_loss = log_loss(y_train.ravel(), svc_p)
+    gpc_train_los_loss = log_loss(y_train.ravel(), gpc_p)
+    kec_test_log_loss = log_loss(y_test.ravel(), kec_p_test)
+    svc_test_los_loss = log_loss(y_test.ravel(), svc_p_test)
+    gpc_test_los_loss = log_loss(y_test.ravel(), gpc_p_test)
+    print('kec training accuracy: %.9f' % kec_train_accuracy)
+    print('svc training accuracy: %.9f' % svc_train_accuracy)
+    print('gpc training accuracy: %.9f' % gpc_train_accuracy)
+    print('kec test accuracy: %.9f' % kec_test_accuracy)
+    print('svc test accuracy: %.9f' % svc_test_accuracy)
+    print('gpc test accuracy: %.9f' % gpc_test_accuracy)
+    print('kec training log loss: %.9f' % kec_train_log_loss)
+    print('svc training log loss: %.9f' % svc_train_los_loss)
+    print('gpc training log loss: %.9f' % gpc_train_los_loss)
+    print('kec test log loss: %.9f' % kec_test_log_loss)
+    print('svc test log loss: %.9f' % svc_test_los_loss)
+    print('gpc test log loss: %.9f' % gpc_test_los_loss)
 
     # Obtain the probabilities of the predictions only
     kec_p_pred = kec_p_test[np.arange(n_test), np.argmax(kec_p_test, axis=1)]
@@ -243,6 +248,48 @@ def digit_classification(x_train, y_train, images_train,
         dist = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
                      'euclidean').min()
         print('Euclidean distance from mode to closest training image' % dist)
+
+    # Save the training results for the kernel embedding classifier
+    np.savez('%smnist_training_results.npz' % full_directory,
+             classes=classes,
+             n_class=n_class,
+             h_min=h_min,
+             h_max=h_max,
+             h_init=h_init,
+             kec_h=kec_h,
+             gpc_h=gpc_h,
+             kec_p=kec_p,
+             svc_p=svc_p,
+             gpc_p=gpc_p,
+             kec_y=kec_y,
+             svc_y=svc_y,
+             gpc_y=gpc_y,
+             kec_p_test=kec_p_test,
+             svc_p_test=svc_p_test,
+             gpc_p_test=gpc_p_test,
+             kec_y_test=kec_y_test,
+             svc_y_test=svc_y_test,
+             gpc_y_test=gpc_y_test,
+             kec_train_accuracy=kec_train_accuracy,
+             svc_train_accuracy=svc_train_accuracy,
+             gpc_train_accuracy=gpc_train_accuracy,
+             kec_test_accuracy=kec_test_accuracy,
+             svc_test_accuracy=svc_test_accuracy,
+             gpc_test_accuracy=gpc_test_accuracy,
+             kec_train_log_loss=kec_train_log_loss,
+             svc_train_los_loss=svc_train_los_loss,
+             gpc_train_los_loss=gpc_train_los_loss,
+             kec_test_log_loss=kec_test_log_loss,
+             svc_test_los_loss=svc_test_los_loss,
+             gpc_test_los_loss=gpc_test_los_loss,
+             kec_p_pred=kec_p_pred,
+             svc_p_pred=svc_p_pred,
+             gpc_p_pred=gpc_p_pred,
+             x_train_mean=x_train_mean,
+             x_train_var=x_train_var,
+             input_expectance=input_expectance,
+             input_variance=input_variance,
+             input_mode=input_mode)
 
     # Convert the above into image form
     x_train_mean_images = np.reshape(x_train_mean, (n_class, 28, 28))
@@ -321,7 +368,7 @@ def digit_classification(x_train, y_train, images_train,
     # Show the empirical expectance
     fig = plt.figure()
     for index, image in enumerate(x_train_mean_images):
-        plt.subplot(1, classes.shape[0], index + 1)
+        plt.subplot(1, n_class, index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('%d' % classes[index])
@@ -331,7 +378,7 @@ def digit_classification(x_train, y_train, images_train,
     # Show the empirical variance
     fig = plt.figure()
     for index, image in enumerate(x_train_var_images):
-        plt.subplot(1, classes.shape[0], index + 1)
+        plt.subplot(1, n_class, index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('%d' % classes[index])
@@ -341,7 +388,7 @@ def digit_classification(x_train, y_train, images_train,
     # Show the input expectance
     fig = plt.figure()
     for index, image in enumerate(input_expectance_images):
-        plt.subplot(1, classes.shape[0], index + 1)
+        plt.subplot(1, n_class, index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('%d' % classes[index])
@@ -351,7 +398,7 @@ def digit_classification(x_train, y_train, images_train,
     # Show the input variance
     fig = plt.figure()
     for index, image in enumerate(input_variance_images):
-        plt.subplot(1, classes.shape[0], index + 1)
+        plt.subplot(1, n_class, index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('%d' % classes[index])
@@ -361,7 +408,7 @@ def digit_classification(x_train, y_train, images_train,
     # Show the input mode
     fig = plt.figure()
     for index, image in enumerate(input_mode_images):
-        plt.subplot(1, classes.shape[0], index + 1)
+        plt.subplot(1, n_class, index + 1)
         plt.axis('off')
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('%d' % classes[index])
@@ -369,9 +416,9 @@ def digit_classification(x_train, y_train, images_train,
     fig.set_size_inches(18, 4, forward=True)
 
     # If the classifier was anisotropic, show the pixel relevance
-    if kec.theta.shape[0] == 28*28 + 1:
+    if kec_h.shape[0] == 28*28 + 2:
         fig = plt.figure()
-        theta_image = np.reshape(kec.theta[1:], (28, 28))
+        theta_image = np.reshape(kec_h[1:-1], (28, 28))
         plt.axis('off')
         plt.imshow(theta_image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('Pixel Relevance for Classifying Digits ' + str(classes))
