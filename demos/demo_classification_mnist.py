@@ -13,6 +13,8 @@ from sklearn.metrics import log_loss
 from tensorflow.examples.tutorials.mnist import input_data
 import os
 from scipy.spatial.distance import cdist
+import datetime
+
 
 def create_mnist_data(digits=np.arange(10), n_sample=500, sample_before=True):
     """
@@ -137,9 +139,12 @@ def digit_classification(x_train, y_train, images_train,
     print('Testing on %d images_train' % n_test)
 
     # Create full directory
+    now = datetime.datetime.now()
+    now_string = '%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
+                                        now.hour, now.minute, now.second)
     digits_str = ''.join([str(i) for i in classes])
-    full_directory = './mnist_digits_%s_with_%d_training_images/' \
-                     % (digits_str, n_train)
+    full_directory = './%s_mnist_digits_%s_with_%d_training_images/' \
+                     % (now_string, digits_str, n_train)
     os.mkdir(full_directory)
     print('Results will be saved in "%s"' % full_directory)
 
