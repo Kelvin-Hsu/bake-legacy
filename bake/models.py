@@ -127,8 +127,8 @@ class Classifier():
         def model_complexity(w):
             # f = np.sum(w.diagonal())
             # f = np.sum(np.dot(w.T, w).diagonal())
-            print('w:', w.diagonal().sum())
-            print('w**2:', w.dot(w).diagonal().sum())
+            # print('w:', w.diagonal().sum())
+            # print('w**2:', w.dot(w).diagonal().sum())
             f = w.diagonal().sum()
             return np.log(f)
 
@@ -160,7 +160,7 @@ class Classifier():
         if h is None:
 
             bounds = [(h_min[i], h_max[i]) for i in range(len(h_init))]
-            bounds = None
+            # bounds = None
             c_1 = {'type': 'ineq', 'fun': constraint}
             c_2 = {'type': 'ineq', 'fun': constraint_prob}
             constraints = (c_1, c_2)
@@ -171,10 +171,10 @@ class Classifier():
             if verbose:
                 print('Training Completed.')
 
-        c = constraint(h)
-        f = objective(h)
-        s = 'Training Accuracy: %f || Objective: %f' % (1 + c, f)
-        print('Hyperparameters: ', h, s)
+        # c = constraint(h)
+        # f = objective(h)
+        # s = 'Training Accuracy: %f || Objective: %f' % (1 + c, f)
+        # print('Hyperparameters: ', h, s)
         self.update(h[:-1], h[-1])
 
         return self

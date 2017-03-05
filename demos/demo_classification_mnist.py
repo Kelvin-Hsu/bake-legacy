@@ -1,5 +1,5 @@
 """
-Demonstration of simple kernel embeddings.
+Application of the kernel embedding classifier on the MNIST dataset.
 """
 import bake
 import utils
@@ -11,159 +11,262 @@ from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as C
 from sklearn.metrics import log_loss
 from tensorflow.examples.tutorials.mnist import input_data
+import os
+from scipy.spatial.distance import cdist
 
-def create_mnist_data():
+def create_mnist_data(digits=np.arange(10), n_sample=500, sample_before=True):
+    """
+    Load a subset of the mnist dataset.
 
+    Parameters
+    ----------
+    digits : numpy.ndarray
+        An array of the digit classes to restrict the dataset to
+    n_sample : int
+        The number of training samples to sample
+    sample_before : bool
+        Whether to reduce the training set first before restricting digits
+
+    Returns
+    -------
+    numpy.ndarray
+        The training inputs (n_train, 28 * 28)
+    numpy.ndarray
+        The training outputs (n_train, 1)
+    numpy.ndarray
+        The training images (n_train, 28, 28)
+    numpy.ndarray
+        The test inputs (n_test, 28 * 28)
+    numpy.ndarray
+        The test outputs (n_test, 1)
+    numpy.ndarray
+        The test images (n_test, 28, 28)
+    """
+    # Load the MNIST dataset
     mnist = input_data.read_data_sets("MNIST_data/", one_hot=False)
 
+    # Load the training data
     x_train = mnist.train.images
     y_train = mnist.train.labels[:, np.newaxis]
     n_train, d = x_train.shape
     images_train = np.reshape(x_train, (n_train, 28, 28))
 
+    # Load the validation data
     x_valid = mnist.validation.images
     y_valid = mnist.validation.labels[:, np.newaxis]
     n_valid, d = x_valid.shape
     images_valid = np.reshape(x_valid, (n_valid, 28, 28))
 
+    # Add the validation data to the training data
     x = np.concatenate((x_train, x_valid), axis=0)
     y = np.concatenate((y_train, y_valid), axis=0)
     images = np.concatenate((images_train, images_valid), axis=0)
 
+    # Load the testing data
     x_test = mnist.test.images
     y_test = mnist.test.labels[:, np.newaxis]
     n_test, d = x_test.shape
     images_test = np.reshape(x_test, (n_test, 28, 28))
 
-    # digits = np.array([4, 7, 9])
-    #
-    # indices = np.any(y == digits, axis=1)
-    # x = x[indices]
-    # y = y[indices]
-    # images = images[indices]
-    #
-    # indices = np.any(y_test == digits, axis=1)
-    # x_test = x_test[indices]
-    # y_test = y_test[indices]
-    # images_test = images_test[indices]
+    # Limit the training set to only the specified number of data points
+    if sample_before:
+        x = x[:n_sample]
+        y = y[:n_sample]
+        images = images[:n_sample]
 
-    n_sample = 500
-    x = x[:n_sample]
-    y = y[:n_sample]
-    images = images[:n_sample]
+    # Limit the training set to only the specified digits
+    indices = np.any(y == digits, axis=1)
+    x = x[indices]
+    y = y[indices]
+    images = images[indices]
 
-    print('Training Size: %d, Testing Size: %d' % (x.shape[0], x_test.shape[0]))
+    # Limit the testing set to only the specified digits
+    indices = np.any(y_test == digits, axis=1)
+    x_test = x_test[indices]
+    y_test = y_test[indices]
+    images_test = images_test[indices]
+
+    # Limit the training set to only the specified number of data points
+    if not sample_before:
+        x = x[:n_sample]
+        y = y[:n_sample]
+        images = images[:n_sample]
+
+    print('Digits extracted: ', digits)
+    print('Training Size: %d, Testing Size: %d'
+          % (x.shape[0], x_test.shape[0]))
     return x, y, images, x_test, y_test, images_test
 
 
-def digit_classification():
+def digit_classification(x_train, y_train, images_train,
+                         x_test, y_test, images_test):
+    """
+    Performs the digit classification task and saves results.
 
-    x_train, y_train, images, x_test, y_test, images_test = create_mnist_data()
+    Parameters
+    ----------
+    x_train : numpy.ndarray
+        The training inputs (n_train, 28 * 28)
+    y_train : numpy.ndarray
+        The training outputs (n_train, 1)
+    images_train : numpy.ndarray
+        The training images (n_train, 28, 28)
+    x_test : numpy.ndarray
+        The test inputs (n_test, 28 * 28)
+    y_test : numpy.ndarray
+        The test outputs (n_test, 1)
+    images_test : numpy.ndarray
+        The test images (n_test, 28, 28)
+
+    Returns
+    -------
+    None
+    """
+    # Determine the classes, number of classes, and input dimensions for
+    # this digit classification test
     classes = np.unique(y_train)
+    n_class = classes.shape[0]
+    d = x_train.shape[1]
+    print('\n--------------------------------------------------------------\n')
+    print('There are %d classes for digits: ' % n_class, classes)
 
-    # kernel = bake.kernels.s_gaussian
-    # h_min = np.array([0.2, 0.25, 0.001])
-    # h_max = np.array([2.0, 5.0, 0.1])
-    # h_init = np.array([1.0, 2.0, 0.01])
+    # Report the number of training and testing points used in this test
+    n_train = y_train.shape[0]
+    n_test = y_test.shape[0]
+    print('Training on %d images_train' % n_train)
+    print('Testing on %d images_train' % n_test)
 
-    # kernel = bake.kernels.gaussian
-    # h_min = np.array([0.25, 0.001])
-    # h_max = np.array([5.0, 0.1])
-    # h_init = np.array([2.0, 0.01])
+    # Create full directory
+    digits_str = ''.join([str(i) for i in classes])
+    full_directory = './mnist_digits_%s_with_%d_training_images/' \
+                     % (digits_str, n_train)
+    os.mkdir(full_directory)
+    print('Results will be saved in "%s"' % full_directory)
 
-    kernel = bake.kernels.s_gaussian
+    # Specify the kernel used for the classifier
+    kec_kernel = bake.kernels.s_gaussian
 
-    # FOR ISOTROPIC TEST
-    # h_min = np.array([0.5, 0.75, 0.001])
-    # h_max = np.array([2.0, 4.0, 0.1])
-    # h_init = np.array([1.0, 1.0, 0.01])
-
-    # FOR ANISOTROPIC TEST
-    t_min = 0.2 * np.ones(x_train.shape[1])
-    t_max = 20.0 * np.ones(x_train.shape[1])
-    t_init = 2.0 * np.ones(x_train.shape[1])
-
+    # Specify settings for hyperparameter learning
+    t_min = 0.2 * np.ones(d)
+    t_max = 20.0 * np.ones(d)
+    t_init = 2.0 * np.ones(d)
     h_min = np.concatenate(([0.5], t_min, [1e-10]))
     h_max = np.concatenate(([5.0], t_max, [1]))
     h_init = np.concatenate(([1.0], t_init, [1e-2]))
 
-    # FOR ANISOTROPIC TEST
-    # file = np.load('./anisotropic_500_digits.npz')
-    # h_impose = file['h']
-    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
+    # Alternative: Load learned hyperparameter from a file
+    # file = np.load('./mnist_training_results.npz')
+    # h_fixed = file['h']
+    # kec = bake.Classifier(kernel=kec_kernel).fit(x_train, y_train, h=h_fixed)
 
-    # FOR ISOTROPIC TEST
-    # h_impose = np.array([0.88, 1.73, 0.078])  # Matern
-    # h_impose = np.array([0.95,  3.2,  0.06])  # Gaussian
-    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=h_impose)
-
-    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train,
-                                             h_min=h_min,
-                                             h_max=h_max,
-                                             h_init=h_init)
-    np.savez('anisotropic_500_digits.npz', h=np.append(kec.theta, kec.zeta))
+    # Train the kernel embedding classifier
+    kec = bake.Classifier(kernel=kec_kernel).fit(x_train, y_train,
+                                                 h_min=h_min,
+                                                 h_max=h_max,
+                                                 h_init=h_init)
     print('KEC Training Finished')
+
+    # Train the support vector classifier
     svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
-    gp_kernel = RBF(length_scale=1.0)
-    gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x_train, y_train)
+
+    # Train the gaussian process classifier
+    gpc_kernel = RBF(length_scale=1.0)
+    gpc = GaussianProcessClassifier(kernel=gpc_kernel).fit(x_train, y_train)
     print('Gaussian Process Hyperparameters: ', gpc.kernel_.theta)
     print('GPC Training Finished')
 
+    # Save the training results for the kernel embedding classifier
+    np.savez('%smnist_training_results.npz' % full_directory,
+             classes=classes,
+             h_min=h_min,
+             h_max=h_max,
+             h_init=h_init,
+             h=np.append(kec.theta, kec.zeta),
+             gp_kernel_theta=gpc.kernel_.theta)
+
+    # Predict probabilities on the training set
     kec_p = kec.predict_proba(x_train)
     svc_p = svc.predict_proba(x_train)
     gpc_p = gpc.predict_proba(x_train)
 
+    # Predict targets on the training set
     kec_y = bake.infer.classify(kec_p, classes=classes)
     svc_y = bake.infer.classify(svc_p, classes=classes)
     gpc_y = bake.infer.classify(svc_p, classes=classes)
 
+    # Predict probabilities on the testing set
     kec_p_test = kec.predict_proba(x_test)
     svc_p_test = svc.predict_proba(x_test)
     gpc_p_test = gpc.predict_proba(x_test)
 
+    # Predict targets on the testing set
     kec_y_test = bake.infer.classify(kec_p_test, classes=classes)
     svc_y_test = bake.infer.classify(svc_p_test, classes=classes)
     gpc_y_test = bake.infer.classify(gpc_p_test, classes=classes)
 
-    print('Training on %d images' % y_train.shape[0])
-    print('Testing on %d images' % y_test.shape[0])
-
+    # Report the performance of each classifier
     print('kec training accuracy: %.9f' % (np.mean(kec_y == y_train.ravel())))
     print('svc training accuracy: %.9f' % (np.mean(svc_y == y_train.ravel())))
     print('gpc training accuracy: %.9f' % (np.mean(gpc_y == y_train.ravel())))
-
     print('kec test accuracy: %.9f' % (np.mean(kec_y_test == y_test.ravel())))
     print('svc test accuracy: %.9f' % (np.mean(svc_y_test == y_test.ravel())))
     print('gpc test accuracy: %.9f' % (np.mean(gpc_y_test == y_test.ravel())))
-
     print('kec training log loss: %.9f' % log_loss(y_train.ravel(), kec_p))
     print('svc training log loss: %.9f' % log_loss(y_train.ravel(), svc_p))
     print('gpc training log loss: %.9f' % log_loss(y_train.ravel(), gpc_p))
-
     print('kec test log loss: %.9f' % log_loss(y_test.ravel(), kec_p_test))
     print('svc test log loss: %.9f' % log_loss(y_test.ravel(), svc_p_test))
     print('gpc test log loss: %.9f' % log_loss(y_test.ravel(), gpc_p_test))
 
-    kec_p_pred = kec_p_test[np.arange(x_test.shape[0]), np.argmax(kec_p_test, axis=1)]
-    svc_p_pred = svc_p_test[np.arange(x_test.shape[0]), np.argmax(svc_p_test, axis=1)]
-    gpc_p_pred = gpc_p_test[np.arange(x_test.shape[0]), np.argmax(gpc_p_test, axis=1)]
+    # Obtain the probabilities of the predictions only
+    kec_p_pred = kec_p_test[np.arange(n_test), np.argmax(kec_p_test, axis=1)]
+    svc_p_pred = svc_p_test[np.arange(n_test), np.argmax(svc_p_test, axis=1)]
+    gpc_p_pred = gpc_p_test[np.arange(n_test), np.argmax(gpc_p_test, axis=1)]
 
+    # Compute the empirical expectance and variance for each class
+    x_train_mean = np.array([np.mean(x_train[y_train.ravel() == c], axis=0)
+                             for c in classes])
+
+
+    x_train_var = np.array([np.var(x_train[y_train.ravel() == c], axis=0)
+                            for c in classes])
+
+    # Compute the input expectance, variance, and mode from KEC
+    input_expectance = kec.input_expectance()
+    input_variance = kec.input_variance()
+    input_mode = kec.input_mode()
+
+    # Determine the distance to the closest training image to check that
+    # the mode is not simply a training input
+    for i, c in enumerate(classes):
+        dist = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
+                     'euclidean').min()
+        print('Euclidean distance from mode to closest training image' % dist)
+
+    # Convert the above into image form
+    x_train_mean_images = np.reshape(x_train_mean, (n_class, 28, 28))
+    x_train_var_images = np.reshape(x_train_var, (n_class, 28, 28))
+    input_expectance_images = np.reshape(input_expectance, (n_class, 28, 28))
+    input_variance_images = np.reshape(input_variance, (n_class, 28, 28))
+    input_mode_images = np.reshape(input_mode, (n_class, 28, 28))
+
+    # Visualise the predictions on the testing set
+    prediction_results = list(zip(images_test, y_test,
+                                  kec_y_test, kec_p_pred,
+                                  svc_y_test, svc_p_pred,
+                                  gpc_y_test, gpc_p_pred))
+    n_figures = 20
     n_row = 3
     n_col = 5
     n_pic = n_row * n_col
-    images_and_labels = list(zip(images_test, y_test,
-                                 kec_y_test, kec_p_pred,
-                                 svc_y_test, svc_p_pred,
-                                 gpc_y_test, gpc_p_pred))
-
-    for j in range(12):
+    for j in range(n_figures):
         fig = plt.figure()
         for index, (image, label,
                     kec_pred, kec_p,
                     svc_pred, svc_p,
                     gpc_pred, gpc_p) in enumerate(
-            images_and_labels[j*n_pic:(j + 1)*n_pic]):
+            prediction_results[j * n_pic:(j + 1) * n_pic]):
             plt.subplot(n_row, n_col, index + 1)
             plt.axis('off')
             plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
@@ -171,12 +274,14 @@ def digit_classification():
                       '\nKEC: %d (%.1f%%)'
                       '\nSVC: %d (%.1f%%)'
                       '\nGPC: %d (%.1f%%)' % (label,
-                                              kec_pred, 100*kec_p,
-                                              svc_pred, 100*svc_p,
-                                              gpc_pred, 100*gpc_p))
+                                              kec_pred, 100 * kec_p,
+                                              svc_pred, 100 * svc_p,
+                                              gpc_pred, 100 * gpc_p))
         fig.set_size_inches(18, 14, forward=True)
 
-    for j in range(10):
+    # Visualise the probability distribution of each prediction
+    n_figures = 20
+    for j in range(n_figures):
         fig = plt.figure()
         gs = gridspec.GridSpec(1, 2,
                                width_ratios=[1, 2.5],
@@ -205,24 +310,15 @@ def digit_classification():
         plt.ylim((0, 1))
         plt.title('Prediction Probabilities')
         plt.xticks(classes + 1.5 * bar_width, tuple([str(c) for c in classes]))
-        # Shrink current axis's height by 10% on the bottom
         box = plt.gca().get_position()
         plt.gca().set_position([box.x0, box.y0 + box.height * 0.1,
                                box.width, box.height * 0.9])
-        # Put a legend below current axis
         plt.gca().legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
                          fancybox=True, shadow=True, ncol=3)
         plt.tight_layout()
-        fig.set_size_inches(18, 4, forward=True)
+        fig.set_size_inches(18, 3, forward=True)
 
-    x_train_mean = np.array([np.mean(x_train[y_train.ravel() == c], axis=0)
-                             for c in classes])
-    x_train_var = np.array([np.var(x_train[y_train.ravel() == c], axis=0)
-                            for c in classes])
-
-    x_train_mean_images = np.reshape(x_train_mean, (classes.shape[0], 28, 28))
-    x_train_var_images = np.reshape(x_train_var, (classes.shape[0], 28, 28))
-
+    # Show the empirical expectance
     fig = plt.figure()
     for index, image in enumerate(x_train_mean_images):
         plt.subplot(1, classes.shape[0], index + 1)
@@ -232,6 +328,7 @@ def digit_classification():
     plt.suptitle('Empirical Expectance')
     fig.set_size_inches(18, 4, forward=True)
 
+    # Show the empirical variance
     fig = plt.figure()
     for index, image in enumerate(x_train_var_images):
         plt.subplot(1, classes.shape[0], index + 1)
@@ -241,9 +338,7 @@ def digit_classification():
     plt.suptitle('Empirical Variance')
     fig.set_size_inches(18, 4, forward=True)
 
-    input_expectance = kec.input_expectance()
-    input_expectance_images = np.reshape(input_expectance, (classes.shape[0], 28, 28))
-
+    # Show the input expectance
     fig = plt.figure()
     for index, image in enumerate(input_expectance_images):
         plt.subplot(1, classes.shape[0], index + 1)
@@ -253,9 +348,7 @@ def digit_classification():
     plt.suptitle('Input Expectance')
     fig.set_size_inches(18, 4, forward=True)
 
-    input_variance = kec.input_variance()
-    input_variance_images = np.reshape(input_variance, (classes.shape[0], 28, 28))
-
+    # Show the input variance
     fig = plt.figure()
     for index, image in enumerate(input_variance_images):
         plt.subplot(1, classes.shape[0], index + 1)
@@ -265,9 +358,7 @@ def digit_classification():
     plt.suptitle('Input Variance')
     fig.set_size_inches(18, 4, forward=True)
 
-    input_mode = kec.input_mode()
-    input_mode_images = np.reshape(input_mode, (classes.shape[0], 28, 28))
-
+    # Show the input mode
     fig = plt.figure()
     for index, image in enumerate(input_mode_images):
         plt.subplot(1, classes.shape[0], index + 1)
@@ -277,21 +368,33 @@ def digit_classification():
     plt.suptitle('Input Modes')
     fig.set_size_inches(18, 4, forward=True)
 
+    # If the classifier was anisotropic, show the pixel relevance
     if kec.theta.shape[0] == 28*28 + 1:
         fig = plt.figure()
         theta_image = np.reshape(kec.theta[1:], (28, 28))
         plt.axis('off')
         plt.imshow(theta_image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('Pixel Relevance for Classifying Digits ' + str(classes))
-        fig.set_size_inches(18, 9, forward=True)
+        fig.set_size_inches(8, 8, forward=True)
 
-    full_directory = './'
+    # Save all figures and show all figures
     utils.misc.save_all_figures(full_directory,
                                 axis_equal=True, tight=True,
                                 extension='eps', rcparams=None)
+    plt.close("all")
+
+
+def main():
+    """Runs the digit classification task through different scenarios."""
+    n_sample = 500
+    digits_list = [np.arange(10),
+                   np.array([0, 1]),
+                   np.array([2, 3, 5]),
+                   np.array([4, 7, 9])]
+    for digits in digits_list:
+        mnist_data = create_mnist_data(digits=digits, n_sample=n_sample)
+        utils.misc.time_module(digit_classification, *mnist_data)
 
 
 if __name__ == "__main__":
-
-    utils.misc.time_module(digit_classification)
-    plt.show()
+    main()
