@@ -26,12 +26,13 @@ def s_matern3on2(x_p, x_q, theta):
     l = theta[1:]
     return s**2 * matern3on2(x_p, x_q, l)
 
+
 def gaussian(x_p, x_q, theta):
     """
     Defines the Gaussian or squared exponential kernel.
 
-    The hyperparameters are the length scales of the kernel. There can either be
-    m of them for an anisotropic kernel or just 1 of them for an isotropic
+    The hyperparameters are the length scales of the kernel. There can either
+    be m of them for an anisotropic kernel or just 1 of them for an isotropic
     kernel.
 
     Parameters
@@ -59,8 +60,8 @@ def laplace(x_p, x_q, theta):
     """
     Defines the Laplace or exponential kernel.
 
-    The hyperparameters are the length scales of the kernel. There can either be
-    m of them for an anisotropic kernel or just 1 of them for an isotropic
+    The hyperparameters are the length scales of the kernel. There can either
+    be m of them for an anisotropic kernel or just 1 of them for an isotropic
     kernel.
 
     Parameters
@@ -87,8 +88,8 @@ def matern3on2(x_p, x_q, theta):
     """
     Defines the Matern 3/2 kernel.
 
-    The hyperparameters are the length scales of the kernel. There can either be
-    m of them for an anisotropic kernel or just 1 of them for an isotropic
+    The hyperparameters are the length scales of the kernel. There can either
+    be m of them for an anisotropic kernel or just 1 of them for an isotropic
     kernel.
 
     Parameters
@@ -138,15 +139,3 @@ def kronecker_delta(x_p, x_q, *args):
         return np.ones(x_p.shape[0])
     # return (cdist(x_q, x_q, 'sqeuclidean') < 1e-8).astype(float)
     return (cdist(x_p, x_q, 'sqeuclidean') == 0).astype(float)
-
-
-# class Kernel():
-#
-#     def __init__(self):
-#         self.theta = 1
-#
-#     def __call__(self, x_p, x_q):
-#         return gaussian(x_p, x_q, self.theta)
-#
-#     def __mul__(self, ):
-#     def __add__(self):

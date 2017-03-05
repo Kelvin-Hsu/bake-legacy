@@ -8,7 +8,7 @@ from matplotlib import gridspec
 import numpy as np
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as C
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from sklearn.metrics import log_loss
 from tensorflow.examples.tutorials.mnist import input_data
 import os
@@ -238,8 +238,6 @@ def digit_classification(x_train, y_train, images_train,
     # Compute the empirical expectance and variance for each class
     x_train_mean = np.array([np.mean(x_train[y_train.ravel() == c], axis=0)
                              for c in classes])
-
-
     x_train_var = np.array([np.var(x_train[y_train.ravel() == c], axis=0)
                             for c in classes])
 
@@ -320,7 +318,7 @@ def digit_classification(x_train, y_train, images_train,
                     kec_pred, kec_p,
                     svc_pred, svc_p,
                     gpc_pred, gpc_p) in enumerate(
-            prediction_results[j * n_pic:(j + 1) * n_pic]):
+                    prediction_results[j * n_pic:(j + 1) * n_pic]):
             plt.subplot(n_row, n_col, index + 1)
             plt.axis('off')
             plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')

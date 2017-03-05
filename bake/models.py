@@ -8,10 +8,7 @@ from .infer import clip_normalize as _clip_normalize
 from .infer import classify as _classify
 from .kernels import s_gaussian as _s_gaussian
 from .kernels import kronecker_delta as _kronecker_delta
-from .optimize import explore_optimization as _explore_optimization
 from .linalg import solve_posdef as _solve_posdef
-from sklearn.model_selection import KFold as _KFold
-from scipy.linalg import cholesky as _cholesky
 from scipy.optimize import minimize as _minimize
 
 
