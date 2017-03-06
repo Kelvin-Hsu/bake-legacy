@@ -325,7 +325,8 @@ class Classifier():
             The mode of each feature for each class (n_class, d)
         """
         y_query = self.classes[:, np.newaxis]
-        x_modes = np.zeros((self.n_classes, self.d))
+        self.x_modes = np.zeros((self.n_classes, self.d))
+        self.mu_modes = np.zeros(self.n_classes)
         x_inits = self.input_expectance() if x_inits is None else x_inits
 
         for i, y in enumerate(y_query):
@@ -347,9 +348,10 @@ class Classifier():
             # bounds = [(x_min[i], x_max[i]) for i in range(len(x_init))]
             print('Starting Mode Decoding for Class %d' % y)
             optimal_result = _minimize(objective, x_init)
-            x_modes[i, :] = optimal_result.x
-            print('Embedding Value at Mode: %f' % -optimal_result.fun)
-        return x_modes
+            self.x_modes[i, :] = optimal_result.x
+            self.mu_modes[i] = -optimal_result.fun
+            print('Embedding Value at Mode: %f' % self.mu_modes[i])
+        return self.x_modes
 
     def input_mode_enumerated(self, x_candidates):
         """

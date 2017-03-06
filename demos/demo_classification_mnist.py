@@ -249,6 +249,8 @@ def digit_classification(x_train, y_train, images_train,
     input_expectance = kec.input_expectance()
     input_variance = kec.input_variance()
     input_mode = kec.input_mode()
+    kec_x_modes = kec.x_modes
+    kec_mu_modes = kec.mu_modes
 
     # Determine the distance to the closest training image to check that
     # the mode is not simply a training input
@@ -256,7 +258,8 @@ def digit_classification(x_train, y_train, images_train,
         dist = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
                      'euclidean').min()
         print('Euclidean distance from mode to closest training image '
-              'for class %d: %f' % (c, dist))
+              'for class %d: %f || Embedding Value: %f\n'
+              % (c, dist, kec_mu_modes[i]))
 
     # Save the training results for the kernel embedding classifier
     np.savez('%smnist_training_results.npz' % full_directory,
@@ -271,6 +274,8 @@ def digit_classification(x_train, y_train, images_train,
              kec_a_train=kec_a_train,
              kec_p_train=kec_p_train,
              kec_h_train=kec_h_train,
+             kec_x_modes=kec_x_modes,
+             kec_mu_modes=kec_mu_modes,
              kec_p=kec_p,
              svc_p=svc_p,
              gpc_p=gpc_p,
@@ -479,8 +484,15 @@ def digit_classification(x_train, y_train, images_train,
     f.write('There are %d classes for digits: %s\n' % (n_class, str(classes)))
     f.write('Training on %d images\n' % n_train)
     f.write('Testing on %d images\n' % n_test)
-    f.write('Kernel Embedding Hyperparameters: %s\n' % str(kec_h))
+    f.write('-----\n')
+    f.write('Kernel Embedding Classifier Final Training Configuration:\n')
+    f.write('Hyperparameters: %s\n' % str(kec_h))
+    f.write('Model Complexity: %f\n' % kec.complexity)
+    f.write('Training Accuracy: %f\n' % kec.train_accuracy)
+    f.write('Mean Sum of Probabilities: %f\n' % kec.mean_sum_probability)
+    f.write('-----\n')
     f.write('Gaussian Process Hyperparameters: %s\n' % str(gpc_h))
+    f.write('-----\n')
     f.write('kec training accuracy: %.9f\n' % kec_train_accuracy)
     f.write('svc training accuracy: %.9f\n' % svc_train_accuracy)
     f.write('gpc training accuracy: %.9f\n' % gpc_train_accuracy)
@@ -493,11 +505,13 @@ def digit_classification(x_train, y_train, images_train,
     f.write('kec test log loss: %.9f\n' % kec_test_log_loss)
     f.write('svc test log loss: %.9f\n' % svc_test_los_loss)
     f.write('gpc test log loss: %.9f\n' % gpc_test_los_loss)
+    f.write('-----\n')
     for i, c in enumerate(classes):
         dist = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
                      'euclidean').min()
         f.write('Euclidean distance from mode to closest training image '
-                'for class %d: %f\n' % (c, dist))
+                'for class %d: %f || Embedding Value: %f\n'
+                % (c, dist, kec_mu_modes[i]))
     f.close()
 
 
