@@ -447,31 +447,42 @@ def digit_classification(x_train, y_train, images_train,
 
     # Plot the objective and constraints history
     fig = plt.figure()
-    iters = np.arange(kec_f_train.shape[0])
-    plt.plot(iters, kec_f_train, c='c', label='KEC Complexity (log scale)')
-    plt.plot(iters, kec_a_train, c='r', label='KEC Training Accuracy')
-    plt.plot(iters, kec_p_train, c='g', label='KEC Mean Sum of Probabilities')
+    iters = np.arange(kec._f_train.shape[0])
+    plt.plot(iters, kec._f_train, c='c',
+             label='KEC Complexity (Scale: $\log_{e}$)')
+    plt.plot(iters, kec._a_train, c='r', label='KEC Training Accuracy')
+    plt.plot(iters, kec._p_train, c='g', label='KEC Mean Sum of Probabilities')
     plt.title('Training History: Objectives and Constraints')
     plt.xlabel('Iterations')
-    fig.set_size_inches(18, 2, forward=True)
+    leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
+                     fancybox=True, shadow=True)
+    leg.get_frame().set_alpha(0.5)
+    fig.set_size_inches(18, 4, forward=True)
 
     # Plot the hyperparameter history
     fig = plt.figure()
-    iters = np.arange(kec_h_train.shape[0])
-    plt.subplot(2, 1, 0)
-    plt.plot(iters, kec_h_train[:, 0], c='c', label='Sensitivity')
-    plt.plot(iters, kec_h_train[:, 1:-1].mean(axis=1), c='g',
-             label='(Mean) Length Scale')
-    if kec_h_train.shape[1] > x_train.shape[1]:
-        kernel_type = 'Anisotropic'
-    else:
-        kernel_type = 'Isotropic'
-    plt.title('Training History: %s Kernel Hyperparameters' % kernel_type)
-    plt.xlabel('Iterations')
+    iters = np.arange(kec._h_train.shape[0])
     plt.subplot(2, 1, 1)
-    plt.plot(iters, kec_h_train[:, -1], c='b', label='Regularization')
+    plt.plot(iters, kec._h_train[:, 0], c='c', label='Sensitivity')
+    plt.plot(iters, kec._h_train[:, 1:-1].mean(axis=1), c='g',
+             label='(Mean) Length Scale')
+    if kec._h_train.shape[1] == 3:
+        kernel_type = 'Isotropic'
+    else:
+        kernel_type = 'Anisotropic'
+    plt.title('Training History: %s Kernel Hyperparameters' % kernel_type)
+    plt.gca().xaxis.set_ticklabels([])
+    leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
+                     fancybox=True, shadow=True)
+    leg.get_frame().set_alpha(0.5)
+    plt.subplot(2, 1, 2)
+    plt.plot(iters, np.log10(kec._h_train[:, -1]), c='b',
+             label='Regularization (Scale: $\log_{10}$)')
     plt.title('Training History: Regularization Parameter')
     plt.xlabel('Iterations')
+    leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
+                     fancybox=True, shadow=True)
+    leg.get_frame().set_alpha(0.5)
     fig.set_size_inches(18, 4, forward=True)
 
     # Save all figures and show all figures

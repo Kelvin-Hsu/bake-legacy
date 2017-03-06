@@ -92,9 +92,9 @@ def multiclass_classification(x, y, x_test, y_test):
     # h_init = np.array([1.0, 1.0, 0.01])
 
     kernel = bake.kernels.s_gaussian
-    h_min = np.array([0.5, 0.5, 0.000001])
-    h_max = np.array([1.5, 3.0, 1.0])
-    h_init = np.array([1.0, 2.0,  0.00001])
+    h_min = np.array([1.0, 1.0, 1e-5])
+    h_max = np.array([1.0, 20.0, 1])
+    h_init = np.array([1.0, 3.0,  1e-3])
     # h = np.array([3.98869985e-01, 3.56441404e+00, -1.73898878e-05])
     # kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
     kec = bake.Classifier(kernel=kernel).fit(x, y,
@@ -188,6 +188,46 @@ def multiclass_classification(x, y, x_test, y_test):
     x_rep = x[i_rep]
     y_rep = y[i_rep]
 
+    # Plot the objective and constraints history
+    fig = plt.figure()
+    iters = np.arange(kec._f_train.shape[0])
+    plt.plot(iters, kec._f_train, c='c',
+             label='KEC Complexity (Scale: $\log_{e}$)')
+    plt.plot(iters, kec._a_train, c='r', label='KEC Training Accuracy')
+    plt.plot(iters, kec._p_train, c='g', label='KEC Mean Sum of Probabilities')
+    plt.title('Training History: Objectives and Constraints')
+    plt.xlabel('Iterations')
+    leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
+                     fancybox=True, shadow=True)
+    leg.get_frame().set_alpha(0.5)
+    fig.set_size_inches(18, 4, forward=True)
+
+    # Plot the hyperparameter history
+    fig = plt.figure()
+    iters = np.arange(kec._h_train.shape[0])
+    plt.subplot(2, 1, 1)
+    plt.plot(iters, kec._h_train[:, 0], c='c', label='Sensitivity')
+    plt.plot(iters, kec._h_train[:, 1:-1].mean(axis=1), c='g',
+             label='(Mean) Length Scale')
+    if kec._h_train.shape[1] == 3:
+        kernel_type = 'Isotropic'
+    else:
+        kernel_type = 'Anisotropic'
+    plt.title('Training History: %s Kernel Hyperparameters' % kernel_type)
+    plt.gca().xaxis.set_ticklabels([])
+    leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
+                     fancybox=True, shadow=True)
+    leg.get_frame().set_alpha(0.5)
+    plt.subplot(2, 1, 2)
+    plt.plot(iters, np.log10(kec._h_train[:, -1]), c='b',
+             label='Regularization (Scale: $\log_{10}$)')
+    plt.title('Training History: Regularization Parameter')
+    plt.xlabel('Iterations')
+    leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
+                     fancybox=True, shadow=True)
+    leg.get_frame().set_alpha(0.5)
+    fig.set_size_inches(18, 4, forward=True)
+
     for c, image in enumerate(reverse_embedding_images):
         plt.figure()
         plt.pcolormesh(x_1_mesh, x_2_mesh, image, cmap=cm.coolwarm)
@@ -210,6 +250,7 @@ def multiclass_classification(x, y, x_test, y_test):
         plt.legend(loc='lower left', bbox_to_anchor=(0, 0),
                    fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
         plt.title('Reverse Embedding for class %d' % c)
+
     #
     # full_directory = './'
     # utils.misc.save_all_figures(full_directory,
@@ -325,7 +366,7 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
 
 if __name__ == "__main__":
 
-    x, y = create_iris_data()
+    x, y = create_spiral_data()
     test_size = 0.25
     x_train, x_test, y_train, y_test = train_test_split(x, y,
                                                         test_size=test_size,
