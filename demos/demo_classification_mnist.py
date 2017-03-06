@@ -139,8 +139,8 @@ def digit_classification(x_train, y_train, images_train,
     # Report the number of training and testing points used in this test
     n_train = y_train.shape[0]
     n_test = y_test.shape[0]
-    print('Training on %d images_train' % n_train)
-    print('Testing on %d images_train' % n_test)
+    print('Training on %d images' % n_train)
+    print('Testing on %d images' % n_test)
 
     # Create full directory
     digits_str = ''.join([str(i) for i in classes])
@@ -171,6 +171,10 @@ def digit_classification(x_train, y_train, images_train,
                                                  h_max=h_max,
                                                  h_init=h_init)
     kec_h = np.append(kec.theta, kec.zeta)
+    kec_f_train = kec._f_train,
+    kec_a_train = kec._a_train,
+    kec_p_train = kec._p_train,
+    kec_h_train = kec._h_train,
     print('KEC Training Finished')
 
     # Train the support vector classifier
@@ -252,7 +256,7 @@ def digit_classification(x_train, y_train, images_train,
         dist = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
                      'euclidean').min()
         print('Euclidean distance from mode to closest training image '
-              'for class %d: %f', (c, dist))
+              'for class %d: %f' % (c, dist))
 
     # Save the training results for the kernel embedding classifier
     np.savez('%smnist_training_results.npz' % full_directory,
@@ -263,6 +267,10 @@ def digit_classification(x_train, y_train, images_train,
              h_init=h_init,
              kec_h=kec_h,
              gpc_h=gpc_h,
+             kec_f_train=kec_f_train,
+             kec_a_train=kec_a_train,
+             kec_p_train=kec_p_train,
+             kec_h_train=kec_h_train,
              kec_p=kec_p,
              svc_p=svc_p,
              gpc_p=gpc_p,
@@ -345,15 +353,18 @@ def digit_classification(x_train, y_train, images_train,
         plt.subplot(gs[1])
         bar_width = 0.2
         opacity = 0.4
-        plt.bar(classes, tuple(svc_p_test[j]), bar_width,
+        plt.bar(np.arange(n_class), tuple(svc_p_test[j]),
+                bar_width,
                 alpha=opacity,
                 color='r',
                 label='SVC')
-        plt.bar(classes + bar_width, tuple(kec_p_test[j]), bar_width,
+        plt.bar(np.arange(n_class) + bar_width, tuple(kec_p_test[j]),
+                bar_width,
                 alpha=opacity,
                 color='g',
                 label='KEC')
-        plt.bar(classes + 2 * bar_width, tuple(gpc_p_test[j]), bar_width,
+        plt.bar(np.arange(n_class) + 2 * bar_width, tuple(gpc_p_test[j]),
+                bar_width,
                 alpha=opacity,
                 color='b',
                 label='GPC')
@@ -429,6 +440,35 @@ def digit_classification(x_train, y_train, images_train,
         plt.title('Pixel Relevance for Classifying Digits ' + str(classes))
         fig.set_size_inches(8, 8, forward=True)
 
+    # Plot the objective and constraints history
+    fig = plt.figure()
+    iters = np.arange(kec_f_train.shape[0])
+    plt.plot(iters, kec_f_train, c='c', label='KEC Complexity (log scale)')
+    plt.plot(iters, kec_a_train, c='r', label='KEC Training Accuracy')
+    plt.plot(iters, kec_p_train, c='g', label='KEC Mean Sum of Probabilities')
+    plt.title('Training History: Objectives and Constraints')
+    plt.xlabel('Iterations')
+    fig.set_size_inches(18, 2, forward=True)
+
+    # Plot the hyperparameter history
+    fig = plt.figure()
+    iters = np.arange(kec_h_train.shape[0])
+    plt.subplot(2, 1, 0)
+    plt.plot(iters, kec_h_train[:, 0], c='c', label='Sensitivity')
+    plt.plot(iters, kec_h_train[:, 1:-1].mean(axis=1), c='g',
+             label='(Mean) Length Scale')
+    if kec_h_train.shape[1] > x_train.shape[1]:
+        kernel_type = 'Anisotropic'
+    else:
+        kernel_type = 'Isotropic'
+    plt.title('Training History: %s Kernel Hyperparameters' % kernel_type)
+    plt.xlabel('Iterations')
+    plt.subplot(2, 1, 1)
+    plt.plot(iters, kec_h_train[:, -1], c='b', label='Regularization')
+    plt.title('Training History: Regularization Parameter')
+    plt.xlabel('Iterations')
+    fig.set_size_inches(18, 4, forward=True)
+
     # Save all figures and show all figures
     utils.misc.save_all_figures(full_directory,
                                 axis_equal=True, tight=True,
@@ -437,28 +477,27 @@ def digit_classification(x_train, y_train, images_train,
 
     f = open('%sresults.txt' % full_directory, 'w')
     f.write('There are %d classes for digits: %s\n' % (n_class, str(classes)))
-    f.write('Training on %d images_train\n' % n_train)
-    f.write('Testing on %d images_train\n' % n_test)
-    f.write('Kernel Embedding Hyperparameters: %s' % str(kec_h))
-    f.write('Gaussian Process Hyperparameters: %s' % str(gpc_h))
-    f.write('kec training accuracy: %.9f' % kec_train_accuracy)
-    f.write('svc training accuracy: %.9f' % svc_train_accuracy)
-    f.write('gpc training accuracy: %.9f' % gpc_train_accuracy)
-    f.write('kec test accuracy: %.9f' % kec_test_accuracy)
-    f.write('svc test accuracy: %.9f' % svc_test_accuracy)
-    f.write('gpc test accuracy: %.9f' % gpc_test_accuracy)
-    f.write('kec training log loss: %.9f' % kec_train_log_loss)
-    f.write('svc training log loss: %.9f' % svc_train_los_loss)
-    f.write('gpc training log loss: %.9f' % gpc_train_los_loss)
-    f.write('kec test log loss: %.9f' % kec_test_log_loss)
-    f.write('svc test log loss: %.9f' % svc_test_los_loss)
-    f.write('gpc test log loss: %.9f' % gpc_test_los_loss)
+    f.write('Training on %d images\n' % n_train)
+    f.write('Testing on %d images\n' % n_test)
+    f.write('Kernel Embedding Hyperparameters: %s\n' % str(kec_h))
+    f.write('Gaussian Process Hyperparameters: %s\n' % str(gpc_h))
+    f.write('kec training accuracy: %.9f\n' % kec_train_accuracy)
+    f.write('svc training accuracy: %.9f\n' % svc_train_accuracy)
+    f.write('gpc training accuracy: %.9f\n' % gpc_train_accuracy)
+    f.write('kec test accuracy: %.9f\n' % kec_test_accuracy)
+    f.write('svc test accuracy: %.9f\n' % svc_test_accuracy)
+    f.write('gpc test accuracy: %.9f\n' % gpc_test_accuracy)
+    f.write('kec training log loss: %.9f\n' % kec_train_log_loss)
+    f.write('svc training log loss: %.9f\n' % svc_train_los_loss)
+    f.write('gpc training log loss: %.9f\n' % gpc_train_los_loss)
+    f.write('kec test log loss: %.9f\n' % kec_test_log_loss)
+    f.write('svc test log loss: %.9f\n' % svc_test_los_loss)
+    f.write('gpc test log loss: %.9f\n' % gpc_test_los_loss)
     for i, c in enumerate(classes):
         dist = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
                      'euclidean').min()
         f.write('Euclidean distance from mode to closest training image '
-                'for class %d: %f', (c, dist))
-    f.write()
+                'for class %d: %f\n' % (c, dist))
     f.close()
 
 

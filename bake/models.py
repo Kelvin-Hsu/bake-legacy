@@ -30,7 +30,8 @@ class Classifier():
             h_min=np.array([1e-8, 1e-8, 1e-8]),
             h_max=np.array([np.inf, np.inf, np.inf]),
             h_init=np.array([1.0, 1.0, 1e-6]),
-            verbose=True):
+            verbose=True,
+            save_history=True):
         """
         Fit the kernel embedding classifier.
 
@@ -66,22 +67,35 @@ class Classifier():
         self.zeta = 0 * h_init[-1]
         self.update(self.theta, self.zeta)
 
+        self._f_train = []
+        self._a_train = []
+        self._p_train = []
+        self._h_train = []
+
         def constraint_pred(hypers):
             self.update(hypers[:-1], hypers[-1], training=True)
-            c = self.train_accuracy - 1
-            if verbose:
-                s = 'Training Accuracy: %f || Objective: %f || MSW: %f' \
-                    % (1 + c, self.f, self.p)
-                print('Hyperparameters: ', hypers, s)
-            return c
+            return self.train_accuracy - 1
 
         def constraint_prob(hypers):
             self.update(hypers[:-1], hypers[-1], training=True)
-            return self.p - 1
+            return self.mean_sum_probability - 1
 
         def objective(hypers):
             self.update(hypers[:-1], hypers[-1], training=True)
-            return self.f
+            if verbose:
+                s = 'Training Accuracy: %f || ' \
+                    'Mean Sum of Probabilities: %f || ' \
+                    'Complexity: %f' \
+                    % (self.train_accuracy,
+                       self.mean_sum_probability,
+                       self.complexity)
+                print('Hyperparameters: ', hypers, s)
+            if save_history:
+                self._f_train.append(self.complexity)
+                self._a_train.append(self.train_accuracy)
+                self._p_train.append(self.mean_sum_probability)
+                self._h_train.append(hypers)
+            return self.complexity
 
         if h is None:
 
@@ -94,17 +108,27 @@ class Classifier():
                                        constraints=constraints)
             h = optimal_result.x
             if verbose:
-                print('Training Completed.')
+                print('Training Completed')
+            if save_history:
+                self._f_train = np.array(self._f_train)
+                self._a_train = np.array(self._a_train)
+                self._p_train = np.array(self._p_train)
+                self._h_train = np.array(self._h_train)
+                self._optimal_result = optimal_result
 
-        # c = constraint(h)
-        # f = objective(h)
-        # s = 'Training Accuracy: %f || Objective: %f' % (1 + c, f)
-        # print('Hyperparameters: ', h, s)
+        if verbose:
+            s = 'Training Accuracy: %f || ' \
+                'Mean Sum of Probabilities: %f || ' \
+                'Complexity: %f' \
+                % (self.train_accuracy,
+                   self.mean_sum_probability,
+                   self.complexity)
+            print('Hyperparameters: ', np.append(self.theta, self.zeta), s)
         self.update(h[:-1], h[-1])
 
         return self
 
-    def model_complexity(self):
+    def compute_complexity(self):
         """
         Compute the model complexity of the current classifier.
 
@@ -113,8 +137,8 @@ class Classifier():
         float
             The log of the model complexity
         """
-        f = self.w.diagonal().sum()
-        return np.log(f)
+        complexity = self.w.diagonal().sum()
+        return np.log(complexity)
 
     def update(self, theta, zeta, training=False):
         """
@@ -143,10 +167,10 @@ class Classifier():
         self.k = self.kernel(self.x, self.x, self.theta)
         self.k_reg = self.k + self.n * (self.zeta ** 2) * np.eye(self.n)
         self.w = self.predict_weights(self.x)
-        self.p = self.w.sum(axis=0).mean()
+        self.mean_sum_probability = self.w.sum(axis=0).mean()
         self.y_pred = self.predict(self.x)
         self.train_accuracy = np.mean(self.y_pred == self.y.ravel())
-        self.f = self.model_complexity()
+        self.complexity = self.compute_complexity()
         return self
 
     def predict_weights(self, x_query):
