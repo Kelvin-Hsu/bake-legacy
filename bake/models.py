@@ -74,11 +74,11 @@ class Classifier():
 
         def constraint_pred(hypers):
             self.update(hypers[:-1], hypers[-1], training=True)
-            return self.train_accuracy - 1
+            return self.train_accuracy - 1  # log instead of -1
 
         def constraint_prob(hypers):
             self.update(hypers[:-1], hypers[-1], training=True)
-            return self.mean_sum_probability - 1
+            return self.mean_sum_probability - 1  # log instead of -1
 
         def objective(hypers):
             self.update(hypers[:-1], hypers[-1], training=True)
@@ -167,7 +167,7 @@ class Classifier():
         self.k = self.kernel(self.x, self.x, self.theta)
         self.k_reg = self.k + self.n * (self.zeta ** 2) * np.eye(self.n)
         self.w = self.predict_weights(self.x)
-        self.mean_sum_probability = self.w.sum(axis=0).mean()
+        self.mean_sum_probability = self.w.sum(axis=0).mean()  # prod()
         self.y_pred = self.predict(self.x)
         self.train_accuracy = np.mean(self.y_pred == self.y.ravel())
         self.complexity = self.compute_complexity()

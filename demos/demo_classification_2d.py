@@ -16,8 +16,8 @@ from sklearn.metrics import log_loss
 
 def create_spiral_data():
 
-    np.random.seed(100)
-    n = 200  # number of points per class
+    np.random.seed(0)
+    n = 100  # number of points per class
     d = 2  # dimensionality
     m = 3  # number of classes
     x = np.zeros((n * m, d))
@@ -28,7 +28,10 @@ def create_spiral_data():
         t = np.linspace(j * 4, (j + 1) * 4, n) + np.random.randn(n) * 0.2
         x[ix] = np.c_[r * np.sin(t), r * np.cos(t)]
         y[ix] = j
-    return 2*x, y[:, np.newaxis]
+    x = x - np.min(x, axis=0)
+    x = x / np.max(x, axis=0)
+    # x = (x - x.mean(axis=0)) / x.std(axis=0)
+    return x, y[:, np.newaxis]
 
 
 def true_phenomenon(x):
@@ -64,8 +67,9 @@ def create_patch_data():
 def create_iris_data():
     iris = datasets.load_iris()
     x = iris.data[:, :2]  # we only take the first two features.
-    x = (x - x.mean(axis=0))/x.std(axis=0)
-    x = x / np.abs(x).max(axis=0)
+    x = x - np.min(x, axis=0)
+    x = x / np.max(x, axis=0)
+    # x = (x - x.mean(axis=0))/x.std(axis=0)
     y = iris.target
     return x, y[:, np.newaxis]
 
@@ -73,7 +77,7 @@ def create_iris_data():
 def multiclass_classification(x, y, x_test, y_test):
 
     classes = np.unique(y)
-
+    print('Training Size:', x.shape[0])
     x_1_min, x_1_max = x[:, 0].min() - .1, x[:, 0].max() + .1
     x_2_min, x_2_max = x[:, 1].min() - .1, x[:, 1].max() + .1
     x_1_lim = (x_1_min, x_1_max)
@@ -91,10 +95,10 @@ def multiclass_classification(x, y, x_test, y_test):
     # h_max = np.array([2.0, 2.0, 1.0])
     # h_init = np.array([1.0, 1.0, 0.01])
 
-    kernel = bake.kernels.s_gaussian
-    h_min = np.array([1.0, 1.0, 1e-5])
+    kernel = bake.kernels.gaussian
+    h_min = np.array([0.5, 1.0, 1e-7])
     h_max = np.array([1.0, 20.0, 1])
-    h_init = np.array([1.0, 3.0,  1e-3])
+    h_init = np.array([5.0, 3.0, 1e-6])
     # h = np.array([3.98869985e-01, 3.56441404e+00, -1.73898878e-05])
     # kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
     kec = bake.Classifier(kernel=kernel).fit(x, y,
@@ -206,14 +210,9 @@ def multiclass_classification(x, y, x_test, y_test):
     fig = plt.figure()
     iters = np.arange(kec._h_train.shape[0])
     plt.subplot(2, 1, 1)
-    plt.plot(iters, kec._h_train[:, 0], c='c', label='Sensitivity')
-    plt.plot(iters, kec._h_train[:, 1:-1].mean(axis=1), c='g',
-             label='(Mean) Length Scale')
-    if kec._h_train.shape[1] == 3:
-        kernel_type = 'Isotropic'
-    else:
-        kernel_type = 'Anisotropic'
-    plt.title('Training History: %s Kernel Hyperparameters' % kernel_type)
+    # plt.plot(iters, kec._h_train[:, 0], c='c', label='Sensitivity')
+    plt.plot(iters, kec._h_train[:, -2], c='g', label='Length Scale')
+    plt.title('Training History: Kernel Hyperparameters')
     plt.gca().xaxis.set_ticklabels([])
     leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
                      fancybox=True, shadow=True)
