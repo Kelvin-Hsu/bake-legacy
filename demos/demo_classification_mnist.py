@@ -258,7 +258,7 @@ def digit_classification(x_train, y_train, images_train,
         dist = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
                      'euclidean').min()
         print('Euclidean distance from mode to closest training image '
-              'for class %d: %f || Embedding Value: %f\n'
+              'for class %d: %f || Embedding Value: %f'
               % (c, dist, kec_mu_modes[i]))
 
     # Save the training results for the kernel embedding classifier
@@ -459,6 +459,11 @@ def digit_classification(x_train, y_train, images_train,
     leg.get_frame().set_alpha(0.5)
     fig.set_size_inches(18, 4, forward=True)
 
+    for i in plt.get_fignums():
+        fig = plt.figure(i)
+        plt.gca().set_aspect('equal', adjustable='box')
+        fig.tight_layout()
+
     # Plot the hyperparameter history
     fig = plt.figure()
     iters = np.arange(kec._h_train.shape[0])
@@ -487,7 +492,7 @@ def digit_classification(x_train, y_train, images_train,
 
     # Save all figures and show all figures
     utils.misc.save_all_figures(full_directory,
-                                axis_equal=True, tight=True,
+                                axis_equal=False, tight=False,
                                 extension='eps', rcparams=None)
     plt.close("all")
 
