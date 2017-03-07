@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import numpy as np
 from tensorflow.examples.tutorials.mnist import input_data
+from scipy.spatial.distance import cdist
+
 
 def create_mnist_data(digits=np.arange(10), n_sample=500, sample_before=True):
     """
@@ -156,12 +158,19 @@ def replot(now_string, digits, n_sample=500):
 
     n_class = int(n_class)
 
+    x_train_mode = np.zeros(x_train_mean.shape)
+    for i, c in enumerate(classes):
+        ind = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
+                    'euclidean').ravel().argmin()
+        x_train_mode[i, :] = x_train[y_train.ravel() == c][ind]
+
     # Convert the above into image form
     x_train_mean_images = np.reshape(x_train_mean, (n_class, 28, 28))
     x_train_var_images = np.reshape(x_train_var, (n_class, 28, 28))
     input_expectance_images = np.reshape(input_expectance, (n_class, 28, 28))
     input_variance_images = np.reshape(input_variance, (n_class, 28, 28))
     input_mode_images = np.reshape(input_mode, (n_class, 28, 28))
+    x_train_mode_images = np.reshape(x_train_mode, (n_class, 28, 28))
 
     # Visualise the predictions on the testing set
     prediction_results = list(zip(images_test, y_test,
@@ -282,6 +291,16 @@ def replot(now_string, digits, n_sample=500):
         plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
         plt.title('%d' % classes[index])
     plt.suptitle('Input Modes')
+    fig.set_size_inches(18, 4, forward=True)
+
+    # Show the closest mode
+    fig = plt.figure()
+    for index, image in enumerate(x_train_mode_images):
+        plt.subplot(1, n_class, index + 1)
+        plt.axis('off')
+        plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
+        plt.title('%d' % classes[index])
+    plt.suptitle('Closest Training Image to Modes')
     fig.set_size_inches(18, 4, forward=True)
 
     # If the classifier was anisotropic, show the pixel relevance

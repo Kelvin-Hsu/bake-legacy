@@ -254,6 +254,13 @@ def digit_classification(x_train, y_train, images_train,
     kec_x_modes = kec.x_modes
     kec_mu_modes = kec.mu_modes
 
+    # Determine the nearest training image
+    x_train_mode = np.zeros(x_train_mean.shape)
+    for i, c in enumerate(classes):
+        ind = cdist(input_mode[[i]], x_train[y_train.ravel() == c],
+                    'euclidean').ravel().argmin()
+        x_train_mode[i, :] = x_train[y_train.ravel() == c][ind]
+
     # Determine the distance to the closest training image to check that
     # the mode is not simply a training input
     for i, c in enumerate(classes):
@@ -319,6 +326,7 @@ def digit_classification(x_train, y_train, images_train,
     input_expectance_images = np.reshape(input_expectance, (n_class, 28, 28))
     input_variance_images = np.reshape(input_variance, (n_class, 28, 28))
     input_mode_images = np.reshape(input_mode, (n_class, 28, 28))
+    x_train_mode_images = np.reshape(x_train_mode, (n_class, 28, 28))
 
     # Visualise the predictions on the testing set
     prediction_results = list(zip(images_test, y_test,
@@ -441,6 +449,16 @@ def digit_classification(x_train, y_train, images_train,
     plt.suptitle('Input Modes')
     fig.set_size_inches(18, 4, forward=True)
 
+    # Show the closest mode
+    fig = plt.figure()
+    for index, image in enumerate(x_train_mode_images):
+        plt.subplot(1, n_class, index + 1)
+        plt.axis('off')
+        plt.imshow(image, cmap=plt.cm.gray_r, interpolation='nearest')
+        plt.title('%d' % classes[index])
+    plt.suptitle('Closest Training Image to Modes')
+    fig.set_size_inches(18, 4, forward=True)
+
     # If the classifier was anisotropic, show the pixel relevance
     if kec_h.shape[0] == 28*28 + 2:
         fig = plt.figure()
@@ -538,7 +556,7 @@ def digit_classification(x_train, y_train, images_train,
 
 def main():
     """Runs the digit classification task through different scenarios."""
-    n_sample = 500
+    n_sample = 5000
     digits_list = [np.arange(10),
                    np.array([0, 6]),
                    np.array([0, 8]),
