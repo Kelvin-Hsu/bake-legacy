@@ -32,13 +32,16 @@ def time_module(module, *args, **kwargs):
 
 def save_all_figures(full_directory,
                      axis_equal=True, tight=True,
-                     extension='eps', rcparams=None):
+                     extension='eps', rcparams=None,
+                     verbose=False):
 
     if rcparams is not None:
         plt.rc_context(rcparams)
 
     # Go through each figure and save them
     for i in plt.get_fignums():
+        if verbose:
+            print('Saving figure %d in %s' % (i, full_directory))
         fig = plt.figure(i)
         if axis_equal:
             plt.gca().set_aspect('equal', adjustable='box')
