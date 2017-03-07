@@ -377,7 +377,8 @@ def digit_classification(x_train, y_train, images_train,
         plt.ylabel('Probabilities')
         plt.ylim((0, 1))
         plt.title('Prediction Probabilities')
-        plt.xticks(classes + 1.5 * bar_width, tuple([str(c) for c in classes]))
+        plt.xticks(np.arange(n_class) + 1.5 * bar_width,
+                   tuple([str(c) for c in classes]))
         box = plt.gca().get_position()
         plt.gca().set_position([box.x0, box.y0 + box.height * 0.1,
                                box.width, box.height * 0.9])
@@ -445,6 +446,11 @@ def digit_classification(x_train, y_train, images_train,
         plt.title('Pixel Relevance for Classifying Digits ' + str(classes))
         fig.set_size_inches(8, 8, forward=True)
 
+    for i in plt.get_fignums():
+        fig = plt.figure(i)
+        plt.gca().set_aspect('equal', adjustable='box')
+        fig.tight_layout()
+
     # Plot the objective and constraints history
     fig = plt.figure()
     iters = np.arange(kec._f_train.shape[0])
@@ -458,11 +464,6 @@ def digit_classification(x_train, y_train, images_train,
                      fancybox=True, shadow=True)
     leg.get_frame().set_alpha(0.5)
     fig.set_size_inches(18, 4, forward=True)
-
-    for i in plt.get_fignums():
-        fig = plt.figure(i)
-        plt.gca().set_aspect('equal', adjustable='box')
-        fig.tight_layout()
 
     # Plot the hyperparameter history
     fig = plt.figure()
