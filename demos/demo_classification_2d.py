@@ -16,16 +16,16 @@ from sklearn.metrics import log_loss
 
 def create_spiral_data():
 
-    np.random.seed(0)
-    n = 100  # number of points per class
+    np.random.seed(200)
+    n = 50  # number of points per class
     d = 2  # dimensionality
     m = 3  # number of classes
     x = np.zeros((n * m, d))
     y = np.zeros(n * m, dtype='uint8')
     for j in range(m):
         ix = range(n * j, n * (j + 1))
-        r = np.linspace(0.05, 1.05, n)  # radius
-        t = np.linspace(j * 4, (j + 1) * 4, n) + np.random.randn(n) * 0.2
+        r = np.linspace(0.1, 1.10, n)  # radius
+        t = 1*np.linspace(j * 4, (j + 1) * 4, n) + np.random.randn(n) * 0.2
         x[ix] = np.c_[r * np.sin(t), r * np.cos(t)]
         y[ix] = j
     x = x - np.min(x, axis=0)
@@ -96,9 +96,9 @@ def multiclass_classification(x, y, x_test, y_test):
     # h_init = np.array([1.0, 1.0, 0.01])
 
     kernel = bake.kernels.gaussian
-    h_min = np.array([0.5, 1.0, 1e-7])
-    h_max = np.array([1.0, 20.0, 1])
-    h_init = np.array([5.0, 3.0, 1e-6])
+    h_min = np.array([0.1, 0.1, 1e-8])
+    h_max = np.array([5.0, 20.0, 1])
+    h_init = np.array([1.0, 2.0, 1e-5])
     # h = np.array([3.98869985e-01, 3.56441404e+00, -1.73898878e-05])
     # kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
     kec = bake.Classifier(kernel=kernel).fit(x, y,
@@ -106,7 +106,7 @@ def multiclass_classification(x, y, x_test, y_test):
                                              h_max=h_max,
                                              h_init=h_init)
     svc = SVC(probability=True).fit(x, y)
-    gp_kernel = C() * RBF(length_scale=1.0)
+    gp_kernel = C() * RBF()
     gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x, y)
 
     kec_p_query = kec.predict_proba(x_query)
