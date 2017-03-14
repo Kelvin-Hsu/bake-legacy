@@ -125,15 +125,15 @@ def solve_posdef(A, b, cholthresh=1e-5):
     # Try cholesky for speed
     try:
         lower = True
-        L = cholesky(A, lower=lower, check_finite=False)
+        L = cholesky(A, lower=lower, check_finite=True)
         if np.any(L.diagonal() < cholthresh):
             raise LinAlgError("Unstable cholesky factor detected")
-        X = cho_solve((L, lower), b, check_finite=False)
+        X = cho_solve((L, lower), b, check_finite=True)
         logdet = cho_log_det(L)
 
     # Failed cholesky, use svd to do the inverse
     except LinAlgError:
-
+        print('Error occured for "solve_posdef", using SVD instead')
         U, s, V = svd(A)
         X = svd_solve(U, s, V, b)
         logdet = svd_log_det(s)
