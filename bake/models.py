@@ -1,7 +1,7 @@
 """
 Models Module.
 """
-import autograd.numpy as np
+import numpy as np
 from .infer import expectance as _expectance
 from .infer import variance as _variance
 from .infer import clip_normalize as _clip_normalize

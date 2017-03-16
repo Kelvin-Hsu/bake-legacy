@@ -1,11 +1,11 @@
 """
 Kernel Bayes Rule Module.
 """
-import autograd.numpy as np
+import numpy as np
 from .linalg import solve_posdef as _solve_posdef
 from scipy.linalg import solve as _solve
-from autograd.numpy.linalg import matrix_power as _matrix_power
-from autograd.numpy.linalg import pinv as _pinv
+from numpy.linalg import matrix_power as _matrix_power
+from numpy.linalg import pinv as _pinv
 
 
 def posterior_field_tikhonov(prior_embedding_y, k_xx, k_yy, epsil, delta):

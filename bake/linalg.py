@@ -4,7 +4,7 @@ Linear Algebra Utility Module.
 .. note:: Initially modified from revrand [http://github.com/nicta/revrand]
 """
 
-import autograd.numpy as np
+import numpy as np
 from scipy.linalg import cholesky, cho_solve, svd, LinAlgError
 
 

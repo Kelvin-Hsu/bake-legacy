@@ -1,7 +1,7 @@
 """
 Optimization Module.
 """
-import autograd.numpy as np
+import numpy as np
 from scipy.optimize import minimize
 import logging
 

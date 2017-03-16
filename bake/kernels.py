@@ -3,7 +3,7 @@ Kernel Function Module.
 
 These are the definitions of commonly used characteristic kernels.
 """
-import autograd.numpy as np
+import numpy as np
 from scipy.spatial.distance import cdist
 
 # TO DO: Add the following kernels

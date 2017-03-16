@@ -1,7 +1,7 @@
 """
 Bayesian Learning for Kernel Embeddings Module.
 """
-import autograd.numpy as np
+import numpy as np
 from scipy.spatial.distance import cdist as _cdist
 from .linalg import dist as _dist
 from .linalg import solve_posdef as _solve_posdef
