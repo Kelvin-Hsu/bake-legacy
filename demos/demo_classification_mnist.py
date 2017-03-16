@@ -10,7 +10,6 @@ from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from sklearn.metrics import log_loss
-from tensorflow.examples.tutorials.mnist import input_data
 import os
 from scipy.spatial.distance import cdist
 import datetime
@@ -20,9 +19,76 @@ now_string = '%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
                                     now.hour, now.minute, now.second)
 
 
-def create_mnist_data(digits=np.arange(10), n_sample=500, sample_before=True):
+def create_mnist_data(load_from_tf=False):
     """
-    Load a subset of the mnist dataset.
+    Load the mnist dataset.
+
+    Returns
+    -------
+    numpy.ndarray
+        The training inputs (n_train, 28 * 28)
+    numpy.ndarray
+        The training outputs (n_train, 1)
+    numpy.ndarray
+        The training images (n_train, 28, 28)
+    numpy.ndarray
+        The test inputs (n_test, 28 * 28)
+    numpy.ndarray
+        The test outputs (n_test, 1)
+    numpy.ndarray
+        The test images (n_test, 28, 28)
+    """
+    if load_from_tf:
+        from tensorflow.examples.tutorials.mnist import input_data
+        # Load the MNIST dataset
+        mnist = input_data.read_data_sets("MNIST_data/", one_hot=False)
+
+        # Load the training data
+        x_train = mnist.train.images
+        y_train = mnist.train.labels[:, np.newaxis]
+        n_train, d = x_train.shape
+        images_train = np.reshape(x_train, (n_train, 28, 28))
+
+        # Load the validation data
+        x_valid = mnist.validation.images
+        y_valid = mnist.validation.labels[:, np.newaxis]
+        n_valid, d = x_valid.shape
+        images_valid = np.reshape(x_valid, (n_valid, 28, 28))
+
+        # Add the validation data to the training data
+        x = np.concatenate((x_train, x_valid), axis=0)
+        y = np.concatenate((y_train, y_valid), axis=0)
+        images = np.concatenate((images_train, images_valid), axis=0)
+
+        # Load the testing data
+        x_test = mnist.test.images
+        y_test = mnist.test.labels[:, np.newaxis]
+        n_test, d = x_test.shape
+        images_test = np.reshape(x_test, (n_test, 28, 28))
+
+        np.savez('./MNIST_data/mnist_data.npz',
+                 x=x,
+                 y=y,
+                 images=images,
+                 x_test=x_test,
+                 y_test=y_test,
+                 images_test=images_test)
+    else:
+        file = np.load('./MNIST_data/mnist_data.npz')
+        x = file['x']
+        y = file['y']
+        images = file['images']
+        x_test = file['x_test']
+        y_test = file['y_test']
+        images_test = file['images_test']
+
+    return x, y, images, x_test, y_test, images_test
+
+
+def process_mnist_data(x, y, images, x_test, y_test, images_test,
+                       digits=np.arange(10), n_sample=500, sample_before=True):
+    """
+    Process and load a subset of the mnist dataset.
 
     Parameters
     ----------
@@ -48,32 +114,6 @@ def create_mnist_data(digits=np.arange(10), n_sample=500, sample_before=True):
     numpy.ndarray
         The test images (n_test, 28, 28)
     """
-    # Load the MNIST dataset
-    mnist = input_data.read_data_sets("MNIST_data/", one_hot=False)
-
-    # Load the training data
-    x_train = mnist.train.images
-    y_train = mnist.train.labels[:, np.newaxis]
-    n_train, d = x_train.shape
-    images_train = np.reshape(x_train, (n_train, 28, 28))
-
-    # Load the validation data
-    x_valid = mnist.validation.images
-    y_valid = mnist.validation.labels[:, np.newaxis]
-    n_valid, d = x_valid.shape
-    images_valid = np.reshape(x_valid, (n_valid, 28, 28))
-
-    # Add the validation data to the training data
-    x = np.concatenate((x_train, x_valid), axis=0)
-    y = np.concatenate((y_train, y_valid), axis=0)
-    images = np.concatenate((images_train, images_valid), axis=0)
-
-    # Load the testing data
-    x_test = mnist.test.images
-    y_test = mnist.test.labels[:, np.newaxis]
-    n_test, d = x_test.shape
-    images_test = np.reshape(x_test, (n_test, 28, 28))
-
     # Limit the training set to only the specified number of data points
     if sample_before:
         x = x[:n_sample]
@@ -596,7 +636,9 @@ def main():
                    np.arange(9)]
 
     for digits in digits_list:
-        mnist_data = create_mnist_data(digits=digits, n_sample=n_sample)
+        raw_mnist_data = create_mnist_data(load_from_tf=False)
+        mnist_data = process_mnist_data(*raw_mnist_data,
+                                        digits=digits, n_sample=n_sample)
         utils.misc.time_module(digit_classification, *mnist_data)
 
 
