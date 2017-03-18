@@ -6,7 +6,7 @@
 #PBS -l walltime=00:10:00
 
 # Allocate memory
-#PBS -l select=1:ncpus=1:mem=1gb
+#PBS -l select=1:ncpus=1:mem=10gb
 
 # Use default storage
 #PBS -q defaultQ

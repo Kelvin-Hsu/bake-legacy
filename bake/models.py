@@ -105,6 +105,7 @@ class Classifier():
             c_2 = {'type': 'ineq', 'fun': constraint_prob}
             constraints = (c_1, c_2)
             optimal_result = _minimize(objective, h_init,
+                                       method='COBYLA',
                                        bounds=bounds,
                                        constraints=constraints)
             h = optimal_result.x
@@ -139,22 +140,22 @@ class Classifier():
             The log of the model complexity
         """
         ### FIRST METHOD
-        complexity = self.w.diagonal().sum()
-        return np.log(complexity)
+        # complexity = self.w.diagonal().sum()
+        # return np.log(complexity)
 
-        ### SECOND METHOD
-        # identity = np.eye(self.n)
-        # k_reg_inv = _solve_posdef(self.k_reg, identity)[0]
-        # # k_reg_inv = _pinv(self.k_reg)
-        # # print(np.linalg.det(self.k_reg), np.linalg.det(k_reg_inv), np.linalg.det(self.w))
-        # w = np.dot(k_reg_inv, self.k)
-        # a = np.dot(w, k_reg_inv)
-        # # print(np.linalg.det(a))
-        # b = _kronecker_delta(self.y, self.classes[:, np.newaxis])
-        # complexity_terms = np.array([np.dot(b[:, c], np.dot(a, b[:, c]))
-        #                             for c in self.class_indices])
-        # print('Complexity Terms: ', complexity_terms)
-        # return np.log(np.sum(complexity_terms))
+        ## SECOND METHOD
+        identity = np.eye(self.n)
+        k_reg_inv = _solve_posdef(self.k_reg, identity)[0]
+        # k_reg_inv = _pinv(self.k_reg)
+        # print(np.linalg.det(self.k_reg), np.linalg.det(k_reg_inv), np.linalg.det(self.w))
+        w = np.dot(k_reg_inv, self.k)
+        a = np.dot(w, k_reg_inv)
+        # print(np.linalg.det(a))
+        b = _kronecker_delta(self.y, self.classes[:, np.newaxis])
+        complexity_terms = np.array([np.dot(b[:, c], np.dot(a, b[:, c]))
+                                    for c in self.class_indices])
+        print('Complexity Terms: ', complexity_terms)
+        return np.log(np.sum(complexity_terms))
 
         ### THIRD METHOD
 
