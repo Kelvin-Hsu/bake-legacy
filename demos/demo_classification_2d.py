@@ -96,9 +96,9 @@ def multiclass_classification(x, y, x_test, y_test):
     # h_init = np.array([1.0, 1.0, 0.01])
 
     kernel = bake.kernels.gaussian
-    h_min = np.array([0.1, 0.1, 1e-8])
+    h_min = np.array([0.5, 0.001, 1e-8])
     h_max = np.array([5.0, 20.0, 1])
-    h_init = np.array([1.0, 2.0, 1e-5])
+    h_init = np.array([1.0, 0.1, 1e-5])
     # h = np.array([3.98869985e-01, 3.56441404e+00, -1.73898878e-05])
     # kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
     kec = bake.Classifier(kernel=kernel).fit(x, y,
