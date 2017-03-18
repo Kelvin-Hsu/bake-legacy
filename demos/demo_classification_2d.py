@@ -80,7 +80,25 @@ def create_iris_data():
     return x, y[:, np.newaxis]
 
 
-def search_svc(x, y, x_test, y_test, kernel, hyper_search):
+def search_svc(x, y, kernel, hyper_search, k=5):
+    losses_stack = np.zeros((k, hyper_search.shape[0]))
+    for random_state in range(k):
+        x_train, x_test, y_train, y_test = train_test_split(x, y,
+                                                            test_size=test_size,
+                                                            random_state=0)
+        losses_stack[random_state] = search_svc_test(x_train, y_train,
+                                                     x_test, y_test,
+                                                     kernel, hyper_search,
+                                                     return_loss=True)
+    losses = losses_stack.sum(axis=0)
+    i = np.argmin(losses)
+    print('\tSVC Losses: ', losses)
+    print('\tSVC Lowest Loss: ', losses[i])
+    return hyper_search[i]
+
+
+def search_svc_test(x, y, x_test, y_test, kernel, hyper_search,
+                    return_loss=False):
     print('\tSVC Kernel Parameter Search over %d possibilities'
           % hyper_search.shape[0])
     losses = [log_loss(y_test.ravel(),
@@ -90,7 +108,10 @@ def search_svc(x, y, x_test, y_test, kernel, hyper_search):
     i = np.argmin(losses)
     print('\tSVC Losses: ', losses)
     print('\tSVC Lowest Loss: ', losses[i])
-    return hyper_search[i]
+    if return_loss:
+        return losses
+    else:
+        return hyper_search[i]
 
 
 def multiclass_classification(x, y, x_test, y_test):
@@ -113,28 +134,28 @@ def multiclass_classification(x, y, x_test, y_test):
     x_1_mesh, x_2_mesh = np.meshgrid(x_1_array, x_2_array)
     x_query = np.array([x_1_mesh.ravel(), x_2_mesh.ravel()]).T
 
-    # kernel = bake.kernels.s_gaussian
-    # h_min = np.array([0.2, 0.25, 0.001])
-    # h_max = np.array([2.0, 2.0, 1.0])
-    # h_init = np.array([1.0, 1.0, 0.01])
-
+    # Specify the kernel and kernel parameter setup
     kernel = bake.kernels.s_matern3on2
-    h_min = np.array([0.5, 0.5, 1e-7])
-    h_max = np.array([10.0, 20.0, 1])
+    h_min = np.array([0.1, 0.1, 1e-8])
+    h_max = np.array([10.0, 10.0, 1])
     h_init = np.array([1.0, 1.0, 1e-4])
-    # h = np.array([3.98869985e-01, 3.56441404e+00, -1.73898878e-05])
-    # kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
+
+    # Train the KEC
     kec = bake.Classifier(kernel=kernel).fit(x, y,
                                              h_min=h_min,
                                              h_max=h_max,
                                              h_init=h_init)
+
+    # Train the SVC
     svc_hyper_search = np.array([[s, l]
                                  for s in np.linspace(h_min[0], h_max[0], 50)
                                  for l in np.linspace(h_min[1], h_max[1], 50)])
-    svc_hyper = search_svc(x, y, x_test, y_test, kernel, svc_hyper_search)
+    svc_hyper = search_svc(x, y, kernel, svc_hyper_search)
     print('SVC Kernel Hyperparameters: ', svc_hyper)
     svc = SVC(kernel=lambda x1, x2: kernel(x1, x2, svc_hyper),
               probability=True).fit(x, y)
+
+    # Train the GPC
     gp_kernel = C() * Matern()
     gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x, y)
 
