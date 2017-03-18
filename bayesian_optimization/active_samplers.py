@@ -6,7 +6,7 @@ Active sampler classes for Bayesian optimization.
 For utility and benchmarking purposes, each active sampler class must
 follow the form specified by the class '__EMPTY_TEMPLATE__' no matter what.
 """
-import autograd.numpy as np
+import numpy as np
 from scipy.linalg import cholesky, cho_solve
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.utils.validation import check_X_y, check_is_fitted

@@ -3,7 +3,7 @@ Acquisition Functions Module.
 
 A collection of useful acquisition functions.
 """
-import autograd.numpy as np
+import numpy as np
 from scipy.stats import norm
 
 
