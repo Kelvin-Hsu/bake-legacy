@@ -189,6 +189,15 @@ def digit_classification(x_train, y_train, images_train,
     os.mkdir(full_directory)
     print('Results will be saved in "%s"' % full_directory)
 
+    # Save the training and test data
+    np.savez('%strain_test_data.npz' % full_directory,
+             x_train=x_train,
+             y_train=y_train,
+             images_train=images_train,
+             x_test=x_test,
+             y_test=y_test,
+             images_test=images_test)
+
     # Specify the kernel used for the classifier
     kec_kernel = bake.kernels.s_gaussian
 
@@ -596,8 +605,9 @@ def digit_classification(x_train, y_train, images_train,
 
 def main():
     """Runs the digit classification task through different scenarios."""
-    n_sample = 500
-    digits_list = [np.arange(10),
+    n_sample = 60000
+    digits_list = [np.array([1, 4, 9]),
+                   np.arange(10),
                    np.array([0, 6]),
                    np.array([0, 8]),
                    np.array([1, 7]),
@@ -625,15 +635,7 @@ def main():
                    np.array([3, 5, 6, 8]),
                    np.array([4, 5, 7, 9]),
                    np.array([5, 6, 8, 9]),
-                   np.array([6, 7, 8, 9]),
-                   np.arange(2),
-                   np.arange(3),
-                   np.arange(4),
-                   np.arange(5),
-                   np.arange(6),
-                   np.arange(7),
-                   np.arange(8),
-                   np.arange(9)]
+                   np.array([6, 7, 8, 9])]
 
     for digits in digits_list:
         raw_mnist_data = create_mnist_data(load_from_tf=False)
