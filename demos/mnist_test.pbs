@@ -1,0 +1,37 @@
+#!/bin/bash
+# Name the experiment
+#PBS -N T_10000_C_2
+
+# Determine the walltime
+#PBS -l walltime=72:00:
+
+# Allocate memory
+#PBS -l select=1:ncpus=1:mem=500gb:vmem=500gb
+
+# Use default storage
+#PBS -q defaultQ
+
+# Store standard error and output to same file
+#PBS -j oe
+
+# Provide my email
+#PBS -M kelvin.hsu@sydney.edu.au
+
+# Send email when job aborts, begins and ends
+#PBS -m abe
+
+# Provide the HPC directory assigned for this experiment
+#PBS -P KEC
+
+# Go to the directory where this file is
+cd $PBS_O_WORKDIR
+
+# Load python 3.5.1 and required packages
+module load python/3.5.1
+module load tensorflow
+
+# Run the experiment
+python demo_classification_mnist.py
+
+# Notes:
+# To connect to the HPC service using FileZilla, use this address: sftp://hpc.sydney.edu.au
