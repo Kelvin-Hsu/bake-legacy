@@ -12,11 +12,17 @@ from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as C
 from sklearn.model_selection import train_test_split
 from sklearn import datasets
 from sklearn.metrics import log_loss
+import datetime
+import os
+
+now = datetime.datetime.now()
+now_string = '%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
+                                    now.hour, now.minute, now.second)
 
 
 def create_spiral_data():
 
-    np.random.seed(200)
+    np.random.seed(0)
     n = 50  # number of points per class
     d = 2  # dimensionality
     m = 3  # number of classes
@@ -74,7 +80,24 @@ def create_iris_data():
     return x, y[:, np.newaxis]
 
 
+def search_svc(x, y, x_test, y_test, kernel, hyper_search):
+    print('\tSVC Kernel Parameter Search over %d possibilities'
+          % hyper_search.shape[0])
+    losses = [log_loss(y_test.ravel(),
+                       SVC(kernel=lambda x1, x2: kernel(x1, x2, hyper),
+                           probability=True).fit(x, y).predict_proba(x_test))
+              for hyper in hyper_search]
+    i = np.argmin(losses)
+    print('\tSVC Losses: ', losses)
+    print('\tSVC Lowest Loss: ', losses[i])
+    return hyper_search[i]
+
+
 def multiclass_classification(x, y, x_test, y_test):
+
+    full_directory = './toy_%s/' % now_string
+    os.mkdir(full_directory)
+    print('Results will be saved in "%s"' % full_directory)
 
     classes = np.unique(y)
     print('Training Size:', x.shape[0])
@@ -95,18 +118,24 @@ def multiclass_classification(x, y, x_test, y_test):
     # h_max = np.array([2.0, 2.0, 1.0])
     # h_init = np.array([1.0, 1.0, 0.01])
 
-    kernel = bake.kernels.gaussian
-    h_min = np.array([0.5, 0.001, 1e-8])
-    h_max = np.array([5.0, 20.0, 1])
-    h_init = np.array([1.0, 0.1, 1e-5])
+    kernel = bake.kernels.s_matern3on2
+    h_min = np.array([0.5, 0.5, 1e-7])
+    h_max = np.array([10.0, 20.0, 1])
+    h_init = np.array([1.0, 1.0, 1e-4])
     # h = np.array([3.98869985e-01, 3.56441404e+00, -1.73898878e-05])
     # kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
     kec = bake.Classifier(kernel=kernel).fit(x, y,
                                              h_min=h_min,
                                              h_max=h_max,
                                              h_init=h_init)
-    svc = SVC(probability=True).fit(x, y)
-    gp_kernel = C() * RBF()
+    svc_hyper_search = np.array([[s, l]
+                                 for s in np.linspace(h_min[0], h_max[0], 50)
+                                 for l in np.linspace(h_min[1], h_max[1], 50)])
+    svc_hyper = search_svc(x, y, x_test, y_test, kernel, svc_hyper_search)
+    print('SVC Kernel Hyperparameters: ', svc_hyper)
+    svc = SVC(kernel=lambda x1, x2: kernel(x1, x2, svc_hyper),
+              probability=True).fit(x, y)
+    gp_kernel = C() * Matern()
     gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x, y)
 
     kec_p_query = kec.predict_proba(x_query)
@@ -180,7 +209,7 @@ def multiclass_classification(x, y, x_test, y_test):
     print('gpc test log loss: %.9f' % log_loss(y_test.ravel(), gpc_p_test))
 
     y_query = classes[:, np.newaxis]
-    reverse_embedding = kec.reverse_embedding(y_query, x_query) # (n_query ** 2, 3)
+    reverse_embedding = kec.reverse_embedding(y_query, x_query)
     i_qrep = reverse_embedding.argmax(axis=0)
     x_qrep = x_query[i_qrep]
     y_qrep = kec.predict(x_qrep)
@@ -236,7 +265,7 @@ def multiclass_classification(x, y, x_test, y_test):
         # plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cm.jet, label='Training Data')
         # plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, marker='x',
         #             cmap=cm.jet, label='Test Data')
-        plt.scatter(x[:, 0], x[:, 1], c=reverse_weights[:, c],
+        plt.scatter(x[:, 0], x[:, 1], c=reverse_weights[:, c], s=40,
                     cmap=cm.coolwarm, label='Embedding Weights')
         plt.scatter(x_rep[c, 0], x_rep[c, 1], c=y_rep[c], marker='x', s=40,
                     cmap=cm.jet, label='Representative Sample')
@@ -250,11 +279,10 @@ def multiclass_classification(x, y, x_test, y_test):
                    fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
         plt.title('Reverse Embedding for class %d' % c)
 
-    #
-    # full_directory = './'
-    # utils.misc.save_all_figures(full_directory,
-    #                             axis_equal=True, tight=True,
-    #                             extension='eps', rcparams=None)
+    # Save all figures and show all figures
+    utils.misc.save_all_figures(full_directory,
+                                axis_equal=False, tight=False,
+                                extension='eps', rcparams=None)
 
 
 def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
@@ -269,8 +297,9 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
         plt.pcolormesh(x_1_mesh, x_2_mesh, y_mesh, label='Predictions')
         plt.contour(x_1_mesh, x_2_mesh, y_mesh, colors='k',
                     label='Decision Boundaries')
-        plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cm.jet, label='Training Data')
-        plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, marker='x',
+        plt.scatter(x[:, 0], x[:, 1], c=y,  s=40, cmap=cm.jet,
+                    label='Training Data')
+        plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, marker='D', s=40,
                     cmap=cm.jet, label='Test Data')
         plt.colorbar()
         plt.xlim(x_1_lim)
@@ -289,8 +318,9 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
         plt.colorbar()
         plt.contour(x_1_mesh, x_2_mesh, y_mesh, colors='k',
                    label='Decision Boundaries')
-        plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cm.jet, label='Training Data')
-        plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, marker='x',
+        plt.scatter(x[:, 0], x[:, 1], c=y,  s=40, cmap=cm.jet,
+                    label='Training Data')
+        plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, marker='D', s=40,
                     cmap=cm.jet, label='Test Data')
         plt.xlim(x_1_lim)
         plt.ylim(x_2_lim)
@@ -307,9 +337,10 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
         plt.colorbar()
         plt.contour(x_1_mesh, x_2_mesh, y_mesh, colors='k',
                    label='Decision Boundaries')
-        plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cm.jet, label='Training Data')
-        plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, marker='x', cmap=cm.jet,
-                    label='Test Data')
+        plt.scatter(x[:, 0], x[:, 1], c=y, s=40, cmap=cm.jet,
+                    label='Training Data')
+        plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, marker='D', s=40,
+                    cmap=cm.jet, label='Test Data')
         plt.xlim(x_1_lim)
         plt.ylim(x_2_lim)
         plt.xlabel('$x_{1}$')
@@ -327,12 +358,16 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
 
             plt.figure()
             Z = np.reshape(p, (n_query, n_query, n_classes))[:, :, ::-1]
-            plt.imshow(Z, extent=(x_1_lim[0], x_1_lim[1], x_2_lim[0], x_2_lim[1]), origin="lower")
-            plt.contour(x_1_mesh, x_2_mesh, y_mesh, colors='k', label='Decision Boundaries')
-            plt.scatter(x[:, 0], x[:, 1], c=np.array(["b", "g", "r"])[y.ravel()], label='Training Data')
+            plt.imshow(Z, extent=(x_1_lim[0], x_1_lim[1],
+                                  x_2_lim[0], x_2_lim[1]), origin="lower")
+            plt.contour(x_1_mesh, x_2_mesh, y_mesh, colors='k',
+                        label='Decision Boundaries')
+            plt.scatter(x[:, 0], x[:, 1],
+                        c=np.array(["b", "g", "r"])[y.ravel()],
+                        s=40, label='Training Data')
             plt.scatter(x_test[:, 0], x_test[:, 1],
-                        c=np.array(["b", "g", "r"])[y_test.ravel()], marker='x',
-                        cmap=cm.jet, label='Test Data')
+                        c=np.array(["b", "g", "r"])[y_test.ravel()],
+                        marker='D', s=40, cmap=cm.jet, label='Test Data')
             plt.xlim(x_1_lim)
             plt.ylim(x_2_lim)
             plt.xlabel('$x_{1}$')
@@ -353,24 +388,23 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
                 plt.colorbar()
                 plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cm.jet,
                             label='Training Data')
-                plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, cmap=cm.jet,
-                            marker='x', label='Test Data')
+                plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, s=40,
+                            cmap=cm.jet, marker='D', label='Test Data')
                 plt.xlim(x_1_lim)
                 plt.ylim(x_2_lim)
                 plt.xlabel('$x_{1}$')
                 plt.ylabel('$x_{2}$')
-                plt.legend(loc='lower left', bbox_to_anchor=(0, 0),
-                           fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
+                plt.legend(loc='lower left', bbox_to_anchor=(0, 0), fontsize=8,
+                           fancybox=True).get_frame().set_alpha(0.5)
                 plt.title('%s: Probability for Class %d' % (name, c))
 
 if __name__ == "__main__":
 
     x, y = create_spiral_data()
-    test_size = 0.25
+    test_size = 0.5
     x_train, x_test, y_train, y_test = train_test_split(x, y,
                                                         test_size=test_size,
                                                         random_state=0)
     utils.misc.time_module(multiclass_classification,
                            x_train, y_train, x_test, y_test)
     print('Percentage of data withheld for testing: %f%%' % (100 * test_size))
-    plt.show()
