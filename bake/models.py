@@ -104,10 +104,13 @@ class Classifier():
             c_1 = {'type': 'ineq', 'fun': constraint_pred}
             c_2 = {'type': 'ineq', 'fun': constraint_prob}
             constraints = (c_1, c_2)
+            options = {'maxiter': 5000,
+                       'disp': True}
             optimal_result = _minimize(objective, h_init,
                                        method='COBYLA',
                                        bounds=bounds,
-                                       constraints=constraints)
+                                       constraints=constraints,
+                                       options=options)
             h = optimal_result.x
             if verbose:
                 print('Training Completed')
