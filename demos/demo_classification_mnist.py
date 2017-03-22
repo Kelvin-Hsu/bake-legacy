@@ -114,6 +114,10 @@ def process_mnist_data(x, y, images, x_test, y_test, images_test,
     numpy.ndarray
         The test images (n_test, 28, 28)
     """
+    # If all the training dataset is to be used
+    if n_sample == 0:
+        return x, y, images, x_test, y_test, images_test
+
     # Limit the training set to only the specified number of data points
     if sample_before:
         x = x[:n_sample]
@@ -605,37 +609,9 @@ def digit_classification(x_train, y_train, images_train,
 
 def main():
     """Runs the digit classification task through different scenarios."""
-    n_sample = 3000
+    n_sample = 0
     digits_list = [np.array([1, 4, 9]),
-                   np.arange(10),
-                   np.array([0, 6]),
-                   np.array([0, 8]),
-                   np.array([1, 7]),
-                   np.array([2, 3]),
-                   np.array([3, 5]),
-                   np.array([3, 8]),
-                   np.array([4, 7]),
-                   np.array([4, 9]),
-                   np.array([5, 6]),
-                   np.array([6, 8]),
-                   np.array([6, 9]),
-                   np.array([7, 9]),
-                   np.array([8, 9]),
-                   np.array([0, 6, 8]),
-                   np.array([1, 4, 7]),
-                   np.array([2, 3, 5]),
-                   np.array([3, 5, 8]),
-                   np.array([4, 7, 9]),
-                   np.array([5, 6, 8]),
-                   np.array([6, 8, 9]),
-                   np.array([7, 8, 9]),
-                   np.array([0, 6, 8, 9]),
-                   np.array([1, 4, 7, 9]),
-                   np.array([2, 3, 5, 6]),
-                   np.array([3, 5, 6, 8]),
-                   np.array([4, 5, 7, 9]),
-                   np.array([5, 6, 8, 9]),
-                   np.array([6, 7, 8, 9])]
+                   np.arange(10)]
 
     for digits in digits_list:
         raw_mnist_data = create_mnist_data(load_from_tf=False)
