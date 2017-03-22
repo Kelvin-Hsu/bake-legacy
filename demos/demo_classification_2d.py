@@ -144,7 +144,8 @@ def multiclass_classification(x, y, x_test, y_test):
     kec = bake.Classifier(kernel=kernel).fit(x, y,
                                              h_min=h_min,
                                              h_max=h_max,
-                                             h_init=h_init)
+                                             h_init=h_init,
+                                             directory=full_directory)
 
     # Train the SVC
     svc_hyper_search = np.array([[s, l]

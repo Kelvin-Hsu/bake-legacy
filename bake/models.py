@@ -10,7 +10,7 @@ from .kernels import s_gaussian as _s_gaussian
 from .kernels import kronecker_delta as _kronecker_delta
 from .linalg import solve_posdef as _solve_posdef
 from scipy.optimize import minimize as _minimize
-from scipy.linalg import pinv as _pinv
+import datetime
 
 
 class Classifier():
@@ -32,7 +32,8 @@ class Classifier():
             h_max=np.array([np.inf, np.inf, np.inf]),
             h_init=np.array([1.0, 1.0, 1e-6]),
             verbose=True,
-            save_history=True):
+            save_history=True,
+            directory=None):
         """
         Fit the kernel embedding classifier.
 
@@ -73,6 +74,12 @@ class Classifier():
         self._p_train = []
         self._h_train = []
 
+        self.__minute_output__ = True if directory is not None else False
+
+        if self.__minute_output__:
+            self.__minute__ = -1
+            verbose = True
+
         def constraint_pred(hypers):
             self.update(hypers[:-1], hypers[-1], training=True)
             return self.train_accuracy - 1  # log instead of -1
@@ -90,12 +97,29 @@ class Classifier():
                     % (self.train_accuracy,
                        self.mean_sum_probability,
                        self.complexity)
-                print('Hyperparameters: ', hypers, s)
+                string = 'Hyperparameters: %s %s' % (np.array_str(hypers), s)
+                print(string)
             if save_history:
                 self._f_train.append(self.complexity)
                 self._a_train.append(self.train_accuracy)
                 self._p_train.append(self.mean_sum_probability)
                 self._h_train.append(hypers)
+                if self.__minute_output__:
+                    now = datetime.datetime.now()
+                    if now.minute != self.__minute__:
+                        self.__minute__ = now.minute
+                        now_string = '%s_%s_%s_%s_%s_%s' % (
+                            now.year, now.month, now.day,
+                            now.hour, now.minute, now.second)
+                        filename = '%s%s_minute_output.txt' % \
+                                   (directory, now_string)
+                        f = open(filename, 'w')
+                        f.write('Time: %s\n' % now_string)
+                        f.write('Iterations: %d\n' % len(self._f_train))
+                        f.write('%s\n' % string)
+                        f.close()
+                        print('Minute output saved in "%s"' % filename)
+
             return self.complexity
 
         if h is None:

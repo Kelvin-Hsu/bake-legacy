@@ -222,7 +222,8 @@ def digit_classification(x_train, y_train, images_train,
     kec = bake.Classifier(kernel=kec_kernel).fit(x_train, y_train,
                                                  h_min=h_min,
                                                  h_max=h_max,
-                                                 h_init=h_init)
+                                                 h_init=h_init,
+                                                 directory=full_directory)
     kec_h = np.append(kec.theta, kec.zeta)
     kec_f_train = kec._f_train
     kec_a_train = kec._a_train
