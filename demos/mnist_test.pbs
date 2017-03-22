@@ -30,6 +30,9 @@ cd $PBS_O_WORKDIR
 module load python/3.5.1
 module load tensorflow
 
+# Add the repository "bake" to the PYTHONPATH for this environment
+export PYTHONPATH="${PYTHONPATH}:/home/kelvin/Dropbox/GitHub/bake"
+
 # Run the experiment
 python demo_classification_mnist.py
 
