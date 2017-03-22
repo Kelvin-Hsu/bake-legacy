@@ -261,14 +261,14 @@ def multiclass_classification(x, y, x_test, y_test):
     iters = np.arange(kec._h_train.shape[0])
     plt.subplot(2, 1, 1)
     # plt.plot(iters, kec._h_train[:, 0], c='c', label='Sensitivity')
-    plt.plot(iters, kec._h_train[:, -2], c='g', label='Length Scale')
+    plt.plot(iters, np.abs(kec._h_train[:, -2]), c='g', label='Length Scale')
     plt.title('Training History: Kernel Hyperparameters')
     plt.gca().xaxis.set_ticklabels([])
     leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
                      fancybox=True, shadow=True)
     leg.get_frame().set_alpha(0.5)
     plt.subplot(2, 1, 2)
-    plt.plot(iters, np.log10(kec._h_train[:, -1]), c='b',
+    plt.plot(iters, np.log10(np.abs(kec._h_train[:, -1])), c='b',
              label='Regularization (Scale: $\log_{10}$)')
     plt.title('Training History: Regularization Parameter')
     plt.xlabel('Iterations')
