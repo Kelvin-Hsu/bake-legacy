@@ -5,6 +5,8 @@ These are the definitions of commonly used characteristic kernels.
 """
 import numpy as np
 from scipy.spatial.distance import cdist
+from scipy.stats import logistic
+
 
 # TO DO: Add the following kernels
 #   Rational Quadratic Kernel
@@ -137,5 +139,32 @@ def kronecker_delta(x_p, x_q, *args):
     """
     if x_q is None:
         return np.ones(x_p.shape[0])
-    # return (cdist(x_q, x_q, 'sqeuclidean') < 1e-8).astype(float)
     return (cdist(x_p, x_q, 'sqeuclidean') == 0).astype(float)
+
+
+def logistic_kronecker_delta(x_p, x_q, theta):
+    """
+    Defines the logistic Kronecker delta kernel.
+
+    The logistic Kronecker delta does not need any hyperparameters. Passing
+    hyperparameter arguments do not change the kernel behaviour.
+
+    Parameters
+    ----------
+    x_p : numpy.ndarray
+        A collection of data (n_p x m) [2D Array]
+    x_q : numpy.ndarray
+        A collection of data (n_q x m) [2D Array]
+    theta : numpy.ndarray
+        Hyperparameters that parametrises the kernel [1D Array]
+
+    Returns
+    -------
+    numpy.ndarray
+        The corresponding gram matrix if "x_q" is given (n_p x n_q)
+        The diagonal of the gram matrix if "x_q" is given as "None" (n_p)
+    """
+    if x_q is None:
+        return np.ones(x_p.shape[0])
+    s = np.array([1 / (1 + np.exp(theta)), 1]).ravel()
+    return s[(cdist(x_p, x_q) == 0).astype(int)].astype(float)
