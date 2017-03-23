@@ -169,22 +169,22 @@ class Classifier():
             The log of the model complexity
         """
         ## FIRST METHOD
-        # complexity = np.trace(self.w)
-        # return np.log(complexity)
+        complexity = np.trace(self.w)
+        return np.log(complexity)
 
         ## SECOND METHOD
-        identity = np.eye(self.n)
-        k_reg_inv = _solve_posdef(self.k_reg, identity)[0]
-        # k_reg_inv = _pinv(self.k_reg)
-        # print(np.linalg.det(self.k_reg), np.linalg.det(k_reg_inv), np.linalg.det(self.w))
-        w = np.dot(k_reg_inv, self.k)
-        a = np.dot(w, k_reg_inv)
-        # print(np.linalg.det(a))
-        b = self.output_kernel(self.y, self.classes[:, np.newaxis], self.psi)
-        complexity_terms = np.array([np.dot(b[:, c], np.dot(a, b[:, c]))
-                                    for c in self.class_indices])
-        print('Complexity Terms: ', complexity_terms)
-        return np.log(np.sum(complexity_terms))
+        # identity = np.eye(self.n)
+        # k_reg_inv = _solve_posdef(self.k_reg, identity)[0]
+        # # k_reg_inv = _pinv(self.k_reg)
+        # # print(np.linalg.det(self.k_reg), np.linalg.det(k_reg_inv), np.linalg.det(self.w))
+        # w = np.dot(k_reg_inv, self.k)
+        # a = np.dot(w, k_reg_inv)
+        # # print(np.linalg.det(a))
+        # b = self.output_kernel(self.y, self.classes[:, np.newaxis], self.psi)
+        # complexity_terms = np.array([np.dot(b[:, c], np.dot(a, b[:, c]))
+        #                             for c in self.class_indices])
+        # print('Complexity Terms: ', complexity_terms)
+        # return np.log(np.sum(complexity_terms))
 
         ### THIRD METHOD
 
