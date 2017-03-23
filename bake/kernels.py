@@ -142,6 +142,34 @@ def kronecker_delta(x_p, x_q, *args):
     return (cdist(x_p, x_q, 'sqeuclidean') == 0).astype(float)
 
 
+def general_kronecker_delta(x_p, x_q, theta):
+    """
+    Defines the general Kronecker delta kernel.
+
+    The general Kronecker delta does not need any hyperparameters. Passing
+    hyperparameter arguments do not change the kernel behaviour.
+
+    Parameters
+    ----------
+    x_p : numpy.ndarray
+        A collection of data (n_p x m) [2D Array]
+    x_q : numpy.ndarray
+        A collection of data (n_q x m) [2D Array]
+    theta : numpy.ndarray
+        Hyperparameters that parametrises the kernel [1D Array]
+
+    Returns
+    -------
+    numpy.ndarray
+        The corresponding gram matrix if "x_q" is given (n_p x n_q)
+        The diagonal of the gram matrix if "x_q" is given as "None" (n_p)
+    """
+    if x_q is None:
+        return np.ones(x_p.shape[0])
+    s = np.array([theta, 1]).ravel()
+    return s[(cdist(x_p, x_q) == 0).astype(int)].astype(float)
+
+
 def logistic_kronecker_delta(x_p, x_q, theta):
     """
     Defines the logistic Kronecker delta kernel.
