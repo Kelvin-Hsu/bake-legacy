@@ -8,6 +8,7 @@ from .infer import clip_normalize as _clip_normalize
 from .infer import classify as _classify
 from .kernels import s_gaussian as _s_gaussian
 from .kernels import kronecker_delta as _kronecker_delta
+from .kernels import general_kronecker_delta as _general_delta
 from .linalg import solve_posdef as _solve_posdef
 from scipy.optimize import minimize as _minimize
 import datetime
@@ -15,7 +16,7 @@ import datetime
 
 class Classifier():
 
-    def __init__(self, kernel=_s_gaussian):
+    def __init__(self, kernel=_s_gaussian, output_kernel=_general_delta):
         """
         Initialize the classifier.
 
@@ -25,6 +26,8 @@ class Classifier():
             A kernel function
         """
         self.kernel = kernel
+        self.output_kernel = output_kernel
+        self.psi = 0
 
     def fit(self, x, y,
             h=None,
@@ -167,22 +170,22 @@ class Classifier():
             The log of the model complexity
         """
         ### FIRST METHOD
-        # complexity = np.trace(self.w)
-        # return np.log(complexity)
+        complexity = np.trace(self.w)
+        return np.log(complexity)
 
         ## SECOND METHOD
-        identity = np.eye(self.n)
-        k_reg_inv = _solve_posdef(self.k_reg, identity)[0]
-        # k_reg_inv = _pinv(self.k_reg)
-        # print(np.linalg.det(self.k_reg), np.linalg.det(k_reg_inv), np.linalg.det(self.w))
-        w = np.dot(k_reg_inv, self.k)
-        a = np.dot(w, k_reg_inv)
-        # print(np.linalg.det(a))
-        b = _kronecker_delta(self.y, self.classes[:, np.newaxis])
-        complexity_terms = np.array([np.dot(b[:, c], np.dot(a, b[:, c]))
-                                    for c in self.class_indices])
-        print('Complexity Terms: ', complexity_terms)
-        return np.log(np.sum(complexity_terms))
+        # identity = np.eye(self.n)
+        # k_reg_inv = _solve_posdef(self.k_reg, identity)[0]
+        # # k_reg_inv = _pinv(self.k_reg)
+        # # print(np.linalg.det(self.k_reg), np.linalg.det(k_reg_inv), np.linalg.det(self.w))
+        # w = np.dot(k_reg_inv, self.k)
+        # a = np.dot(w, k_reg_inv)
+        # # print(np.linalg.det(a))
+        # b = self.output_kernel(self.y, self.classes[:, np.newaxis], self.psi)
+        # complexity_terms = np.array([np.dot(b[:, c], np.dot(a, b[:, c]))
+        #                             for c in self.class_indices])
+        # print('Complexity Terms: ', complexity_terms)
+        # return np.log(np.sum(complexity_terms))
 
         ### THIRD METHOD
 
@@ -204,7 +207,7 @@ class Classifier():
             The updated classifier
         """
         if not training:
-            self.l = _kronecker_delta(self.y, self.y)
+            self.l = self.output_kernel(self.y, self.y, self.psi)
             self.l_reg = self.l + self.n * (self.zeta ** 2) * np.eye(self.n)
         if np.allclose(theta, self.theta, 1e-300) \
                 and np.allclose(zeta, self.zeta, 1e-300):
@@ -313,7 +316,7 @@ class Classifier():
         numpy.ndarray
             The weights for the reverse embedding (n, n_query)
         """
-        l_query = _kronecker_delta(self.y, y_query)
+        l_query = self.output_kernel(self.y, y_query, self.psi)
         v_query = _solve_posdef(self.l_reg, l_query)[0]
         return v_query
 
