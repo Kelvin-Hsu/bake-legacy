@@ -610,7 +610,7 @@ def digit_classification(x_train, y_train, images_train,
 
 def main():
     """Runs the digit classification task through different scenarios."""
-    n_sample = 10000
+    n_sample = 0
     digits_list = [np.array([1, 4, 9]),
                    np.arange(10)]
 
