@@ -134,7 +134,6 @@ class Classifier():
             options = {'maxiter': 5000,
                        'disp': True}
             optimal_result = _minimize(objective, h_init,
-                                       method='COBYLA',
                                        bounds=bounds,
                                        constraints=constraints,
                                        options=options)
