@@ -1,12 +1,12 @@
 #!/bin/bash
 # Name the experiment
-#PBS -N O_60k_C_1
+#PBS -N O_500_C_3
 
-# Determine the walltime (10 Days)
-#PBS -l walltime=240:00:00
+# Determine the walltime (2 Days)
+#PBS -l walltime=48:00:00
 
 # Allocate memory
-#PBS -l select=1:ncpus=1:mem=2000gb:vmem=1000gb
+#PBS -l select=1:ncpus=1:mem=50gb:vmem=50gb
 
 # Use default storage
 #PBS -q defaultQ

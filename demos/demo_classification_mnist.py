@@ -8,7 +8,7 @@ from matplotlib import gridspec
 import numpy as np
 from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as C
 from sklearn.metrics import log_loss
 import os
 from scipy.spatial.distance import cdist
@@ -148,6 +148,40 @@ def process_mnist_data(x, y, images, x_test, y_test, images_test,
     return x, y, images, x_test, y_test, images_test
 
 
+def search_svc(x, y, kernel, hyper_search, k=5):
+    losses_stack = np.zeros((k, hyper_search.shape[0]))
+    for random_state in range(k):
+        x_train, x_test, y_train, y_test = train_test_split(x, y,
+                                                            test_size=test_size,
+                                                            random_state=0)
+        losses_stack[random_state] = search_svc_test(x_train, y_train,
+                                                     x_test, y_test,
+                                                     kernel, hyper_search,
+                                                     return_loss=True)
+    losses = losses_stack.sum(axis=0)
+    i = np.argmin(losses)
+    print('\tSVC Losses: ', losses)
+    print('\tSVC Lowest Loss: ', losses[i])
+    return hyper_search[i]
+
+
+def search_svc_test(x, y, x_test, y_test, kernel, hyper_search,
+                    return_loss=False):
+    print('\tSVC Kernel Parameter Search over %d possibilities'
+          % hyper_search.shape[0])
+    losses = [log_loss(y_test.ravel(),
+                       SVC(kernel=lambda x1, x2: kernel(x1, x2, hyper),
+                           probability=True).fit(x, y).predict_proba(x_test))
+              for hyper in hyper_search]
+    i = np.argmin(losses)
+    print('\tSVC Losses: ', losses)
+    print('\tSVC Lowest Loss: ', losses[i])
+    if return_loss:
+        return losses
+    else:
+        return hyper_search[i]
+
+
 def digit_classification(x_train, y_train, images_train,
                          x_test, y_test, images_test):
     """
@@ -234,11 +268,19 @@ def digit_classification(x_train, y_train, images_train,
     print('KEC Training Finished')
 
     # Train the support vector classifier
-    svc = SVC(probability=True).fit(x_train, y_train)
+    # Train the SVC
+    svc_hyper_search = np.array([[s, l]
+                                 for s in np.linspace(h_min[0], h_max[0], 50)
+                                 for l in np.linspace(h_min[1], h_max[1], 50)])
+    svc_hyper = search_svc(x_train, y_train, kec_kernel, svc_hyper_search)
+    print('SVC Kernel Hyperparameters: ', svc_hyper)
+    svc = SVC(kernel=lambda x1, x2: kec_kernel(x1, x2, svc_hyper),
+              probability=True).fit(x_train, y_train)
+    # svc = SVC(probability=True).fit(x_train, y_train)
     print('SVC Training Finished')
 
     # Train the gaussian process classifier
-    gpc_kernel = C() * RBF(length_scale=1.0)
+    gpc_kernel = C() * RBF()
     gpc = GaussianProcessClassifier(kernel=gpc_kernel).fit(x_train, y_train)
     gpc_h = gpc.kernel_.theta
     print('Gaussian Process Hyperparameters: ', gpc_h)
@@ -610,7 +652,7 @@ def digit_classification(x_train, y_train, images_train,
 
 def main():
     """Runs the digit classification task through different scenarios."""
-    n_sample = 0
+    n_sample = 500
     digits_list = [np.array([1, 4, 9]),
                    np.arange(10)]
 
