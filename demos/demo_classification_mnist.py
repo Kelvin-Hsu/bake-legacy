@@ -10,6 +10,7 @@ from sklearn.svm import SVC
 from sklearn.gaussian_process import GaussianProcessClassifier
 from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as C
 from sklearn.metrics import log_loss
+from sklearn.model_selection import train_test_split
 import os
 from scipy.spatial.distance import cdist
 import datetime
@@ -152,7 +153,7 @@ def search_svc(x, y, kernel, hyper_search, k=5):
     losses_stack = np.zeros((k, hyper_search.shape[0]))
     for random_state in range(k):
         x_train, x_test, y_train, y_test = train_test_split(x, y,
-                                                            test_size=test_size,
+                                                            test_size=1/k,
                                                             random_state=0)
         losses_stack[random_state] = search_svc_test(x_train, y_train,
                                                      x_test, y_test,

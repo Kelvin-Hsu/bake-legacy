@@ -135,9 +135,9 @@ def multiclass_classification(x, y, x_test, y_test):
     x_query = np.array([x_1_mesh.ravel(), x_2_mesh.ravel()]).T
 
     # Specify the kernel and kernel parameter setup
-    kernel = bake.kernels.s_matern3on2
+    kernel = bake.kernels.s_gaussian
     h_min = np.array([0.1, 0.01, 1e-8])
-    h_max = np.array([1000.0, 10.0, 1])
+    h_max = np.array([10000.0, 10.0, 1])
     h_init = np.array([1.0, 1.0, 1e-4])
 
     # Train the KEC
@@ -157,7 +157,7 @@ def multiclass_classification(x, y, x_test, y_test):
               probability=True).fit(x, y)
 
     # Train the GPC
-    gp_kernel = C() * Matern()
+    gp_kernel = C() * RBF()
     gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x, y)
 
     kec_p_query = kec.predict_proba(x_query)
