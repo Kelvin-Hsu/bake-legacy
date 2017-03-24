@@ -243,7 +243,7 @@ def digit_classification(x_train, y_train, images_train,
     # Specify settings for hyperparameter learning
     t_min = 0.01 * np.ones(d)
     t_max = 1000.0 * np.ones(d)
-    t_init = 2.0 * np.ones(d)
+    t_init = 0.1 * np.ones(d)
     h_min = np.concatenate(([0.01], t_min, [1e-10]))
     h_max = np.concatenate(([1000.0], t_max, [1]))
     h_init = np.concatenate(([1.0], t_init, [1e-2]))
