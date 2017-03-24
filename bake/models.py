@@ -169,8 +169,8 @@ class Classifier():
             The log of the model complexity
         """
         ## FIRST METHOD
-        complexity = np.trace(self.w)
-        return np.log(complexity)
+        # complexity = np.trace(self.w)
+        # return np.log(complexity)
 
         ## SECOND METHOD
         # identity = np.eye(self.n)
@@ -180,13 +180,18 @@ class Classifier():
         # w = np.dot(k_reg_inv, self.k)
         # a = np.dot(w, k_reg_inv)
         # # print(np.linalg.det(a))
-        # b = self.output_kernel(self.y, self.classes[:, np.newaxis], self.psi)
+        # b = _kronecker_delta(self.y, self.classes[:, np.newaxis], self.psi)
         # complexity_terms = np.array([np.dot(b[:, c], np.dot(a, b[:, c]))
         #                             for c in self.class_indices])
         # print('Complexity Terms: ', complexity_terms)
         # return np.log(np.sum(complexity_terms))
 
-        ### THIRD METHOD
+        ## THIRD METHOD (GLOBAL RADEMACHER COMPLEXITY)
+        b = _kronecker_delta(self.y, self.classes[:, np.newaxis])
+        a = np.dot(self.k, _solve_posdef(self.k_reg, b)[0])
+        wtw = np.dot(b.T, _solve_posdef(self.k_reg, a)[0])
+        complexity = np.trace(wtw)
+        return np.log(complexity)
 
 
     def update(self, theta, zeta, training=False):

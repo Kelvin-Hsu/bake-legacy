@@ -136,8 +136,8 @@ def multiclass_classification(x, y, x_test, y_test):
 
     # Specify the kernel and kernel parameter setup
     kernel = bake.kernels.s_matern3on2
-    h_min = np.array([0.1, 0.1, 1e-8])
-    h_max = np.array([10.0, 10.0, 1])
+    h_min = np.array([0.1, 0.01, 1e-8])
+    h_max = np.array([1000.0, 10.0, 1])
     h_init = np.array([1.0, 1.0, 1e-4])
 
     # Train the KEC
