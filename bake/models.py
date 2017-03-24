@@ -11,6 +11,7 @@ from .kernels import kronecker_delta as _kronecker_delta
 from .kernels import general_kronecker_delta as _general_delta
 from .linalg import solve_posdef as _solve_posdef
 from scipy.optimize import minimize as _minimize
+from scipy.linalg import svd as _svd
 import datetime
 
 
@@ -192,6 +193,23 @@ class Classifier():
         wtw = np.dot(b.T, _solve_posdef(self.k_reg, a)[0])
         complexity = np.trace(wtw)
         return np.log(complexity)
+
+        ## FOURTH METHOD (GLOBAL RADEMACHER COMPLEXITY NOT LEGIT: NOT GOOD)
+        # b = _kronecker_delta(self.y, self.classes[:, np.newaxis])
+        # a = _solve_posdef(self.k_reg, b)[0]
+        # wtw = np.dot(b.T, _solve_posdef(self.k_reg, a)[0])
+        # complexity = np.trace(wtw)
+        # return np.log(complexity)
+
+        ## FIFTH METHOD (LOCAL RADEMACHER COMPLEXITY NOT LEGIT)
+        # b = _kronecker_delta(self.y, self.classes[:, np.newaxis])
+        # a = _solve_posdef(self.k_reg, b)[0]
+        # u, s, v = _svd(a)
+        # # t = np.floor(self.n_classes/2)
+        # t = 0
+        # print(s[t:])
+        # complexity = np.sum(s[t:])
+        # return np.log(complexity)
 
 
     def update(self, theta, zeta, training=False):
