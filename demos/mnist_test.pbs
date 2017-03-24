@@ -1,6 +1,6 @@
 #!/bin/bash
 # Name the experiment
-#PBS -N O_500_C_3
+#PBS -N O_5k_C_3
 
 # Determine the walltime (3 Days)
 #PBS -l walltime=72:00:00
