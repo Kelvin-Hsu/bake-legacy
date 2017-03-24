@@ -240,12 +240,12 @@ def digit_classification(x_train, y_train, images_train,
     kec_kernel = bake.kernels.s_gaussian
 
     # Specify settings for hyperparameter learning
-    t_min = 0.2 * np.ones(d)
-    t_max = 20.0 * np.ones(d)
-    t_init = 2.0 * np.ones(d)
-    h_min = np.concatenate(([0.5], t_min, [1e-10]))
-    h_max = np.concatenate(([5.0], t_max, [1]))
-    h_init = np.concatenate(([1.0], t_init, [1e-2]))
+    t_min = 0.01 * np.ones(d)
+    t_max = 100.0 * np.ones(d)
+    t_init = 1.0 * np.ones(d)
+    h_min = np.concatenate(([0.01], t_min, [1e-8]))
+    h_max = np.concatenate(([100.0], t_max, [1]))
+    h_init = np.concatenate(([1.0], t_init, [1e-4]))
 
     # Alternative: Load learned hyperparameter from a file
     # file = np.load('./mnist_training_results.npz')
