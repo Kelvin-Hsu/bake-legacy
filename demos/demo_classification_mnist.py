@@ -238,7 +238,7 @@ def digit_classification(x_train, y_train, images_train,
              images_test=images_test)
 
     # Specify the kernel used for the classifier
-    kec_kernel = bake.kernels.s_gaussian
+    kec_kernel = bake.kernels.s_matern3on2
 
     # Specify settings for hyperparameter learning
     t_min = 0.001 * np.ones(d)
@@ -281,7 +281,7 @@ def digit_classification(x_train, y_train, images_train,
     print('SVC Training Finished')
 
     # Train the gaussian process classifier
-    gpc_kernel = C() * RBF()
+    gpc_kernel = C() * Matern()
     gpc = GaussianProcessClassifier(kernel=gpc_kernel).fit(x_train, y_train)
     gpc_h = gpc.kernel_.theta
     print('Gaussian Process Hyperparameters: ', gpc_h)
