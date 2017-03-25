@@ -68,6 +68,8 @@ class Classifier():
         self.n, self.d = self.x.shape
         self.classes = np.unique(self.y)
         self.class_indices = np.arange(self.classes.shape[0])
+        self.y_one_hot = self.y == self.classes
+        self.y_indices = np.where(self.y_one_hot)[1]
         self.n_classes = self.classes.shape[0]
         self.theta = 0 * h_init[:-1]
         self.zeta = 0 * h_init[-1]
@@ -126,12 +128,20 @@ class Classifier():
 
             return self.complexity
 
+        def get_ith_constraint(i):
+            def ith_constraint(hypers):
+                self.update(hypers[:-1], hypers[-1], training=True)
+                return self.constraint_vector[i]
+            return ith_constraint
+
         if h is None:
 
             bounds = [(h_min[i], h_max[i]) for i in range(len(h_init))]
             c_1 = {'type': 'ineq', 'fun': constraint_pred}
             c_2 = {'type': 'ineq', 'fun': constraint_prob}
             constraints = (c_1, c_2)
+            constraints = tuple([{'type': 'ineq', 'fun': get_ith_constraint(i)}
+                                 for i in range(self.n)])
             options = {'maxiter': 5000,
                        'disp': True}
             optimal_result = _minimize(objective, h_init,
@@ -240,7 +250,13 @@ class Classifier():
         self.k_reg = self.k + self.n * (self.zeta ** 2) * np.eye(self.n)
         self.w = self.predict_weights(self.x)
         self.mean_sum_probability = self.w.sum(axis=0).mean()  # prod()
-        self.y_pred = self.predict(self.x)
+        self.p_pred = self.predict_proba(self.x, normalize=False)
+        self.y_pred = _classify(self.p_pred, classes=self.classes)
+
+        # prediction constraint
+        self.constraint_matrix = self.n_classes * self.p_pred.T - 1
+        self.constraint_vector = self.constraint_matrix[self.y_indices,
+                                                        np.arange(self.n)]
         self.train_accuracy = np.mean(self.y_pred == self.y.ravel())
         self.complexity = self.compute_complexity()
         return self
@@ -319,7 +335,7 @@ class Classifier():
         """
         w_query = self.predict_weights(x_query)
         p_query = _expectance(self.y == self.classes, w_query)
-        p_field = p_query[:, self.y.ravel()]  # (n_query, n_train)
+        p_field = p_query[:, self.y_indices.ravel()]  # (n_query, n_train)
         p_field[p_field <= 0] = 1
         h_query = np.einsum('ij,ji->i', -np.log(p_field), w_query)
         return np.clip(h_query, 0, np.inf) if clip else h_query

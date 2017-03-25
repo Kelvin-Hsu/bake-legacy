@@ -80,7 +80,7 @@ def create_iris_data():
     return x, y[:, np.newaxis]
 
 
-def search_svc(x, y, kernel, hyper_search, k=5):
+def search_svc(x, y, kernel, hyper_search, k=1):
     losses_stack = np.zeros((k, hyper_search.shape[0]))
     for random_state in range(k):
         x_train, x_test, y_train, y_test = train_test_split(x, y,
@@ -136,8 +136,8 @@ def multiclass_classification(x, y, x_test, y_test):
 
     # Specify the kernel and kernel parameter setup
     kernel = bake.kernels.s_gaussian
-    h_min = np.array([0.1, 0.01, 1e-8])
-    h_max = np.array([10000.0, 10.0, 1])
+    h_min = np.array([0.1, 0.001, 1e-8])
+    h_max = np.array([1000.0, 100.0, 1])
     h_init = np.array([1.0, 1.0, 1e-4])
 
     # Train the KEC
@@ -151,7 +151,7 @@ def multiclass_classification(x, y, x_test, y_test):
     svc_hyper_search = np.array([[s, l]
                                  for s in np.linspace(h_min[0], h_max[0], 50)
                                  for l in np.linspace(h_min[1], h_max[1], 50)])
-    svc_hyper = search_svc(x, y, kernel, svc_hyper_search)
+    svc_hyper = search_svc_test(x, y, x_test, y_test, kernel, svc_hyper_search)
     print('SVC Kernel Hyperparameters: ', svc_hyper)
     svc = SVC(kernel=lambda x1, x2: kernel(x1, x2, svc_hyper),
               probability=True).fit(x, y)
@@ -430,3 +430,4 @@ if __name__ == "__main__":
     utils.misc.time_module(multiclass_classification,
                            x_train, y_train, x_test, y_test)
     print('Percentage of data withheld for testing: %f%%' % (100 * test_size))
+    plt.show()
