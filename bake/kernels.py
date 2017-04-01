@@ -5,6 +5,7 @@ These are the definitions of commonly used characteristic kernels.
 """
 import numpy as np
 from scipy.spatial.distance import cdist
+import tensorflow as tf
 from scipy.stats import logistic
 
 
@@ -146,9 +147,6 @@ def general_kronecker_delta(x_p, x_q, theta):
     """
     Defines the general Kronecker delta kernel.
 
-    The general Kronecker delta does not need any hyperparameters. Passing
-    hyperparameter arguments do not change the kernel behaviour.
-
     Parameters
     ----------
     x_p : numpy.ndarray
@@ -174,9 +172,6 @@ def logistic_kronecker_delta(x_p, x_q, theta):
     """
     Defines the logistic Kronecker delta kernel.
 
-    The logistic Kronecker delta does not need any hyperparameters. Passing
-    hyperparameter arguments do not change the kernel behaviour.
-
     Parameters
     ----------
     x_p : numpy.ndarray
@@ -196,3 +191,39 @@ def logistic_kronecker_delta(x_p, x_q, theta):
         return np.ones(x_p.shape[0])
     s = np.array([1 / (1 + np.exp(theta)), 1]).ravel()
     return s[(cdist(x_p, x_q) == 0).astype(int)].astype(float)
+
+
+def tf_sq_dist(x_p, x_q, theta):
+    z_p = tf.divide(x_p, theta)  # (n_p, d)
+    z_q = tf.divide(x_q, theta)  # (n_q, d)
+    d_pq = tf.matmul(z_p, tf.transpose(z_q))  # (n_p, n_q)
+    d_p = tf.reduce_sum(tf.square(z_p), axis=1)  # (n_p,)
+    d_q = tf.reduce_sum(tf.square(z_q), axis=1)  # (n_q,)
+    return tf.transpose(d_p + tf.transpose(-2 * d_pq + d_q))
+
+
+def tf_gaussian(x_p, x_q, theta):
+    return tf.exp(-0.5 * tf_sq_dist(x_p, x_q, theta))
+
+
+def tf_s_gaussian(x_p, x_q, theta):
+    s = theta[0]
+    l = theta[1:]
+    return tf.multiply(tf.square(s), tf_gaussian(x_p, x_q, l))
+
+
+def tf_matern3on2(x_p, x_q, theta):
+    r = tf.sqrt(tf_sq_dist(x_p, x_q, theta))
+    return tf.multiply(1.0 + r, tf.exp(-r))
+
+
+def tf_s_matern3on2(x_p, x_q, theta):
+    s = theta[0]
+    l = theta[1:]
+    return tf.multiply(tf.square(s), tf_matern3on2(x_p, x_q, l))
+
+
+gaussian.tf = tf_gaussian
+s_gaussian.tf = tf_s_gaussian
+matern3on2.tf = tf_matern3on2
+s_matern3on2.tf = tf_s_matern3on2
