@@ -12,6 +12,7 @@ from .kernels import general_kronecker_delta as _general_delta
 from .linalg import solve_posdef as _solve_posdef
 from scipy.optimize import minimize as _minimize
 from scipy.linalg import svd as _svd
+from scipy.linalg import svdvals as _svdvals
 import datetime
 
 
@@ -140,8 +141,8 @@ class Classifier():
             c_1 = {'type': 'ineq', 'fun': constraint_pred}
             c_2 = {'type': 'ineq', 'fun': constraint_prob}
             constraints = (c_1, c_2)
-            constraints = tuple([{'type': 'ineq', 'fun': get_ith_constraint(i)}
-                                 for i in range(self.n)])
+            # constraints = tuple([{'type': 'ineq', 'fun': get_ith_constraint(i)}
+            #                      for i in range(self.n)])
             options = {'maxiter': 5000,
                        'disp': True}
             optimal_result = _minimize(objective, h_init,
@@ -201,7 +202,11 @@ class Classifier():
         b = _kronecker_delta(self.y, self.classes[:, np.newaxis])
         a = np.dot(self.k, _solve_posdef(self.k_reg, b)[0])
         wtw = np.dot(b.T, _solve_posdef(self.k_reg, a)[0])
-        complexity = np.trace(wtw)
+        complexity = np.sqrt(np.trace(wtw))
+        # eps = 1e-15
+        # p_pred = np.clip(self.p_pred, eps, 1 - eps)
+        # p_pred /= p_pred.sum(axis=1)[:, np.newaxis]
+        # loss = np.average(-(self.y_one_hot * np.log(p_pred)).sum(axis=1))
         return np.log(complexity)
 
         ## FOURTH METHOD (GLOBAL RADEMACHER COMPLEXITY NOT LEGIT: NOT GOOD)
@@ -219,6 +224,28 @@ class Classifier():
         # t = 0
         # print(s[t:])
         # complexity = np.sum(s[t:])
+        # return np.log(complexity)
+
+        ## SIXTH METHOD (SQRT OF KERNEL TRACE)
+        # complexity = np.sqrt(np.trace(self.k))
+        # print(self.k.diagonal().mean())
+        # return np.log(complexity)
+
+        ## SEVENTH METHOD (ALTERNATIVE GLOBAL RADEMACHER COMPLEXITY)
+        # b = _kronecker_delta(self.y, self.classes[:, np.newaxis])
+        # a = np.dot(self.k, _solve_posdef(self.k_reg, b)[0])
+        # wtw = np.dot(b.T, _solve_posdef(self.k_reg, a)[0])
+        # complexity = np.sqrt(np.sum(_svdvals(wtw)))
+        # return np.log(complexity)
+
+        ## EIGHTH METHOD (LOCAL RADEMACHER COMPLEXITY)
+        # b = _kronecker_delta(self.y, self.classes[:, np.newaxis])
+        # a = np.dot(self.k, _solve_posdef(self.k_reg, b)[0])
+        # wtw = np.dot(b.T, _solve_posdef(self.k_reg, a)[0])
+        # s = np.sqrt(_svdvals(wtw))
+        # cut = np.floor(s.shape[0] / 2)
+        # print(s[cut:])
+        # complexity = np.sum(s[cut:])
         # return np.log(complexity)
 
 
@@ -337,6 +364,7 @@ class Classifier():
         p_query = _expectance(self.y == self.classes, w_query)
         p_field = p_query[:, self.y_indices.ravel()]  # (n_query, n_train)
         p_field[p_field <= 0] = 1
+        # p_field = np.clip(p_field, 1e-20, np.inf)
         h_query = np.einsum('ij,ji->i', -np.log(p_field), w_query)
         return np.clip(h_query, 0, np.inf) if clip else h_query
 
