@@ -135,10 +135,10 @@ def multiclass_classification(x, y, x_test, y_test):
     x_query = np.array([x_1_mesh.ravel(), x_2_mesh.ravel()]).T
 
     # Specify the kernel and kernel parameter setup
-    kernel = bake.kernels.s_gaussian
-    h_min = np.array([0.1, 0.001, 1e-8])
-    h_max = np.array([1000.0, 100.0, 1])
-    h_init = np.array([1.0, 1.0, 1e-4])
+    kernel = bake.kernels.s_matern3on2
+    h_min = np.array([0.01, 0.01, 1e-6])
+    h_max = np.array([100, 100, 1])
+    h_init = np.array([1, 1, 1e-4])
 
     # Train the KEC
     kec = bake.Classifier(kernel=kernel).fit(x, y,
@@ -149,15 +149,15 @@ def multiclass_classification(x, y, x_test, y_test):
 
     # Train the SVC
     svc_hyper_search = np.array([[s, l]
-                                 for s in np.linspace(h_min[0], h_max[0], 50)
-                                 for l in np.linspace(h_min[1], h_max[1], 50)])
+                                 for s in np.linspace(1, 100, 50)
+                                 for l in np.linspace(0.01, 10, 50)])
     svc_hyper = search_svc_test(x, y, x_test, y_test, kernel, svc_hyper_search)
     print('SVC Kernel Hyperparameters: ', svc_hyper)
     svc = SVC(kernel=lambda x1, x2: kernel(x1, x2, svc_hyper),
               probability=True).fit(x, y)
 
     # Train the GPC
-    gp_kernel = C() * RBF()
+    gp_kernel = C() * Matern()
     gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x, y)
 
     kec_p_query = kec.predict_proba(x_query)
@@ -301,10 +301,10 @@ def multiclass_classification(x, y, x_test, y_test):
                    fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
         plt.title('Reverse Embedding for class %d' % c)
 
-    # Save all figures and show all figures
-    utils.misc.save_all_figures(full_directory,
-                                axis_equal=False, tight=False,
-                                extension='eps', rcparams=None)
+    # # Save all figures and show all figures
+    # utils.misc.save_all_figures(full_directory,
+    #                             axis_equal=False, tight=False,
+    #                             extension='eps', rcparams=None)
 
 
 def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
