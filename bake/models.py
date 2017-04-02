@@ -158,6 +158,8 @@ class Classifier():
                 self._p_train = np.array(self._p_train)
                 self._h_train = np.array(self._h_train)
                 self._optimal_result = optimal_result
+        else:
+            self.update(h[:-1], h[-1])
 
         if verbose:
             s = 'Training Accuracy: %f || ' \
