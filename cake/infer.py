@@ -87,7 +87,9 @@ def classify(p, classes=None):
     tensorflow.Tensor
         The classification predictions of size (n,)
     """
-    return tf.cast(tf.argmax(p, axis=1), tf.float32)
+    if classes is None:
+        classes = tf.range(tf.shape(p)[1])
+    return tf.gather(classes, tf.cast(tf.argmax(p, axis=1), tf.int32))
 
 
 def adjust_prob(p):
