@@ -29,7 +29,7 @@ class Classifier():
 
     def fit(self, x, y,
             theta=np.array([1., 1.]), zeta=0.01,
-            learning_rate=0.01, grad_tol=0.01):
+            learning_rate=0.01, grad_tol=0.01, log_hypers=True):
         """
         Fit the kernel embedding classifier.
 
@@ -68,14 +68,22 @@ class Classifier():
         self.y_one_hot = tf.cast(tf.constant(y_one_hot), float_type)
         self.y_indices = tf.cast(tf.constant(y_indices), tf.int32)
         self.n_classes = classes.shape[0]
+
         # Setup the optimisation parameters
-        self.log_theta = tf.Variable(np.log(theta).astype(np.float32),
-                                     name="Log_Kernel_Hyperparameters")
-        self.log_zeta = tf.Variable(
-            np.log(np.atleast_1d(zeta)).astype(np.float32),
-            name="Log_Regularisation_Parameter")
-        self.theta = tf.exp(self.log_theta, name="Kernel_Hyperparameters")
-        self.zeta = tf.exp(self.log_zeta, name="Regularisation_Parameter")
+        if log_hypers:
+            self.log_theta = tf.Variable(np.log(theta).astype(np.float32),
+                                         name="log_theta")
+            self.log_zeta = tf.Variable(
+                np.log(np.atleast_1d(zeta)).astype(np.float32),
+                name="log_zeta")
+            self.theta = tf.exp(self.log_theta, name="theta")
+            self.zeta = tf.exp(self.log_zeta, name="zeta")
+            var_list = [self.log_theta, self.log_zeta]
+        else:
+            self.theta = tf.Variable(theta.astype(np.float32), name="theta")
+            self.zeta = tf.Variable(np.atleast_1d(zeta).astype(np.float32),
+                                    name="zeta")
+            var_list = [self.theta, self.zeta]
         self.alpha = tf.Variable(np.zeros(self.n).astype(np.float32))
         self.beta = tf.Variable(np.zeros(self.n).astype(np.float32))
         self.gamma = tf.Variable(np.float32(0.))
@@ -109,7 +117,6 @@ class Classifier():
                                   * tf.log(self.p_pred) / self.n
 
         # Setup the lagrangian objective
-        var_list = [self.log_theta, self.log_zeta]
         hypers_list = [self.theta, self.zeta]
         self.lagrangian = self.complexity \
                           # - tf.reduce_sum(self.alpha * (self.p_want - 1))
