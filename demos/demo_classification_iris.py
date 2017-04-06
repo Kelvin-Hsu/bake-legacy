@@ -1,7 +1,7 @@
 """
 Demonstration of simple kernel embeddings.
 """
-import bake
+import bake, cake
 import utils
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -91,10 +91,12 @@ def multiclass_classification(x, y, x_test, y_test):
     h_init = np.array([1, 1, 1e-4])
 
     # Train the KEC
-    kec = bake.Classifier(kernel=kernel).fit(x, y,
-                                             h_min=h_min,
-                                             h_max=h_max,
-                                             h_init=h_init)
+    kec = cake.Classifier(
+        kernel=cake.kernels.s_matern3on2).fit(x, y,
+                                            theta=np.array([1.0, 1.0]),
+                                            zeta=1e-6, learning_rate=1.0)
+    h = np.append(kec.theta_opt, np.sqrt(kec.zeta_opt))
+    kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
 
     # Train the SVC
     svc_hyper_search = np.array([[s, l]
@@ -192,40 +194,40 @@ def multiclass_classification(x, y, x_test, y_test):
     x_rep = x[i_rep]
     y_rep = y[i_rep]
 
-    # Plot the objective and constraints history
-    fig = plt.figure()
-    iters = np.arange(kec._f_train.shape[0])
-    plt.plot(iters, kec._f_train, c='c',
-             label='KEC Complexity (Scale: $\log_{e}$)')
-    plt.plot(iters, kec._a_train, c='r', label='KEC Training Accuracy')
-    plt.plot(iters, kec._p_train, c='g', label='KEC Mean Sum of Probabilities')
-    plt.title('Training History: Objectives and Constraints')
-    plt.xlabel('Iterations')
-    leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
-                     fancybox=True, shadow=True)
-    leg.get_frame().set_alpha(0.5)
-    fig.set_size_inches(18, 4, forward=True)
-
-    # Plot the hyperparameter history
-    fig = plt.figure()
-    iters = np.arange(kec._h_train.shape[0])
-    plt.subplot(2, 1, 1)
-    # plt.plot(iters, kec._h_train[:, 0], c='c', label='Sensitivity')
-    plt.plot(iters, np.abs(kec._h_train[:, -2]), c='g', label='Length Scale')
-    plt.title('Training History: Kernel Hyperparameters')
-    plt.gca().xaxis.set_ticklabels([])
-    leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
-                     fancybox=True, shadow=True)
-    leg.get_frame().set_alpha(0.5)
-    plt.subplot(2, 1, 2)
-    plt.plot(iters, np.log10(np.abs(kec._h_train[:, -1])), c='b',
-             label='Regularization (Scale: $\log_{10}$)')
-    plt.title('Training History: Regularization Parameter')
-    plt.xlabel('Iterations')
-    leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
-                     fancybox=True, shadow=True)
-    leg.get_frame().set_alpha(0.5)
-    fig.set_size_inches(18, 4, forward=True)
+    # # Plot the objective and constraints history
+    # fig = plt.figure()
+    # iters = np.arange(kec._f_train.shape[0])
+    # plt.plot(iters, kec._f_train, c='c',
+    #          label='KEC Complexity (Scale: $\log_{e}$)')
+    # plt.plot(iters, kec._a_train, c='r', label='KEC Training Accuracy')
+    # plt.plot(iters, kec._p_train, c='g', label='KEC Mean Sum of Probabilities')
+    # plt.title('Training History: Objectives and Constraints')
+    # plt.xlabel('Iterations')
+    # leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
+    #                  fancybox=True, shadow=True)
+    # leg.get_frame().set_alpha(0.5)
+    # fig.set_size_inches(18, 4, forward=True)
+    #
+    # # Plot the hyperparameter history
+    # fig = plt.figure()
+    # iters = np.arange(kec._h_train.shape[0])
+    # plt.subplot(2, 1, 1)
+    # # plt.plot(iters, kec._h_train[:, 0], c='c', label='Sensitivity')
+    # plt.plot(iters, np.abs(kec._h_train[:, -2]), c='g', label='Length Scale')
+    # plt.title('Training History: Kernel Hyperparameters')
+    # plt.gca().xaxis.set_ticklabels([])
+    # leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
+    #                  fancybox=True, shadow=True)
+    # leg.get_frame().set_alpha(0.5)
+    # plt.subplot(2, 1, 2)
+    # plt.plot(iters, np.log10(np.abs(kec._h_train[:, -1])), c='b',
+    #          label='Regularization (Scale: $\log_{10}$)')
+    # plt.title('Training History: Regularization Parameter')
+    # plt.xlabel('Iterations')
+    # leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
+    #                  fancybox=True, shadow=True)
+    # leg.get_frame().set_alpha(0.5)
+    # fig.set_size_inches(18, 4, forward=True)
 
     for c, image in enumerate(reverse_embedding_images):
         plt.figure()

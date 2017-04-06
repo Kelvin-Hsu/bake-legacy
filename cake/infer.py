@@ -106,7 +106,7 @@ def adjust_prob(p):
         Discrete probability distribution of size (n, m)
     """
     invalid_condition = tf.less_equal(p, 0)
-    return tf.select(invalid_condition, tf.ones(tf.shape(p)), p)
+    return tf.where(invalid_condition, tf.ones(tf.shape(p)), p)
 
 
 def entropy(p):

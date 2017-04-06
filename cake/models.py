@@ -10,7 +10,7 @@ from .infer import adjust_prob as _adjust_prob
 from .infer import classify as _classify
 from .kernels import s_gaussian as _s_gaussian
 from .kernels import kronecker_delta as _kronecker_delta
-
+from sklearn.model_selection import KFold as _KFold
 float_type = tf.float32
 
 
@@ -28,8 +28,8 @@ class Classifier():
         self.kernel = kernel
 
     def fit(self, x, y,
-            theta=np.array([10., 0.1]), zeta=1e-2,
-            learning_rate=0.1):
+            theta=np.array([1., 1.]), zeta=0.01,
+            learning_rate=0.01, grad_tol=0.01):
         """
         Fit the kernel embedding classifier.
 
@@ -41,8 +41,12 @@ class Classifier():
             The training outputs of size (n, 1)
         theta : numpy.ndarray
             The initial kernel hyperparameters (?,)
-        zeta : float
-            The initial regularisation parameter
+        zeta : float or numpy.ndarray
+            The initial regularisation parameter (scalar or 1 element array)
+        learning_rate : float
+            The learning rate for the gradient descent optimiser
+        grad_tol : float
+            The gradient error tolerance for the stopping criteria
 
         Returns
         -------
@@ -50,35 +54,35 @@ class Classifier():
             The trained classifier
         """
         # Setup the data
-        self.x = tf.placeholder(float_type, shape=list(x.shape))
-        self.y = tf.placeholder(float_type, shape=list(y.shape))
-        self.feed_dict = {self.x: x, self.y: y}
-        self.n = tf.shape(x)[0]
-        self.d = tf.shape(x)[1]
-        self.n_val = x.shape[0]
-        self.d_val = x.shape[1]
+        self.n = x.shape[0]
+        self.d = x.shape[1]
         classes = np.unique(y)
         class_indices = np.arange(classes.shape[0])
+        y_one_hot = y == classes
+        y_indices = np.where(y_one_hot)[1]
+        self.x = tf.placeholder(float_type, shape=[None, self.d])
+        self.y = tf.placeholder(float_type, shape=[None, 1])
+        self.feed_dict = {self.x: x, self.y: y}
         self.classes = tf.cast(tf.constant(classes), float_type)
         self.class_indices = tf.cast(tf.constant(class_indices), tf.int32)
-        self.y_one_hot = tf.equal(self.y, self.classes)
-        self.y_indices = tf.where(self.y_one_hot)[:, 1]
-        self.n_classes = tf.shape(self.classes)
-
+        self.y_one_hot = tf.cast(tf.constant(y_one_hot), float_type)
+        self.y_indices = tf.cast(tf.constant(y_indices), tf.int32)
+        self.n_classes = classes.shape[0]
         # Setup the optimisation parameters
         self.log_theta = tf.Variable(np.log(theta).astype(np.float32),
                                      name="Log_Kernel_Hyperparameters")
-        self.log_zeta = tf.Variable(np.float32(np.log(zeta)),
-                                    name="Log_Regularisation_Parameter")
+        self.log_zeta = tf.Variable(
+            np.log(np.atleast_1d(zeta)).astype(np.float32),
+            name="Log_Regularisation_Parameter")
         self.theta = tf.exp(self.log_theta, name="Kernel_Hyperparameters")
         self.zeta = tf.exp(self.log_zeta, name="Regularisation_Parameter")
-        self.alpha = tf.Variable(1.0, name="Train_Accuracy_Multiplier")
-        self.beta = tf.Variable(1.0, name="Mean_Sum_Probablity_Multiplier")
+        self.alpha = tf.Variable(np.zeros(self.n).astype(np.float32))
+        self.beta = tf.Variable(np.zeros(self.n).astype(np.float32))
+        self.gamma = tf.Variable(np.float32(0.))
 
         # Setup the training graph
         i = tf.cast(tf.eye(self.n), float_type)
-        reg = tf.multiply(tf.cast(self.n, float_type),
-                          tf.multiply(self.zeta, i))
+        reg = self.n * self.zeta * i
         self.l = _kronecker_delta(self.y, self.y)
         self.l_reg = self.l + reg
         self.chol_l_reg = tf.cholesky(self.l_reg)
@@ -86,59 +90,85 @@ class Classifier():
         self.k_reg = self.k + reg
         self.chol_k_reg = tf.cholesky(self.k_reg)
         self.w = tf.cholesky_solve(self.chol_k_reg, self.k)
-        self.mean_sum_probability = \
-            tf.reduce_mean(tf.reduce_sum(self.w, axis=0))
         self.p_pred = _expectance(tf.cast(tf.equal(self.y, self.classes),
                                           float_type), self.w)
         self.y_pred = _classify(self.p_pred, classes=self.classes)
         self.train_accuracy = tf.reduce_mean(tf.cast(
             tf.equal(self.y_pred, tf.reshape(self.y, [-1])), float_type))
         self.complexity = self.compute_complexity()
+        indices = tf.cast(tf.constant(np.arange(self.n)), tf.int32)
+        self.p_want = tf.gather_nd(self.p_pred,
+                              tf.stack([indices, self.y_indices], axis=1))
+        self.cross_entropy_loss = -tf.reduce_sum(tf.log(self.p_want)) / self.n
+        self.pred_constraint = self.p_want - 1 / self.n_classes
+        self.prob_constraint = tf.reduce_sum(self.w, axis=0) - 1
+        self.mean_sum_probability = \
+            tf.reduce_mean(self.prob_constraint + 1)
 
-        # Setup the optimisation
-        self.lagrangian = self.complexity - \
-                          tf.multiply(self.alpha, self.train_accuracy - 1) - \
-                          tf.multiply(self.beta, self.mean_sum_probability - 1)
-        opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
-        optim = opt.minimize(self.lagrangian,
-                             var_list=[self.log_theta,
-                                       self.log_zeta,
-                                       self.alpha,
-                                       self.beta])
+        self.cross_entropy_loss = - tf.cast(self.y_one_hot, float_type) \
+                                  * tf.log(self.p_pred) / self.n
 
-        # Run the optimisation
-        sess = tf.Session()
-        sess.run(tf.global_variables_initializer())
-        sess.run(optim, feed_dict=self.feed_dict)
-
-        # Store the optimal hyperparameters
-        self.theta_opt = sess.run(self.theta)
-        self.zeta_opt = sess.run(self.zeta)
-
-        # Print out the results (for g)
-        print('Hyperparameters: ', self.theta_opt, self.zeta_opt)
-        alpha_opt = sess.run(self.alpha)
-        beta_opt = sess.run(self.beta)
-        print('Lagrange Multipliers: ', alpha_opt, beta_opt)
-        complexity_opt = sess.run(self.complexity, feed_dict=self.feed_dict)
-        print('Complexity: ', complexity_opt)
-        train_accuracy_opt = \
-            sess.run(self.train_accuracy, feed_dict=self.feed_dict)
-        print('Training Accuracy: ', train_accuracy_opt)
-        mean_sum_probability_opt = \
-            sess.run(self.mean_sum_probability, feed_dict=self.feed_dict)
-        print('Mean Sum Probability: ', mean_sum_probability_opt)
-        sess.close()
+        # Setup the lagrangian objective
+        var_list = [self.log_theta, self.log_zeta]
+        hypers_list = [self.theta, self.zeta]
+        self.lagrangian = self.complexity \
+                          # - tf.reduce_sum(self.alpha * (self.p_want - 1))
+                          # - tf.reduce_sum(self.beta * self.prob_constraint)
+        self.l_grad = tf.gradients(self.lagrangian, var_list)
+        self.l_grad_norm = \
+            tf.reduce_max(tf.abs(tf.concat(self.l_grad, axis=0)))
+        self.stop_criterion = tf.greater_equal(self.l_grad_norm, grad_tol)
 
         # Setup the query graph
         self.setup_query_graph()
 
+        # Setup the training optimisation program
+        opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+        train = opt.minimize(self.lagrangian, var_list=var_list)
+
+        # k_fold = _KFold(n_splits=10)
+        feed_dict = self.feed_dict
+        # Run the optimisation
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
+        step = 1
+        while self.sess.run(self.stop_criterion, feed_dict=feed_dict):
+            norm = self.sess.run(self.l_grad_norm, feed_dict=feed_dict)
+            hypers = self.sess.run(hypers_list, feed_dict=feed_dict)
+            acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
+
+            self.sess.run(train, feed_dict=feed_dict)
+            # for train_indices, test_indices in k_fold.split(x):
+            #     feed_dict = {self.x: x[test_indices], self.y: y[test_indices]}
+            #     self.sess.run(train, feed_dict=feed_dict)
+            print('Step %d:' % step, norm, '|| Hyperparameters: ',
+                  *tuple(hypers), 'Train Accuracy: ', acc)
+            step += 1
+
+        # Store the optimal hyperparameters
+        self.theta_opt = self.sess.run(self.theta)
+        self.zeta_opt = self.sess.run(self.zeta)
+
+        # Print out the results
+        print('Hyperparameters: ', self.theta_opt, self.zeta_opt)
+        final_gradients = self.sess.run(self.l_grad, feed_dict=self.feed_dict)
+        print('Final Gradients: ', final_gradients)
+        complexity_opt = self.sess.run(self.complexity,
+                                       feed_dict=self.feed_dict)
+        print('Complexity: ', complexity_opt)
+        # print(self.sess.run(self.p_pred, feed_dict=self.feed_dict))
+        train_accuracy_opt = \
+            self.sess.run(self.train_accuracy, feed_dict=self.feed_dict)
+        print('Training Accuracy: ', train_accuracy_opt)
+        mean_sum_probability_opt = \
+            self.sess.run(self.mean_sum_probability, feed_dict=self.feed_dict)
+        print('Mean Sum Probability: ', mean_sum_probability_opt)
         return self
 
     def setup_query_graph(self):
 
         # Query on x
-        self.x_query = tf.placeholder(float_type, shape=[None, self.d_val])
+        self.x_query = tf.placeholder(float_type, shape=[None, self.d])
 
         # Inference Gram Matrix
         self.k_query = self.kernel(self.x, self.x_query, self.theta)
@@ -156,15 +186,13 @@ class Classifier():
         self.y_query = _classify(self.p_query, classes=self.classes)
 
         # Information Entropy
-        print(self.y_indices)
         ind = tf.reshape(self.y_indices, [-1])
-        print(ind)
         self.p_field = tf.transpose(tf.gather(tf.transpose(self.p_query), ind))
         self.p_field_adjust = _adjust_prob(self.p_field)  # (n_query, n_train)
-        print(self.p_field_adjust)
         u = -tf.log(self.p_field_adjust)
-        print(u)
-        self.h_query = tf.einsum('ij,ji->i', u, self.w_query)
+        # TODO: Einstein Sum for diagonal of matrix product
+        # self.h_query = tf.einsum('ij,ji->i', u, self.w_query)
+        self.h_query = tf.diag_part(tf.matmul(u, self.w_query))
         self.h_query_valid = tf.clip_by_value(self.h_query, 0, np.inf)
 
         # Query on y
@@ -190,6 +218,7 @@ class Classifier():
         ind = tf.cast(tf.argmax(self.mu_xy, axis=0), tf.int32)
 
         self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
 
     def compute_complexity(self, complexity='Global Rademacher Complexity'):
         """
@@ -202,7 +231,7 @@ class Classifier():
         """
         if complexity == 'Embedding Trace':
             complexity = tf.trace(self.w)
-            return tf.log(complexity)
+            return complexity
         elif complexity == 'Global Rademacher Complexity':
             b = _kronecker_delta(self.y, self.classes[:, tf.newaxis])
             step_1 = tf.cholesky_solve(self.chol_k_reg, b)
@@ -210,7 +239,7 @@ class Classifier():
             step_3 = tf.cholesky_solve(self.chol_k_reg, step_2)
             wtw = tf.matmul(tf.transpose(b), step_3)
             complexity = tf.sqrt(tf.trace(wtw))
-            return tf.log(complexity)
+            return complexity
         else:
             raise ValueError('No complexity measure named "%s"' % complexity)
 

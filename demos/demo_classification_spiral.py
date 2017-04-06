@@ -143,11 +143,12 @@ def multiclass_classification(x, y, x_test, y_test):
     h_init = np.array([1, 1, 1e-4])
 
     # Train the KEC
-    tfkec = cake.Classifier(
+    kec = cake.Classifier(
         kernel=cake.kernels.s_gaussian).fit(x, y,
-                                              theta=np.array([10., 0.1]),
-                                              zeta=1e-5, learning_rate=0.1)
-    h = np.append(tfkec.theta_opt, tfkec.zeta_opt)
+                                            theta=np.array([1.0, 1.0]),
+                                            zeta=1e-5, learning_rate=0.05,
+                                            grad_tol=0.05)
+    h = np.append(kec.theta_opt, np.sqrt(kec.zeta_opt))
     kec = bake.Classifier(kernel=kernel).fit(x, y,
                                              h=h,
                                              directory=full_directory)
@@ -235,18 +236,18 @@ def multiclass_classification(x, y, x_test, y_test):
     print('svc test log loss: %.9f' % log_loss(y_test.ravel(), svc_p_test))
     print('gpc test log loss: %.9f' % log_loss(y_test.ravel(), gpc_p_test))
 
-    y_query = classes[:, np.newaxis]
-    reverse_embedding = kec.reverse_embedding(y_query, x_query)
-    i_qrep = reverse_embedding.argmax(axis=0)
-    x_qrep = x_query[i_qrep]
-    y_qrep = kec.predict(x_qrep)
-
-    reverse_embedding_images = np.reshape(np.swapaxes(reverse_embedding, 0, 1),
-                                          (classes.shape[0], n_query, n_query))
-    reverse_weights = kec.reverse_weights(y_query) # (n, 3)
-    i_rep = reverse_weights.argmax(axis=0)
-    x_rep = x[i_rep]
-    y_rep = y[i_rep]
+    # y_query = classes[:, np.newaxis]
+    # reverse_embedding = kec.reverse_embedding(y_query, x_query)
+    # i_qrep = reverse_embedding.argmax(axis=0)
+    # x_qrep = x_query[i_qrep]
+    # y_qrep = kec.predict(x_qrep)
+    #
+    # reverse_embedding_images = np.reshape(np.swapaxes(reverse_embedding, 0, 1),
+    #                                       (classes.shape[0], n_query, n_query))
+    # reverse_weights = kec.reverse_weights(y_query) # (n, 3)
+    # i_rep = reverse_weights.argmax(axis=0)
+    # x_rep = x[i_rep]
+    # y_rep = y[i_rep]
 
     # # Plot the objective and constraints history
     # fig = plt.figure()
@@ -283,28 +284,28 @@ def multiclass_classification(x, y, x_test, y_test):
     # leg.get_frame().set_alpha(0.5)
     # fig.set_size_inches(18, 4, forward=True)
 
-    for c, image in enumerate(reverse_embedding_images):
-        plt.figure()
-        plt.pcolormesh(x_1_mesh, x_2_mesh, image, cmap=cm.coolwarm)
-        plt.colorbar()
-        plt.contour(x_1_mesh, x_2_mesh, kec_y_mesh, colors='k',
-                    label='Decision Boundaries')
-        # plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cm.jet, label='Training Data')
-        # plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, marker='x',
-        #             cmap=cm.jet, label='Test Data')
-        plt.scatter(x[:, 0], x[:, 1], c=reverse_weights[:, c], s=40,
-                    cmap=cm.coolwarm, label='Embedding Weights')
-        plt.scatter(x_rep[c, 0], x_rep[c, 1], c=y_rep[c], marker='x', s=40,
-                    cmap=cm.jet, label='Representative Sample')
-        plt.scatter(x_qrep[c, 0], x_qrep[c, 1], c=y_qrep[c], marker='+', s=40,
-                    cmap=cm.jet, label='Representative Prediction')
-        plt.xlim(x_1_lim)
-        plt.ylim(x_2_lim)
-        plt.xlabel('$x_{1}$')
-        plt.ylabel('$x_{2}$')
-        plt.legend(loc='lower left', bbox_to_anchor=(0, 0),
-                   fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
-        plt.title('Reverse Embedding for class %d' % c)
+    # for c, image in enumerate(reverse_embedding_images):
+    #     plt.figure()
+    #     plt.pcolormesh(x_1_mesh, x_2_mesh, image, cmap=cm.coolwarm)
+    #     plt.colorbar()
+    #     plt.contour(x_1_mesh, x_2_mesh, kec_y_mesh, colors='k',
+    #                 label='Decision Boundaries')
+    #     # plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cm.jet, label='Training Data')
+    #     # plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, marker='x',
+    #     #             cmap=cm.jet, label='Test Data')
+    #     plt.scatter(x[:, 0], x[:, 1], c=reverse_weights[:, c], s=40,
+    #                 cmap=cm.coolwarm, label='Embedding Weights')
+    #     plt.scatter(x_rep[c, 0], x_rep[c, 1], c=y_rep[c], marker='x', s=40,
+    #                 cmap=cm.jet, label='Representative Sample')
+    #     plt.scatter(x_qrep[c, 0], x_qrep[c, 1], c=y_qrep[c], marker='+', s=40,
+    #                 cmap=cm.jet, label='Representative Prediction')
+    #     plt.xlim(x_1_lim)
+    #     plt.ylim(x_2_lim)
+    #     plt.xlabel('$x_{1}$')
+    #     plt.ylabel('$x_{2}$')
+    #     plt.legend(loc='lower left', bbox_to_anchor=(0, 0),
+    #                fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
+    #     plt.title('Reverse Embedding for class %d' % c)
 
     # # Save all figures and show all figures
     # utils.misc.save_all_figures(full_directory,
