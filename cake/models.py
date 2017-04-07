@@ -54,20 +54,33 @@ class Classifier():
             The trained classifier
         """
         # Setup the data
-        self.n = x.shape[0]
-        self.d = x.shape[1]
+        # self.n = x.shape[0]
+        # self.d = x.shape[1]
         classes = np.unique(y)
         class_indices = np.arange(classes.shape[0])
-        y_one_hot = y == classes
-        y_indices = np.where(y_one_hot)[1]
-        self.x = tf.placeholder(float_type, shape=[None, self.d])
-        self.y = tf.placeholder(float_type, shape=[None, 1])
-        self.feed_dict = {self.x: x, self.y: y}
+        # y_one_hot = y == classes
+        # y_indices = np.where(y_one_hot)[1]
         self.classes = tf.cast(tf.constant(classes), float_type)
         self.class_indices = tf.cast(tf.constant(class_indices), tf.int32)
-        self.y_one_hot = tf.cast(tf.constant(y_one_hot), float_type)
-        self.y_indices = tf.cast(tf.constant(y_indices), tf.int32)
         self.n_classes = classes.shape[0]
+        # self.y_one_hot = tf.cast(tf.constant(y_one_hot), float_type)
+        # self.y_indices = tf.cast(tf.constant(y_indices), tf.int32)
+
+
+        self.x = tf.placeholder(float_type, shape=[None, x.shape[1]])
+        self.y = tf.placeholder(float_type, shape=[None, y.shape[1]])
+        self.feed_dict = {self.x: x, self.y: y}
+
+        self.n = tf.shape(self.x)[0]
+        self.d = x.shape[1]
+        # self.classes = tf.cast(tf.unique(self.y), float_type)
+        # self.n_classes = tf.shape(self.classes)[0]
+        # self.class_indices = tf.cast(tf.range(self.n_classes), tf.int32)
+        self.y_one_hot = tf.equal(self.y, self.classes)
+        self.y_indices = \
+            tf.cast(tf.reduce_sum(tf.where(self.y_one_hot,
+                             tf.ones(tf.shape(self.y_one_hot)) * class_indices,
+                             tf.zeros(tf.shape(self.y_one_hot))), axis=1), tf.int32)
 
         # Setup the optimisation parameters
         if log_hypers:
@@ -84,13 +97,13 @@ class Classifier():
             self.zeta = tf.Variable(np.atleast_1d(zeta).astype(np.float32),
                                     name="zeta")
             var_list = [self.theta, self.zeta]
-        self.alpha = tf.Variable(np.zeros(self.n).astype(np.float32))
-        self.beta = tf.Variable(np.zeros(self.n).astype(np.float32))
+        self.alpha = tf.Variable(np.zeros(x.shape[0]).astype(np.float32))
+        self.beta = tf.Variable(np.zeros(x.shape[0]).astype(np.float32))
         self.gamma = tf.Variable(np.float32(0.))
 
         # Setup the training graph
         i = tf.cast(tf.eye(self.n), float_type)
-        reg = self.n * self.zeta * i
+        reg = tf.cast(self.n, float_type) * self.zeta * i
         self.l = _kronecker_delta(self.y, self.y)
         self.l_reg = self.l + reg
         self.chol_l_reg = tf.cholesky(self.l_reg)
@@ -104,17 +117,17 @@ class Classifier():
         self.train_accuracy = tf.reduce_mean(tf.cast(
             tf.equal(self.y_pred, tf.reshape(self.y, [-1])), float_type))
         self.complexity = self.compute_complexity()
-        indices = tf.cast(tf.constant(np.arange(self.n)), tf.int32)
+        indices = tf.cast(tf.range(self.n), tf.int32)
         self.p_want = tf.gather_nd(self.p_pred,
                               tf.stack([indices, self.y_indices], axis=1))
-        self.cross_entropy_loss = -tf.reduce_sum(tf.log(self.p_want)) / self.n
+        self.cross_entropy_loss = -tf.reduce_sum(tf.log(self.p_want)) / tf.cast(self.n, float_type)
         self.pred_constraint = self.p_want - 1 / self.n_classes
         self.prob_constraint = tf.reduce_sum(self.w, axis=0) - 1
         self.mean_sum_probability = \
             tf.reduce_mean(self.prob_constraint + 1)
 
         self.cross_entropy_loss = - tf.cast(self.y_one_hot, float_type) \
-                                  * tf.log(self.p_pred) / self.n
+                                  * tf.log(self.p_pred) / tf.cast(self.n, float_type)
 
         # Setup the lagrangian objective
         hypers_list = [self.theta, self.zeta]
@@ -143,13 +156,17 @@ class Classifier():
             norm = self.sess.run(self.l_grad_norm, feed_dict=feed_dict)
             hypers = self.sess.run(hypers_list, feed_dict=feed_dict)
             acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
+            complexity = self.sess.run(self.complexity, feed_dict=feed_dict)
 
             self.sess.run(train, feed_dict=feed_dict)
             # for train_indices, test_indices in k_fold.split(x):
             #     feed_dict = {self.x: x[test_indices], self.y: y[test_indices]}
             #     self.sess.run(train, feed_dict=feed_dict)
-            print('Step %d:' % step, norm, '|| Hyperparameters: ',
-                  *tuple(hypers), 'Train Accuracy: ', acc)
+            print('Step %d:' % step,
+                  '|| Gradient Norm: ', norm,
+                  '|| Complexity: ', complexity,
+                  '|| Hyperparameters: ', *tuple(hypers),
+                  '|| Train Accuracy: ', acc)
             step += 1
 
         # Store the optimal hyperparameters
