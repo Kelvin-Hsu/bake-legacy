@@ -29,7 +29,7 @@ class Classifier():
 
     def fit(self, x, y,
             theta=np.array([1., 1.]), zeta=0.01,
-            learning_rate=0.01, grad_tol=0.01, log_hypers=True):
+            learning_rate=0.01, grad_tol=0.01, n_splits=1, log_hypers=True):
         """
         Fit the kernel embedding classifier.
 
@@ -99,7 +99,8 @@ class Classifier():
             var_list = [self.theta, self.zeta]
         self.alpha = tf.Variable(np.zeros(x.shape[0]).astype(np.float32))
         self.beta = tf.Variable(np.zeros(x.shape[0]).astype(np.float32))
-        self.gamma = tf.Variable(np.float32(0.))
+        self.gamma = tf.Variable(np.atleast_1d(0.0).astype(np.float32))
+        # var_list.append(self.gamma)
 
         # Setup the training graph
         i = tf.cast(tf.eye(self.n), float_type)
@@ -126,12 +127,11 @@ class Classifier():
         self.mean_sum_probability = \
             tf.reduce_mean(self.prob_constraint + 1)
 
-        self.cross_entropy_loss = - tf.cast(self.y_one_hot, float_type) \
-                                  * tf.log(self.p_pred) / tf.cast(self.n, float_type)
+        self.cross_entropy_loss = tf.reduce_mean(- tf.log(self.p_want))
 
         # Setup the lagrangian objective
-        hypers_list = [self.theta, self.zeta]
-        self.lagrangian = self.complexity \
+        self.lagrangian = self.complexity
+                          # - self.gamma * (self.train_accuracy - 1.)
                           # - tf.reduce_sum(self.alpha * (self.p_want - 1))
                           # - tf.reduce_sum(self.beta * self.prob_constraint)
         self.l_grad = tf.gradients(self.lagrangian, var_list)
@@ -146,47 +146,92 @@ class Classifier():
         opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
         train = opt.minimize(self.lagrangian, var_list=var_list)
 
-        # k_fold = _KFold(n_splits=10)
-        feed_dict = self.feed_dict
         # Run the optimisation
+        if n_splits > 1:
+            k_fold = _KFold(n_splits=n_splits)
+        feed_dict = self.feed_dict
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
-        step = 1
-        while self.sess.run(self.stop_criterion, feed_dict=feed_dict):
-            norm = self.sess.run(self.l_grad_norm, feed_dict=feed_dict)
-            hypers = self.sess.run(hypers_list, feed_dict=feed_dict)
-            acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
-            complexity = self.sess.run(self.complexity, feed_dict=feed_dict)
+        step = 0
+        _train_history = []
+        grad_norm_check = grad_tol + 1
+        while grad_norm_check > grad_tol:
+            if n_splits > 1:
+                grad_norm_list = []
+                for train_indices, test_indices in k_fold.split(x):
+                    feed_dict = {self.x: x[test_indices],
+                                 self.y: y[test_indices]}
+                    theta = self.sess.run(self.theta)
+                    zeta = self.sess.run(self.zeta)
+                    complexity = self.sess.run(self.complexity,
+                                               feed_dict=feed_dict)
+                    cel = self.sess.run(self.cross_entropy_loss,
+                                        feed_dict=feed_dict)
+                    acc = self.sess.run(self.train_accuracy,
+                                        feed_dict=feed_dict)
+                    grad_norm = self.sess.run(self.l_grad_norm,
+                                              feed_dict=feed_dict)
+                    grad_norm_list.append(grad_norm)
+                    self.sess.run(train, feed_dict=feed_dict)
+                    print('Step %d:' % step,
+                          '|| Hyperparameters: ', theta, zeta,
+                          '|| Complexity: ', complexity,
+                          '|| Train Accuracy: ', acc,
+                          '|| Cross Entropy Loss: ', cel,
+                          '|| Gradient Norm: ', grad_norm)
+                    step += 1
+                    _train_history.append(
+                        [step, complexity, acc, cel, grad_norm]
+                        + list(np.append(theta, zeta)))
+                grad_norm_check = np.max(grad_norm_list)
+            else:
+                theta = self.sess.run(self.theta)
+                zeta = self.sess.run(self.zeta)
+                complexity = self.sess.run(self.complexity,
+                                           feed_dict=feed_dict)
+                cel = self.sess.run(self.cross_entropy_loss,
+                                    feed_dict=feed_dict)
+                acc = self.sess.run(self.train_accuracy,
+                                    feed_dict=feed_dict)
+                grad_norm = self.sess.run(self.l_grad_norm,
+                                          feed_dict=feed_dict)
+                grad_norm_check = grad_norm
+                self.sess.run(train, feed_dict=feed_dict)
+                print('Step %d:' % step,
+                      '|| Hyperparameters: ', theta, zeta,
+                      '|| Complexity: ', complexity,
+                      '|| Train Accuracy: ', acc,
+                      '|| Cross Entropy Loss: ', cel,
+                      '|| Gradient Norm: ', grad_norm)
+                step += 1
+                _train_history.append([step, complexity, acc, cel, grad_norm]
+                                      + list(np.append(theta, zeta)))
 
-            self.sess.run(train, feed_dict=feed_dict)
-            # for train_indices, test_indices in k_fold.split(x):
-            #     feed_dict = {self.x: x[test_indices], self.y: y[test_indices]}
-            #     self.sess.run(train, feed_dict=feed_dict)
-            print('Step %d:' % step,
-                  '|| Gradient Norm: ', norm,
-                  '|| Complexity: ', complexity,
-                  '|| Hyperparameters: ', *tuple(hypers),
-                  '|| Train Accuracy: ', acc)
-            step += 1
+        # Store train history
+        _train_history = np.array(_train_history)
+        self.train_history = {'iterations': _train_history[:, 0],
+                              'complexity': _train_history[:, 1],
+                              'accuracy': _train_history[:, 2],
+                              'cross_entropy_loss': _train_history[:, 3],
+                              'gradient_norm': _train_history[:, 4],
+                              'kernel_hypers': _train_history[:, 5:-1],
+                              'regularisation': _train_history[:, -1]}
 
         # Store the optimal hyperparameters
-        self.theta_opt = self.sess.run(self.theta)
-        self.zeta_opt = self.sess.run(self.zeta)
-
-        # Print out the results
-        print('Hyperparameters: ', self.theta_opt, self.zeta_opt)
-        final_gradients = self.sess.run(self.l_grad, feed_dict=self.feed_dict)
-        print('Final Gradients: ', final_gradients)
-        complexity_opt = self.sess.run(self.complexity,
+        self.theta_train = self.sess.run(self.theta)
+        self.zeta_train = self.sess.run(self.zeta)
+        self.steps_train = step
+        self.complexity_train = self.sess.run(self.complexity,
+                                              feed_dict=self.feed_dict)
+        self.acc_train = self.sess.run(self.train_accuracy,
                                        feed_dict=self.feed_dict)
-        print('Complexity: ', complexity_opt)
-        # print(self.sess.run(self.p_pred, feed_dict=self.feed_dict))
-        train_accuracy_opt = \
-            self.sess.run(self.train_accuracy, feed_dict=self.feed_dict)
-        print('Training Accuracy: ', train_accuracy_opt)
-        mean_sum_probability_opt = \
-            self.sess.run(self.mean_sum_probability, feed_dict=self.feed_dict)
-        print('Mean Sum Probability: ', mean_sum_probability_opt)
+        self.cel_train = self.sess.run(self.cross_entropy_loss,
+                                       feed_dict=self.feed_dict)
+        self.grad_norm_train = self.sess.run(self.l_grad_norm,
+                                             feed_dict=self.feed_dict)
+        self.msp_train = self.sess.run(self.mean_sum_probability,
+                                       feed_dict=self.feed_dict)
+        print('Hyperparameters: ', self.theta_train, self.zeta_train)
         return self
 
     def setup_query_graph(self):

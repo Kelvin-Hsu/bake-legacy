@@ -147,7 +147,7 @@ def multiclass_classification(x, y, x_test, y_test):
         kernel=cake.kernels.s_gaussian).fit(x, y,
                                             theta=np.array([1.0, 1.0]),
                                             zeta=1e-5, learning_rate=0.01,
-                                            grad_tol=0.05)
+                                            grad_tol=0.01)
     h = np.append(kec.theta_opt, np.sqrt(kec.zeta_opt))
     kec = bake.Classifier(kernel=kernel).fit(x, y,
                                              h=h,

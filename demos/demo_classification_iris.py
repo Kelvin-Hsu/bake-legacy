@@ -20,12 +20,32 @@ now_string = '%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
                                     now.hour, now.minute, now.second)
 
 
-def create_iris_data(a, b):
+def load_iris_data(a, b, normalize_features=True):
+    """
+    Load the iris dataset with two feature dimensions.
+
+    Parameters
+    ----------
+    a : int
+        First feature dimension
+    b : int
+        Second feature dimension
+    normalize_features : bool, optional
+        To normalize the features or not
+
+    Returns
+    -------
+    numpy.ndarray
+        The features (n, 2)
+    numpy.ndarray
+        The target labels (n, 1)
+
+    """
     iris = datasets.load_iris()
-    x = iris.data[:, [a, b]]  # we only take the first two features.
-    x = x - np.min(x, axis=0)
-    x = x / np.max(x, axis=0)
-    # x = (x - x.mean(axis=0))/x.std(axis=0)
+    x = iris.data[:, [a, b]]
+    if normalize_features:
+        x -= np.min(x, axis=0)
+        x /= np.max(x, axis=0)
     y = iris.target
     return x, y[:, np.newaxis]
 
@@ -64,16 +84,16 @@ def search_svc_test(x, y, x_test, y_test, kernel, hyper_search,
         return hyper_search[i]
 
 
-def multiclass_classification(x, y, x_test, y_test):
+def iris_classification(x_train, y_train, x_test, y_test,
+                        name='', directory='./'):
 
-    # full_directory = './iris_%s/' % now_string
-    # os.mkdir(full_directory)
-    # print('Results will be saved in "%s"' % full_directory)
+    n_train = x_train.shape[0]
+    n_test = x_test.shape[0]
+    classes = np.unique(y_train)
+    n_class = classes.shape[0]
 
-    classes = np.unique(y)
-    print('Training Size:', x.shape[0])
-    x_1_min, x_1_max = x[:, 0].min() - .1, x[:, 0].max() + .1
-    x_2_min, x_2_max = x[:, 1].min() - .1, x[:, 1].max() + .1
+    x_1_min, x_1_max = x_train[:, 0].min() - .1, x_train[:, 0].max() + .1
+    x_2_min, x_2_max = x_train[:, 1].min() - .1, x_train[:, 1].max() + .1
     x_1_lim = (x_1_min, x_1_max)
     x_2_lim = (x_2_min, x_2_max)
 
@@ -85,31 +105,44 @@ def multiclass_classification(x, y, x_test, y_test):
     x_query = np.array([x_1_mesh.ravel(), x_2_mesh.ravel()]).T
 
     # Specify the kernel and kernel parameter setup
-    kernel = bake.kernels.s_matern3on2
-    h_min = np.array([0.01, 0.01, 1e-6])
-    h_max = np.array([100, 100, 1])
-    h_init = np.array([1, 1, 1e-4])
+    kernel = bake.kernels.s_gaussian
 
     # Train the KEC
+    theta_init = np.array([1.0, 1.0])
+    zeta_init = 1e-4
+    learning_rate = 0.01
+    grad_tol = 0.1
+    n_splits = 1
     kec = cake.Classifier(
-        kernel=cake.kernels.s_matern3on2).fit(x, y,
-                                            theta=np.array([1.0, 1.0]),
-                                            zeta=1e-6, learning_rate=1.0)
-    h = np.append(kec.theta_opt, np.sqrt(kec.zeta_opt))
-    kec = bake.Classifier(kernel=kernel).fit(x, y, h=h)
+        kernel=cake.kernels.s_gaussian).fit(x_train, y_train,
+                                            theta=theta_init, zeta=zeta_init,
+                                            learning_rate=learning_rate,
+                                            grad_tol=grad_tol,
+                                            n_splits=n_splits)
+    kec_h = np.append(kec.theta_train, np.sqrt(kec.zeta_train))
+    kec_complexity = kec.complexity_train
+    kec_mean_sum_probability = kec.msp_train
+    kec_steps_train = kec.steps_train
+    kec_train_history = kec.train_history
+    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=kec_h)
+    print('KEC Hyperparameters: ', kec_h)
+
 
     # Train the SVC
     svc_hyper_search = np.array([[s, l]
                                  for s in np.linspace(1, 100, 50)
                                  for l in np.linspace(0.01, 10, 50)])
-    svc_hyper = search_svc_test(x, y, x_test, y_test, kernel, svc_hyper_search)
-    print('SVC Kernel Hyperparameters: ', svc_hyper)
-    svc = SVC(kernel=lambda x1, x2: kernel(x1, x2, svc_hyper),
-              probability=True).fit(x, y)
+    svc_h = search_svc_test(x_train, y_train, x_test, y_test,
+                                kernel, svc_hyper_search)
+    svc = SVC(kernel=lambda x1, x2: kernel(x1, x2, svc_h),
+              probability=True).fit(x_train, y_train)
+    print('SVC Hyperparameters: ', svc_h)
 
     # Train the GPC
-    gp_kernel = C() * Matern()
-    gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x, y)
+    gp_kernel = C() * RBF()
+    gpc = GaussianProcessClassifier(kernel=gp_kernel).fit(x_train, y_train)
+    gpc_h = gpc.kernel_.theta
+    print('GPC Hyperparameters: ', gpc_h)
 
     kec_p_query = kec.predict_proba(x_query)
     svc_p_query = svc.predict_proba(x_query)
@@ -136,50 +169,67 @@ def multiclass_classification(x, y, x_test, y_test):
     gpc_y_mesh = np.reshape(gpc_y_query, (n_query, n_query))
     gpc_h_mesh = np.reshape(gpc_h_query, (n_query, n_query))
 
-    visualize_classifier('Kernel Embedding Classifier', x, y, x_test, y_test,
+    visualize_classifier('Kernel Embedding Classifier',
+                         x_train, y_train, x_test, y_test,
                          x_1_mesh, x_2_mesh, x_1_lim, x_2_lim,
                          y_mesh=kec_y_mesh, h_mesh=kec_h_mesh,
                          h_mesh_alt=kec_h_mesh_alt, p=kec_p_query,
                          entropy_method='(Clip Normalized)',
                          entropy_method_alt='(RKHS Expectation)')
-    visualize_classifier('Support Vector Classifier', x, y, x_test, y_test,
+    visualize_classifier('Support Vector Classifier',
+                         x_train, y_train, x_test, y_test,
                          x_1_mesh, x_2_mesh, x_1_lim, x_2_lim,
                          y_mesh=svc_y_mesh, h_mesh=svc_h_mesh, p=svc_p_query)
-    visualize_classifier('Gaussian Process Classifier', x, y, x_test, y_test,
+    visualize_classifier('Gaussian Process Classifier',
+                         x_train, y_train, x_test, y_test,
                          x_1_mesh, x_2_mesh, x_1_lim, x_2_lim,
                          y_mesh=gpc_y_mesh, h_mesh=gpc_h_mesh, p=gpc_p_query)
 
-    kec_p = kec.predict_proba(x)
-    svc_p = svc.predict_proba(x)
-    gpc_p = gpc.predict_proba(x)
+    # Predict probabilities on the training set
+    kec_p = kec.predict_proba(x_train)
+    svc_p = svc.predict_proba(x_train)
+    gpc_p = gpc.predict_proba(x_train)
 
+    # Predict targets on the training set
     kec_y = bake.infer.classify(kec_p, classes=classes)
     svc_y = bake.infer.classify(svc_p, classes=classes)
     gpc_y = bake.infer.classify(svc_p, classes=classes)
 
+    # Predict probabilities on the testing set
     kec_p_test = kec.predict_proba(x_test)
     svc_p_test = svc.predict_proba(x_test)
     gpc_p_test = gpc.predict_proba(x_test)
 
+    # Predict targets on the testing set
     kec_y_test = bake.infer.classify(kec_p_test, classes=classes)
     svc_y_test = bake.infer.classify(svc_p_test, classes=classes)
     gpc_y_test = bake.infer.classify(gpc_p_test, classes=classes)
 
-    print('kec training accuracy: %.9f' % (np.mean(kec_y == y.ravel())))
-    print('svc training accuracy: %.9f' % (np.mean(svc_y == y.ravel())))
-    print('gpc training accuracy: %.9f' % (np.mean(gpc_y == y.ravel())))
-
-    print('kec test accuracy: %.9f' % (np.mean(kec_y_test == y_test.ravel())))
-    print('svc test accuracy: %.9f' % (np.mean(svc_y_test == y_test.ravel())))
-    print('gpc test accuracy: %.9f' % (np.mean(gpc_y_test == y_test.ravel())))
-
-    print('kec training log loss: %.9f' % log_loss(y.ravel(), kec_p))
-    print('svc training log loss: %.9f' % log_loss(y.ravel(), svc_p))
-    print('gpc training log loss: %.9f' % log_loss(y.ravel(), gpc_p))
-
-    print('kec test log loss: %.9f' % log_loss(y_test.ravel(), kec_p_test))
-    print('svc test log loss: %.9f' % log_loss(y_test.ravel(), svc_p_test))
-    print('gpc test log loss: %.9f' % log_loss(y_test.ravel(), gpc_p_test))
+    # Report the performance of each classifier
+    kec_train_accuracy = np.mean(kec_y == y_train.ravel())
+    svc_train_accuracy = np.mean(svc_y == y_train.ravel())
+    gpc_train_accuracy = np.mean(gpc_y == y_train.ravel())
+    kec_test_accuracy = np.mean(kec_y_test == y_test.ravel())
+    svc_test_accuracy = np.mean(svc_y_test == y_test.ravel())
+    gpc_test_accuracy = np.mean(gpc_y_test == y_test.ravel())
+    kec_train_log_loss = log_loss(y_train.ravel(), kec_p)
+    svc_train_los_loss = log_loss(y_train.ravel(), svc_p)
+    gpc_train_los_loss = log_loss(y_train.ravel(), gpc_p)
+    kec_test_log_loss = log_loss(y_test.ravel(), kec_p_test)
+    svc_test_los_loss = log_loss(y_test.ravel(), svc_p_test)
+    gpc_test_los_loss = log_loss(y_test.ravel(), gpc_p_test)
+    print('kec training accuracy: %.9f' % kec_train_accuracy)
+    print('svc training accuracy: %.9f' % svc_train_accuracy)
+    print('gpc training accuracy: %.9f' % gpc_train_accuracy)
+    print('kec test accuracy: %.9f' % kec_test_accuracy)
+    print('svc test accuracy: %.9f' % svc_test_accuracy)
+    print('gpc test accuracy: %.9f' % gpc_test_accuracy)
+    print('kec training log loss: %.9f' % kec_train_log_loss)
+    print('svc training log loss: %.9f' % svc_train_los_loss)
+    print('gpc training log loss: %.9f' % gpc_train_los_loss)
+    print('kec test log loss: %.9f' % kec_test_log_loss)
+    print('svc test log loss: %.9f' % svc_test_los_loss)
+    print('gpc test log loss: %.9f' % gpc_test_los_loss)
 
     y_query = classes[:, np.newaxis]
     reverse_embedding = kec.reverse_embedding(y_query, x_query)
@@ -191,43 +241,8 @@ def multiclass_classification(x, y, x_test, y_test):
                                           (classes.shape[0], n_query, n_query))
     reverse_weights = kec.reverse_weights(y_query) # (n, 3)
     i_rep = reverse_weights.argmax(axis=0)
-    x_rep = x[i_rep]
-    y_rep = y[i_rep]
-
-    # # Plot the objective and constraints history
-    # fig = plt.figure()
-    # iters = np.arange(kec._f_train.shape[0])
-    # plt.plot(iters, kec._f_train, c='c',
-    #          label='KEC Complexity (Scale: $\log_{e}$)')
-    # plt.plot(iters, kec._a_train, c='r', label='KEC Training Accuracy')
-    # plt.plot(iters, kec._p_train, c='g', label='KEC Mean Sum of Probabilities')
-    # plt.title('Training History: Objectives and Constraints')
-    # plt.xlabel('Iterations')
-    # leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
-    #                  fancybox=True, shadow=True)
-    # leg.get_frame().set_alpha(0.5)
-    # fig.set_size_inches(18, 4, forward=True)
-    #
-    # # Plot the hyperparameter history
-    # fig = plt.figure()
-    # iters = np.arange(kec._h_train.shape[0])
-    # plt.subplot(2, 1, 1)
-    # # plt.plot(iters, kec._h_train[:, 0], c='c', label='Sensitivity')
-    # plt.plot(iters, np.abs(kec._h_train[:, -2]), c='g', label='Length Scale')
-    # plt.title('Training History: Kernel Hyperparameters')
-    # plt.gca().xaxis.set_ticklabels([])
-    # leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
-    #                  fancybox=True, shadow=True)
-    # leg.get_frame().set_alpha(0.5)
-    # plt.subplot(2, 1, 2)
-    # plt.plot(iters, np.log10(np.abs(kec._h_train[:, -1])), c='b',
-    #          label='Regularization (Scale: $\log_{10}$)')
-    # plt.title('Training History: Regularization Parameter')
-    # plt.xlabel('Iterations')
-    # leg = plt.legend(loc='center', bbox_to_anchor=(0.95, 0.9),
-    #                  fancybox=True, shadow=True)
-    # leg.get_frame().set_alpha(0.5)
-    # fig.set_size_inches(18, 4, forward=True)
+    x_rep = x_train[i_rep]
+    y_rep = y_train[i_rep]
 
     for c, image in enumerate(reverse_embedding_images):
         plt.figure()
@@ -235,10 +250,7 @@ def multiclass_classification(x, y, x_test, y_test):
         plt.colorbar()
         plt.contour(x_1_mesh, x_2_mesh, kec_y_mesh, colors='k',
                     label='Decision Boundaries')
-        # plt.scatter(x[:, 0], x[:, 1], c=y, cmap=cm.jet, label='Training Data')
-        # plt.scatter(x_test[:, 0], x_test[:, 1], c=y_test, marker='x',
-        #             cmap=cm.jet, label='Test Data')
-        plt.scatter(x[:, 0], x[:, 1], c=reverse_weights[:, c], s=40,
+        plt.scatter(x_train[:, 0], x_train[:, 1], c=reverse_weights[:, c], s=40,
                     cmap=cm.coolwarm, label='Embedding Weights')
         plt.scatter(x_rep[c, 0], x_rep[c, 1], c=y_rep[c], marker='x', s=40,
                     cmap=cm.jet, label='Representative Sample')
@@ -251,6 +263,89 @@ def multiclass_classification(x, y, x_test, y_test):
         plt.legend(loc='lower left', bbox_to_anchor=(0, 0),
                    fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
         plt.title('Reverse Embedding for class %d' % c)
+
+    # Plot Training History
+    # self.train_history = {'iterations': _train_history[0, :],
+    #                       'complexity': _train_history[1, :],
+    #                       'accuracy': _train_history[2, :],
+    #                       'cross_entropy_loss': _train_history[3, :],
+    #                       'gradient_norm': _train_history[4, :],
+    #                       'kernel_hypers': _train_history[5:-1, :],
+    #                       'regularisation': _train_history[-1, :]}
+    th = kec_train_history
+    fig = plt.figure()
+    plt.subplot(6, 1, 1)
+    plt.plot(th['iterations'], th['complexity'], label='Complexity')
+    plt.xlim((0, th['iterations'][-1]))
+    plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
+               fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
+    plt.subplot(6, 1, 2)
+    plt.plot(th['iterations'], 100*th['accuracy'], label='Accuracy (%)')
+    plt.xlim((0, th['iterations'][-1]))
+    plt.ylim((0, 100))
+    plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
+               fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
+    plt.subplot(6, 1, 3)
+    plt.plot(th['iterations'], th['cross_entropy_loss'],
+             label='Cross Entropy Loss')
+    plt.xlim((0, th['iterations'][-1]))
+    plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
+               fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
+    plt.subplot(6, 1, 4)
+    plt.plot(th['iterations'], th['gradient_norm'], label='Gradient Norm')
+    plt.xlim((0, th['iterations'][-1]))
+    plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
+               fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
+    plt.subplot(6, 1, 5)
+    for i in range(th['kernel_hypers'].shape[1]):
+        plt.plot(th['iterations'], th['kernel_hypers'][:, i],
+                 label='Kernel Hyperparameter #%d' % i)
+    plt.xlim((0, th['iterations'][-1]))
+    plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
+               fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
+    plt.subplot(6, 1, 6)
+    plt.plot(th['iterations'], np.log(th['regularisation']),
+             label='Log Regularisation')
+    plt.xlim((0, th['iterations'][-1]))
+    plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
+               fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
+    fig.set_size_inches(18, 20, forward=True)
+
+    f = open('%s%s_results.txt' % (directory, name), 'w')
+    f.write('There are %d classes for digits: %s\n' % (n_class, str(classes)))
+    f.write('Training on %d images\n' % n_train)
+    f.write('Testing on %d images\n' % n_test)
+    f.write('-----\n')
+    f.write('Kernel Embedding Classifier Training Setup:\n')
+    f.write('Initial Hyperparameters: {} {}\n'.format(theta_init, zeta_init))
+    f.write('Learning Rate: %f\n' % learning_rate)
+    f.write('Gradient Error Tolerance: %f\n' % grad_tol)
+    f.write('Number of batches for SGD: %d\n' % n_splits)
+    f.write('-----\n')
+    f.write('Kernel Embedding Classifier Final Training Configuration:\n')
+    f.write('Training Iterations: %d\n' % kec_steps_train)
+    f.write('Hyperparameters: %s\n' % str(kec_h))
+    f.write('Model Complexity: %f\n' % kec_complexity)
+    f.write('Training Accuracy: %f\n' % kec_train_accuracy)
+    f.write('Mean Sum of Probabilities: %f\n' % kec_mean_sum_probability)
+    f.write('-----\n')
+    f.write('SVC Hyperparameters: %s\n' % str(svc_h))
+    f.write('GPC Hyperparameters: %s\n' % str(gpc_h))
+    f.write('-----\n')
+    f.write('kec training accuracy: %.9f\n' % kec_train_accuracy)
+    f.write('svc training accuracy: %.9f\n' % svc_train_accuracy)
+    f.write('gpc training accuracy: %.9f\n' % gpc_train_accuracy)
+    f.write('kec test accuracy: %.9f\n' % kec_test_accuracy)
+    f.write('svc test accuracy: %.9f\n' % svc_test_accuracy)
+    f.write('gpc test accuracy: %.9f\n' % gpc_test_accuracy)
+    f.write('kec training log loss: %.9f\n' % kec_train_log_loss)
+    f.write('svc training log loss: %.9f\n' % svc_train_los_loss)
+    f.write('gpc training log loss: %.9f\n' % gpc_train_los_loss)
+    f.write('kec test log loss: %.9f\n' % kec_test_log_loss)
+    f.write('svc test log loss: %.9f\n' % svc_test_los_loss)
+    f.write('gpc test log loss: %.9f\n' % gpc_test_los_loss)
+    f.write('-----\n')
+    f.close()
 
 def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
                          x_1_lim, x_2_lim,
@@ -368,25 +463,26 @@ def visualize_classifier(name, x, y, x_test, y_test, x_1_mesh, x_2_mesh,
 if __name__ == "__main__":
 
     n_attr = 4
+    test_size = 0.1
+    np.random.seed(0)
 
     for a in np.arange(n_attr):
         for b in np.arange(a + 1, n_attr):
-            x, y = create_iris_data(a, b)
-            test_size = 0.1
-            x_train, x_test, y_train, y_test = train_test_split(x, y,
-                                                                test_size=test_size,
-                                                                random_state=0)
-            utils.misc.time_module(multiclass_classification,
-                                   x_train, y_train, x_test, y_test)
-            print('Percentage of data withheld for testing: %f%%' % (100 * test_size))
 
             full_directory = './iris_%s_attributes_%d_%d/' % (now_string, a, b)
             os.mkdir(full_directory)
             print('Results will be saved in "%s"' % full_directory)
 
+            x, y = load_iris_data(a, b)
+
+            x_train, x_test, y_train, y_test = \
+                train_test_split(x, y, test_size=test_size, random_state=0)
+            utils.misc.time_module(iris_classification,
+                                   x_train, y_train, x_test, y_test,
+                                   directory=full_directory)
+
             # Save all figures and show all figures
             utils.misc.save_all_figures(full_directory,
-                                        axis_equal=True, tight=True,
+                                        axis_equal=False, tight=True,
                                         extension='eps', rcparams=None)
             plt.close("all")
-    plt.show()

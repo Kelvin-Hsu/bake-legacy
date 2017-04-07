@@ -72,8 +72,12 @@ class Classifier():
         self.y_one_hot = self.y == self.classes
         self.y_indices = np.where(self.y_one_hot)[1]
         self.n_classes = self.classes.shape[0]
-        self.theta = 0 * h_init[:-1]
-        self.zeta = 0 * h_init[-1]
+        if h is None:
+            self.theta = 0 * h_init[:-1]
+            self.zeta = 0 * h_init[-1]
+        else:
+            self.theta = 0 * h[:-1]
+            self.zeta = 0 * h[-1]
         self.update(self.theta, self.zeta)
 
         self._f_train = []
