@@ -33,7 +33,8 @@ class KEC():
 
     def fit(self, x, y,
             theta=np.array([1., 1.]), zeta=0.01,
-            learning_rate=0.01, grad_tol=0.01, n_sgd_batch=1, log_hypers=True):
+            learning_rate=0.01, grad_tol=0.01, n_sgd_batch=None,
+            log_hypers=True):
         """
         Fit the kernel embedding classifier.
 
@@ -127,10 +128,73 @@ class KEC():
         opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
         train = opt.minimize(self.lagrangian, var_list=var_list)
 
+        # # Run the optimisation
+        # print('Starting Training')
+        # if n_sgd_batch > 1:
+        #     k_fold = _KFold(n_splits=n_sgd_batch)
+        # feed_dict = self.feed_dict
+        # self.sess = tf.Session()
+        # self.sess.run(tf.global_variables_initializer())
+        # step = 0
+        # _train_history = []
+        # grad_norm_check = grad_tol + 1
+        # while grad_norm_check > grad_tol:
+        #     if n_sgd_batch > 1:
+        #         grad_norm_list = []
+        #         for train_indices, test_indices in k_fold.split(x):
+        #             feed_dict = {self.x: x[test_indices],
+        #                          self.y: y[test_indices]}
+        #             theta = self.sess.run(self.theta)
+        #             zeta = self.sess.run(self.zeta)
+        #             complexity = self.sess.run(self.complexity,
+        #                                        feed_dict=feed_dict)
+        #             cel = self.sess.run(self.cross_entropy_loss,
+        #                                 feed_dict=feed_dict)
+        #             acc = self.sess.run(self.train_accuracy,
+        #                                 feed_dict=feed_dict)
+        #             grad_norm = self.sess.run(self.grad_norm,
+        #                                       feed_dict=feed_dict)
+        #             grad_norm_list.append(grad_norm)
+        #             self.sess.run(train, feed_dict=feed_dict)
+        #             print('Step %d' % step,
+        #                   '|| Hyperparameters: ', theta, zeta,
+        #                   '|| Complexity: ', complexity,
+        #                   '|| Train Accuracy: ', acc,
+        #                   '|| Cross Entropy Loss: ', cel,
+        #                   '|| Gradient Norm: ', grad_norm)
+        #             step += 1
+        #             _train_history.append(
+        #                 [step, complexity, acc, cel, grad_norm]
+        #                 + list(np.append(theta, zeta)))
+        #         grad_norm_check = np.max(grad_norm_list)
+        #     else:
+        #         theta = self.sess.run(self.theta)
+        #         zeta = self.sess.run(self.zeta)
+        #         complexity = self.sess.run(self.complexity,
+        #                                    feed_dict=feed_dict)
+        #         cel = self.sess.run(self.cross_entropy_loss,
+        #                             feed_dict=feed_dict)
+        #         acc = self.sess.run(self.train_accuracy,
+        #                             feed_dict=feed_dict)
+        #         grad_norm = self.sess.run(self.grad_norm, feed_dict=feed_dict)
+        #         grad_norm_check = grad_norm
+        #         self.sess.run(train, feed_dict=feed_dict)
+        #         print('Step %d' % step,
+        #               '|| Hyperparameters: ', theta, zeta,
+        #               '|| Complexity: ', complexity,
+        #               '|| Train Accuracy: ', acc,
+        #               '|| Cross Entropy Loss: ', cel,
+        #               '|| Gradient Norm: ', grad_norm)
+        #         step += 1
+        #         _train_history.append([step, complexity, acc, cel, grad_norm]
+        #                               + list(np.append(theta, zeta)))
+
         # Run the optimisation
         print('Starting Training')
-        if n_sgd_batch > 1:
-            k_fold = _KFold(n_splits=n_sgd_batch)
+        if n_sgd_batch:
+            print('Batch size for stochastic gradient descent: %d'
+                  % n_sgd_batch)
+        n = x.shape[0]
         feed_dict = self.feed_dict
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
@@ -138,55 +202,31 @@ class KEC():
         _train_history = []
         grad_norm_check = grad_tol + 1
         while grad_norm_check > grad_tol:
-            if n_sgd_batch > 1:
-                grad_norm_list = []
-                for train_indices, test_indices in k_fold.split(x):
-                    feed_dict = {self.x: x[test_indices],
-                                 self.y: y[test_indices]}
-                    theta = self.sess.run(self.theta)
-                    zeta = self.sess.run(self.zeta)
-                    complexity = self.sess.run(self.complexity,
-                                               feed_dict=feed_dict)
-                    cel = self.sess.run(self.cross_entropy_loss,
-                                        feed_dict=feed_dict)
-                    acc = self.sess.run(self.train_accuracy,
-                                        feed_dict=feed_dict)
-                    grad_norm = self.sess.run(self.grad_norm,
-                                              feed_dict=feed_dict)
-                    grad_norm_list.append(grad_norm)
-                    self.sess.run(train, feed_dict=feed_dict)
-                    print('Step %d' % step,
-                          '|| Hyperparameters: ', theta, zeta,
-                          '|| Complexity: ', complexity,
-                          '|| Train Accuracy: ', acc,
-                          '|| Cross Entropy Loss: ', cel,
-                          '|| Gradient Norm: ', grad_norm)
-                    step += 1
-                    _train_history.append(
-                        [step, complexity, acc, cel, grad_norm]
-                        + list(np.append(theta, zeta)))
-                grad_norm_check = np.max(grad_norm_list)
-            else:
-                theta = self.sess.run(self.theta)
-                zeta = self.sess.run(self.zeta)
-                complexity = self.sess.run(self.complexity,
-                                           feed_dict=feed_dict)
-                cel = self.sess.run(self.cross_entropy_loss,
-                                    feed_dict=feed_dict)
-                acc = self.sess.run(self.train_accuracy,
-                                    feed_dict=feed_dict)
-                grad_norm = self.sess.run(self.grad_norm, feed_dict=feed_dict)
-                grad_norm_check = grad_norm
-                self.sess.run(train, feed_dict=feed_dict)
-                print('Step %d' % step,
-                      '|| Hyperparameters: ', theta, zeta,
-                      '|| Complexity: ', complexity,
-                      '|| Train Accuracy: ', acc,
-                      '|| Cross Entropy Loss: ', cel,
-                      '|| Gradient Norm: ', grad_norm)
-                step += 1
-                _train_history.append([step, complexity, acc, cel, grad_norm]
-                                      + list(np.append(theta, zeta)))
+
+            if n_sgd_batch:
+                sgd_indices = np.random.choice(n, n_sgd_batch, replace=False)
+                feed_dict = {self.x: x[sgd_indices], self.y: y[sgd_indices]}
+
+            theta = self.sess.run(self.theta)
+            zeta = self.sess.run(self.zeta)
+            complexity = self.sess.run(self.complexity,
+                                       feed_dict=feed_dict)
+            cel = self.sess.run(self.cross_entropy_loss,
+                                feed_dict=feed_dict)
+            acc = self.sess.run(self.train_accuracy,
+                                feed_dict=feed_dict)
+            grad_norm = self.sess.run(self.grad_norm, feed_dict=feed_dict)
+            grad_norm_check = grad_norm
+            self.sess.run(train, feed_dict=feed_dict)
+            print('Step %d' % step,
+                  '|| Hyperparameters: ', theta, zeta,
+                  '|| Complexity: ', complexity,
+                  '|| Train Accuracy: ', acc,
+                  '|| Cross Entropy Loss: ', cel,
+                  '|| Gradient Norm: ', grad_norm)
+            step += 1
+            _train_history.append([step, complexity, acc, cel, grad_norm]
+                                  + list(np.append(theta, zeta)))
 
         # Store train history
         _train_history = np.array(_train_history)
@@ -213,6 +253,10 @@ class KEC():
         self.msp_train = self.sess.run(self.msp, feed_dict=self.feed_dict)
         print('Training Finished')
         print('Learned Hyperparameters: ', self.theta_train, self.zeta_train)
+        print('Learned Complexity: ', self.complexity_train)
+        print('Achieved Training Accuracy: ', self.acc_train)
+        print('Achieved Cross Entropy Loss: ', self.cel_train)
+        print('Achieved Mean Sum of Probabilities: ', self.msp_train)
         return self
 
     def _setup_train_graph(self):
