@@ -213,7 +213,7 @@ class Classifier():
         # p_pred = np.clip(self.p_pred, eps, 1 - eps)
         # p_pred /= p_pred.sum(axis=1)[:, np.newaxis]
         # loss = np.average(-(self.y_one_hot * np.log(p_pred)).sum(axis=1))
-        return np.log(complexity)
+        return complexity
 
         ## FOURTH METHOD (GLOBAL RADEMACHER COMPLEXITY NOT LEGIT: NOT GOOD)
         # b = _kronecker_delta(self.y, self.classes[:, np.newaxis])
