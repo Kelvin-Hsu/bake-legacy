@@ -82,7 +82,7 @@ class KEC():
                 tf.where(self.y_one_hot,
                          tf.ones(tf.shape(self.y_one_hot)) * class_indices,
                          tf.zeros(tf.shape(self.y_one_hot))), axis=1),
-                tf_int_type)
+                    tf_int_type)
 
         # Setup the hyperparameters
         offset = False
@@ -95,11 +95,11 @@ class KEC():
             if offset:
                 self.theta_offset = \
                     tf.Variable(np.atleast_1d(0.0).astype(np_float_type))
-                self.theta = tf.exp(self.log_theta, name="theta") \
-                             + tf.concat([np.array([0.0]),
-                                          tf.ones(theta.shape[0] - 1) *
-                                          self.theta_offset ** 2], axis=0)
-                self.zeta = tf.exp(self.log_zeta, name="zeta")
+                d = tf.concat([np.array([0.0]),
+                               tf.ones(theta.shape[0] - 1) *
+                               self.theta_offset ** 2], axis=0)
+                self.theta = tf.exp(self.log_theta) + d
+                self.zeta = tf.exp(self.log_zeta)
                 var_list = [self.log_theta, self.log_zeta, self.theta_offset]
             else:
                 self.theta = tf.exp(self.log_theta, name="theta")
@@ -479,6 +479,7 @@ class KEC():
         numpy.ndarray
             The mode of each feature for each class (n_class, d)
         """
+        # TODO: This optimisation does not converge sometimes. Investigate.
         # For each class, compute the mode
         classes = self.sess.run(self.classes)
         x_mode = np.zeros((self.n_classes, self.d))
@@ -530,4 +531,3 @@ class KEC():
                   % self.sess.run(mu_yx[c, 0], feed_dict=self.feed_dict))
         print('All Modes Decoded: \n', x_mode)
         return x_mode
-
