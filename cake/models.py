@@ -194,6 +194,8 @@ class KEC():
         if n_sgd_batch:
             print('Batch size for stochastic gradient descent: %d'
                   % n_sgd_batch)
+        else:
+            print('Using full dataset for gradient descent')
         n = x.shape[0]
         feed_dict = self.feed_dict
         self.sess = tf.Session()
@@ -209,12 +211,11 @@ class KEC():
 
             theta = self.sess.run(self.theta)
             zeta = self.sess.run(self.zeta)
-            complexity = self.sess.run(self.complexity,
-                                       feed_dict=feed_dict)
-            cel = self.sess.run(self.cross_entropy_loss,
-                                feed_dict=feed_dict)
-            acc = self.sess.run(self.train_accuracy,
-                                feed_dict=feed_dict)
+            complexity = self.sess.run(self.complexity, feed_dict=feed_dict)
+            cel = self.sess.run(self.cross_entropy_loss, feed_dict=feed_dict)
+            cel_valid = self.sess.run(self.cross_entropy_loss_valid,
+                                      feed_dict=feed_dict)
+            acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
             grad_norm = self.sess.run(self.grad_norm, feed_dict=feed_dict)
             grad_norm_check = grad_norm
             self.sess.run(train, feed_dict=feed_dict)
@@ -225,7 +226,8 @@ class KEC():
                   '|| Cross Entropy Loss: ', cel,
                   '|| Gradient Norm: ', grad_norm)
             step += 1
-            _train_history.append([step, complexity, acc, cel, grad_norm]
+            _train_history.append([step, complexity, acc, cel, cel_valid,
+                                   grad_norm]
                                   + list(np.append(theta, zeta)))
 
         # Store train history
@@ -234,8 +236,9 @@ class KEC():
                               'complexity': _train_history[:, 1],
                               'accuracy': _train_history[:, 2],
                               'cross_entropy_loss': _train_history[:, 3],
-                              'gradient_norm': _train_history[:, 4],
-                              'kernel_hypers': _train_history[:, 5:-1],
+                              'valid_cross_entropy_loss': _train_history[:, 4],
+                              'gradient_norm': _train_history[:, 5],
+                              'kernel_hypers': _train_history[:, 6:-1],
                               'regularisation': _train_history[:, -1]}
 
         # Store the optimal hyperparameters
@@ -295,7 +298,20 @@ class KEC():
                                    tf.stack([indices, self.y_indices], axis=1))
 
         # The cross entropy loss over the training data
-        self.cross_entropy_loss = tf.reduce_mean(- tf.log(self.p_want))
+        self.cross_entropy_loss = - tf.reduce_mean(tf.log(self.p_want))
+
+        # The clip-normalised valid decision probabilities
+        self.p_pred_valid = \
+            tf.transpose(_clip_normalize(tf.transpose(self.p_pred)))
+
+        # The clip-normalised valid decision probabilities on the actual label
+        self.p_want_valid = \
+            tf.gather_nd(self.p_pred_valid, tf.stack([indices, self.y_indices],
+                                                     axis=1))
+
+        # The valid cross entropy loss over the training data
+        self.cross_entropy_loss_valid = \
+            - tf.reduce_mean(tf.log(self.p_want_valid))
 
         # The model complexity of the classifier
         self.complexity = self._define_complexity()
@@ -367,10 +383,8 @@ class KEC():
             return tf.trace(self.w)
         elif complexity == 'Global Rademacher Complexity':
             b = _kronecker_delta(self.y, self.classes[:, tf.newaxis])
-            step_1 = tf.cholesky_solve(self.chol_k_reg, b)
-            step_2 = tf.matmul(self.k, step_1)
-            step_3 = tf.cholesky_solve(self.chol_k_reg, step_2)
-            wtw = tf.matmul(tf.transpose(b), step_3)
+            v = tf.cholesky_solve(self.chol_k_reg, b)
+            wtw = tf.matmul(tf.transpose(v), tf.matmul(self.k, v))
             return tf.sqrt(tf.trace(wtw))
         else:
             raise ValueError('No complexity measure named "%s"' % complexity)
