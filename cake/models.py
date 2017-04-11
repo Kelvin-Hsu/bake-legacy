@@ -34,7 +34,8 @@ class KEC():
     def fit(self, x, y,
             theta=np.array([1., 1.]), zeta=0.01,
             learning_rate=0.01, grad_tol=0.01, n_sgd_batch=None,
-            log_hypers=True):
+            sequential_batch=False,
+            log_hypers=True, to_train=True):
         """
         Fit the kernel embedding classifier.
 
@@ -52,7 +53,7 @@ class KEC():
             The learning rate for the gradient descent optimiser
         grad_tol : float
             The gradient error tolerance for the stopping criteria
-        n_sgd_batch : int
+        n_sgd_batch : int or None
             The number of batches used for stochastic gradient descent.
         log_hypers : bool
             To train over the log-space of the hyperparameters instead
@@ -75,6 +76,7 @@ class KEC():
         self.feed_dict = {self.x: x, self.y: y}
         self.n = tf.shape(self.x)[0]
         self.d = x.shape[1]
+        n_all = x.shape[0]
 
         # Determine the one hot encoding and index form of the training labels
         self.y_one_hot = tf.equal(self.y, self.classes)
@@ -112,6 +114,14 @@ class KEC():
                                     name="zeta")
             var_list = [self.theta, self.zeta]
 
+        if n_sgd_batch:
+            print('Batch size for stochastic gradient descent: %d'
+                  % n_sgd_batch)
+        else:
+            # n_sgd_batch = x.shape[0]
+            print('Using full dataset for gradient descent')
+        complexity_ratio = np.sqrt(n_all / n_sgd_batch)
+
         # Setup the training graph
         self._setup_train_graph()
 
@@ -119,6 +129,7 @@ class KEC():
         self._setup_query_graph()
 
         # Setup the lagrangian objective
+        # self.lagrangian = tf.log(complexity_ratio * self.complexity ** 2)
         self.lagrangian = self.complexity
         self.grad = tf.gradients(self.lagrangian, var_list)
         self.grad_norm = tf.reduce_max(tf.abs(tf.concat(self.grad, axis=0)))
@@ -191,44 +202,47 @@ class KEC():
 
         # Run the optimisation
         print('Starting Training')
-        if n_sgd_batch:
-            print('Batch size for stochastic gradient descent: %d'
-                  % n_sgd_batch)
-        else:
-            print('Using full dataset for gradient descent')
-        n = x.shape[0]
         feed_dict = self.feed_dict
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
         step = 0
         _train_history = []
         grad_norm_check = grad_tol + 1
-        while grad_norm_check > grad_tol:
+        if to_train:
+            while grad_norm_check > grad_tol:
 
-            if n_sgd_batch:
-                sgd_indices = np.random.choice(n, n_sgd_batch, replace=False)
-                feed_dict = {self.x: x[sgd_indices], self.y: y[sgd_indices]}
+                if n_sgd_batch:
+                    sgd_indices = \
+                        np.arange(step * n_sgd_batch,
+                                  (step + 1) * n_sgd_batch) % n_all \
+                            if sequential_batch \
+                            else np.random.choice(n_all, n_sgd_batch,
+                                                  replace=False)
+                    feed_dict = {self.x: x[sgd_indices],
+                                 self.y: y[sgd_indices]}
 
-            theta = self.sess.run(self.theta)
-            zeta = self.sess.run(self.zeta)
-            complexity = self.sess.run(self.complexity, feed_dict=feed_dict)
-            cel = self.sess.run(self.cross_entropy_loss, feed_dict=feed_dict)
-            cel_valid = self.sess.run(self.cross_entropy_loss_valid,
-                                      feed_dict=feed_dict)
-            acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
-            grad_norm = self.sess.run(self.grad_norm, feed_dict=feed_dict)
-            grad_norm_check = grad_norm
-            self.sess.run(train, feed_dict=feed_dict)
-            print('Step %d' % step,
-                  '|| Hyperparameters: ', theta, zeta,
-                  '|| Complexity: ', complexity,
-                  '|| Train Accuracy: ', acc,
-                  '|| Cross Entropy Loss: ', cel,
-                  '|| Gradient Norm: ', grad_norm)
-            step += 1
-            _train_history.append([step, complexity, acc, cel, cel_valid,
-                                   grad_norm]
-                                  + list(np.append(theta, zeta)))
+                theta = self.sess.run(self.theta)
+                zeta = self.sess.run(self.zeta)
+                complexity = self.sess.run(self.complexity,
+                                           feed_dict=feed_dict)
+                cel = self.sess.run(self.cross_entropy_loss,
+                                    feed_dict=feed_dict)
+                cel_valid = self.sess.run(self.cross_entropy_loss_valid,
+                                          feed_dict=feed_dict)
+                acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
+                grad_norm = self.sess.run(self.grad_norm, feed_dict=feed_dict)
+                grad_norm_check = grad_norm
+                self.sess.run(train, feed_dict=feed_dict)
+                print('Step %d' % step,
+                      '|| Hyperparameters: ', theta, zeta,
+                      '|| Complexity: ', complexity,
+                      '|| Train Accuracy: ', acc,
+                      '|| Cross Entropy Loss: ', cel,
+                      '|| Gradient Norm: ', grad_norm)
+                step += 1
+                _train_history.append([step, complexity, acc, cel, cel_valid,
+                                       grad_norm]
+                                      + list(np.append(theta, zeta)))
 
         # Store train history
         _train_history = np.array(_train_history)
@@ -239,7 +253,8 @@ class KEC():
                               'valid_cross_entropy_loss': _train_history[:, 4],
                               'gradient_norm': _train_history[:, 5],
                               'kernel_hypers': _train_history[:, 6:-1],
-                              'regularisation': _train_history[:, -1]}
+                              'regularisation': _train_history[:, -1]} \
+            if to_train else None
 
         # Store the optimal hyperparameters
         self.theta_train = self.sess.run(self.theta)
@@ -345,10 +360,10 @@ class KEC():
         ind = tf.reshape(self.y_indices, [-1])
         self.p_field = tf.transpose(tf.gather(tf.transpose(self.p_query), ind))
         self.p_field_adjust = _adjust_prob(self.p_field)  # (n_query, n_train)
-        u = -tf.log(self.p_field_adjust)
+        self.u_field = -tf.log(self.p_field_adjust)
         # TODO: Einstein Sum for diagonal of matrix product
         # self.h_query = tf.einsum('ij,ji->i', u, self.w_query)
-        self.h_query = tf.diag_part(tf.matmul(u, self.w_query))
+        self.h_query = tf.diag_part(tf.matmul(self.u_field, self.w_query))
         self.h_query_valid = tf.clip_by_value(self.h_query, 0, np.inf)
 
         # Query on y
@@ -443,7 +458,7 @@ class KEC():
         self.feed_dict.update({self.x_query: x_query})
         return self.sess.run(self.y_query, feed_dict=self.feed_dict)
 
-    def predict_entropy(self, x_query, clip=True):
+    def predict_entropy(self, x_query, clip=True, tensorflow=False):
         """
         Predict the entropy of the predictions.
 
@@ -460,8 +475,14 @@ class KEC():
             The query entropy of size (n_query,)
         """
         self.feed_dict.update({self.x_query: x_query})
-        return self.sess.run(self.h_query_valid if clip else self.h_query,
-                             feed_dict=self.feed_dict)
+        if tensorflow:
+            return self.sess.run(self.h_query_valid if clip else self.h_query,
+                                 feed_dict=self.feed_dict)
+        else:
+            u_field = self.sess.run(self.u_field, feed_dict=self.feed_dict)
+            w_query = self.sess.run(self.w_query, feed_dict=self.feed_dict)
+            h_query = np.einsum('ij,ji->i', u_field, w_query)
+            return np.clip(h_query, 0, np.inf) if clip else h_query
 
     def reverse_weights(self, y_query):
         """
@@ -537,55 +558,56 @@ class KEC():
         numpy.ndarray
             The mode of each feature for each class (n_class, d)
         """
+        raise ValueError('Implementation not complete.')
         # TODO: This optimisation does not converge sometimes. Investigate.
-        # For each class, compute the mode
-        classes = self.sess.run(self.classes)
-        x_mode = np.zeros((self.n_classes, self.d))
-        for c in range(self.n_classes):
-
-            # Choose an initial starting point
-            self.feed_dict.update(
-                {self.y_query: self.sess.run(self.classes)[:, np.newaxis]})
-            x_init = self.sess.run(self.x_exp, feed_dict=self.feed_dict)
-
-            # Define a candidate and initialise it to the starting point (d,)
-            x_cand = tf.Variable(x_init[c])
-
-            # Inference Gram Matrix
-            k_cand = self.kernel(self.x, x_cand[tf.newaxis, :], self.theta)
-
-            # Conditional Embedding Weights
-            w_cand = tf.cholesky_solve(self.chol_k_reg, k_cand)
-
-            # Embedding
-            mu_yx = tf.matmul(_kronecker_delta(self.classes[:, tf.newaxis],
-                                               self.y), w_cand)
-
-            # Embedding Gradients
-            grad = tf.gradients(mu_yx, [x_cand])
-            grad_norm = tf.reduce_max(tf.abs(tf.concat(grad, axis=0)))
-
-            # Begin optimisation
-            self.sess.run(tf.global_variables_initializer())
-            print('Starting Mode Decoding for Class %d' % classes[c])
-            tf.assign(x_cand, x_init[c])
-            opt = tf.train.GradientDescentOptimizer(
-                learning_rate=learning_rate)
-            mu = mu_yx[c, 0]
-            print(mu)
-            train = opt.minimize(mu, var_list=[x_cand])
-            grad_eps = grad_tol + 1
-            i = 1
-            while grad_eps > grad_tol:
-                grad_eps = self.sess.run(grad_norm, feed_dict=self.feed_dict)
-                print('Class %d || Step %d || Mode Candidate: '
-                      % (classes[c], i), self.sess.run(x_cand),
-                      '|| Gradient Norm: %f' % grad_eps)
-                self.sess.run(train, feed_dict=self.feed_dict)
-                i += 1
-            x_mode[c] = self.sess.run(x_cand)
-            print('Mode Decoded for Class %d:' % classes[c], x_mode[c])
-            print('Embedding Value at Mode: %f'
-                  % self.sess.run(mu_yx[c, 0], feed_dict=self.feed_dict))
-        print('All Modes Decoded: \n', x_mode)
-        return x_mode
+        # # For each class, compute the mode
+        # classes = self.sess.run(self.classes)
+        # x_mode = np.zeros((self.n_classes, self.d))
+        # for c in range(self.n_classes):
+        #
+        #     # Choose an initial starting point
+        #     self.feed_dict.update(
+        #         {self.y_query: self.sess.run(self.classes)[:, np.newaxis]})
+        #     x_init = self.sess.run(self.x_exp, feed_dict=self.feed_dict)
+        #
+        #     # Define a candidate and initialise it to the starting point (d,)
+        #     x_cand = tf.Variable(x_init[c])
+        #
+        #     # Inference Gram Matrix
+        #     k_cand = self.kernel(self.x, x_cand[tf.newaxis, :], self.theta)
+        #
+        #     # Conditional Embedding Weights
+        #     w_cand = tf.cholesky_solve(self.chol_k_reg, k_cand)
+        #
+        #     # Embedding
+        #     mu_yx = tf.matmul(_kronecker_delta(self.classes[:, tf.newaxis],
+        #                                        self.y), w_cand)
+        #
+        #     # Embedding Gradients
+        #     grad = tf.gradients(mu_yx, [x_cand])
+        #     grad_norm = tf.reduce_max(tf.abs(tf.concat(grad, axis=0)))
+        #
+        #     # Begin optimisation
+        #     self.sess.run(tf.global_variables_initializer())
+        #     print('Starting Mode Decoding for Class %d' % classes[c])
+        #     tf.assign(x_cand, x_init[c])
+        #     opt = tf.train.GradientDescentOptimizer(
+        #         learning_rate=learning_rate)
+        #     mu = mu_yx[c, 0]
+        #     print(mu)
+        #     train = opt.minimize(mu, var_list=[x_cand])
+        #     grad_eps = grad_tol + 1
+        #     i = 1
+        #     while grad_eps > grad_tol:
+        #         grad_eps = self.sess.run(grad_norm, feed_dict=self.feed_dict)
+        #         print('Class %d || Step %d || Mode Candidate: '
+        #               % (classes[c], i), self.sess.run(x_cand),
+        #               '|| Gradient Norm: %f' % grad_eps)
+        #         self.sess.run(train, feed_dict=self.feed_dict)
+        #         i += 1
+        #     x_mode[c] = self.sess.run(x_cand)
+        #     print('Mode Decoded for Class %d:' % classes[c], x_mode[c])
+        #     print('Embedding Value at Mode: %f'
+        #           % self.sess.run(mu_yx[c, 0], feed_dict=self.feed_dict))
+        # print('All Modes Decoded: \n', x_mode)
+        # return x_mode

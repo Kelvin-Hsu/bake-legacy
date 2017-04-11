@@ -4,6 +4,7 @@ Kernel Function Module.
 These are the definitions of commonly used characteristic kernels.
 """
 import tensorflow as tf
+import numpy as np
 
 tf_float_type = tf.float64
 tf_int_type = tf.int64
@@ -33,6 +34,28 @@ def sqdist(x_p, x_q, theta):
     d_p = tf.reduce_sum(tf.square(z_p), axis=1)  # (n_p,)
     d_q = tf.reduce_sum(tf.square(z_q), axis=1)  # (n_q,)
     return d_p[:, tf.newaxis] - 2 * d_pq + d_q  # (n_p, n_q)
+
+
+def linear(x_p, x_q, *args):
+    """
+    Define the linear kernel.
+
+    The linear kernel does not need any hyperparameters.
+    Passing hyperparameter arguments do not change the kernel behaviour.
+
+    Parameters
+    ----------
+    x_p : tensorflow.Tensor
+        A dataset of size (n_p, d)
+    x_q : tensorflow.Tensor
+        A dataset of size (n_p, d)
+
+    Returns
+    -------
+    tensorflow.Tensor
+        The gram matrix (n_p, n_q)
+    """
+    return tf.matmul(x_p, tf.transpose(x_q))
 
 
 def gaussian(x_p, x_q, theta):
@@ -136,7 +159,7 @@ def kronecker_delta(y_p, y_q, *args):
     """
     Define the Kronecker delta kernel.
 
-    The Kronecker delta does not need any hyperparameters.
+    The Kronecker delta kernel does not need any hyperparameters.
     Passing hyperparameter arguments do not change the kernel behaviour.
 
     Parameters
@@ -152,3 +175,66 @@ def kronecker_delta(y_p, y_q, *args):
         The gram matrix (n_p, n_q)
     """
     return tf.cast(tf.equal(y_p, tf.reshape(y_q, [-1])), tf_float_type)
+
+
+def perceptron(x, w, b):
+    """
+    Define a single layer perceptron.
+
+    Parameters
+    ----------
+    x : tensorflow.Tensor
+        A dataset of size (n, d)
+    w : tensorflow.Tensor
+        A weight matrix of size (d, d')
+    b : tensorflow.Tensor
+        A bias vector of size (d',)
+
+    Returns
+    -------
+    tensorflow.Tensor
+        The perceptron matrix of size (n, d')
+    """
+    return tf.nn.relu(tf.matmul(x, w) + b)
+
+
+def linear_mlp1(x_p, x_q, w, b):
+    phi_p = perceptron(x_p, w, b)
+    phi_q = perceptron(x_q, w, b)
+    return linear(phi_p, phi_q)
+
+
+def gaussian_mlp1(x_p, x_q, theta, w, b):
+    phi_p = perceptron(x_p, w, b)
+    phi_q = perceptron(x_q, w, b)
+    return gaussian(phi_p, phi_q, theta)
+
+
+def s_gaussian_mlp1(x_p, x_q, theta, w, b):
+    phi_p = perceptron(x_p, w, b)
+    phi_q = perceptron(x_q, w, b)
+    return s_gaussian(phi_p, phi_q, theta)
+
+
+def linear_mlp2(x_p, x_q, w_1, b_1, w_2, b_2):
+    phi_p_1 = perceptron(x_p, w_1, b_1)
+    phi_q_1 = perceptron(x_q, w_1, b_1)
+    phi_p_2 = perceptron(phi_p_1, w_2, b_2)
+    phi_q_2 = perceptron(phi_q_1, w_2, b_2)
+    return linear(phi_p_2, phi_q_2)
+
+
+def gaussian_mlp2(x_p, x_q, theta, w_1, b_1, w_2, b_2):
+    phi_p_1 = perceptron(x_p, w_1, b_1)
+    phi_q_1 = perceptron(x_q, w_1, b_1)
+    phi_p_2 = perceptron(phi_p_1, w_2, b_2)
+    phi_q_2 = perceptron(phi_q_1, w_2, b_2)
+    return gaussian(phi_p_2, phi_q_2, theta)
+
+
+def s_gaussian_mlp2(x_p, x_q, theta, w_1, b_1, w_2, b_2):
+    phi_p_1 = perceptron(x_p, w_1, b_1)
+    phi_q_1 = perceptron(x_q, w_1, b_1)
+    phi_p_2 = perceptron(phi_p_1, w_2, b_2)
+    phi_q_2 = perceptron(phi_q_1, w_2, b_2)
+    return s_gaussian(phi_p_2, phi_q_2, theta)
