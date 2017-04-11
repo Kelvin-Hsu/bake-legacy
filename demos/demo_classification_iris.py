@@ -19,6 +19,11 @@ now = datetime.datetime.now()
 now_string = '%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
                                     now.hour, now.minute, now.second)
 
+name = 'anisotropic_gd_tol_01_squared_complexity'
+# name = 'anisotropic_sgd_batch_18_tol_01_ratio_complexity'
+# name = 'anisotropic_gd_tol_001_cross_entropy'
+# name = 'anisotropic_sgd_batch_27_tol_001_cross_entropy'
+# name = 'anisotropic_gd_tol_01_embedding_trace'
 
 def load_iris_data(a, b, normalize_features=True):
     """
@@ -84,8 +89,7 @@ def search_svc_test(x, y, x_test, y_test, kernel, hyper_search,
         return hyper_search[i]
 
 
-def iris_classification(x_train, y_train, x_test, y_test,
-                        name='', directory='./'):
+def iris_classification(x_train, y_train, x_test, y_test, directory='./'):
 
     n_train = x_train.shape[0]
     n_test = x_test.shape[0]
@@ -104,21 +108,19 @@ def iris_classification(x_train, y_train, x_test, y_test,
     x_1_mesh, x_2_mesh = np.meshgrid(x_1_array, x_2_array)
     x_query = np.array([x_1_mesh.ravel(), x_2_mesh.ravel()]).T
 
-    # Specify the kernel and kernel parameter setup
-    kernel = bake.kernels.s_gaussian
-
     # Train the KEC
     theta_init = np.array([1.0, 1.0, 1.0])
     zeta_init = 1e-4
     learning_rate = 0.01
-    grad_tol = 0.01
+    grad_tol = 0.1
     n_sgd_batch = None
-    kec = cake.KEC(
-        kernel=cake.kernels.s_gaussian).fit(x_train, y_train,
-                                            theta=theta_init, zeta=zeta_init,
-                                            learning_rate=learning_rate,
-                                            grad_tol=grad_tol,
-                                            n_sgd_batch=n_sgd_batch)
+    kec_kernel = cake.kernels.s_gaussian
+    kec = cake.KEC(kernel=kec_kernel).fit(x_train, y_train,
+                                          theta=theta_init, zeta=zeta_init,
+                                          learning_rate=learning_rate,
+                                          grad_tol=grad_tol,
+                                          n_sgd_batch=n_sgd_batch,
+                                          sequential_batch=False)
 
     kec_h = np.append(kec.theta_train, np.sqrt(kec.zeta_train))
     kec_complexity = kec.complexity_train
@@ -129,7 +131,7 @@ def iris_classification(x_train, y_train, x_test, y_test,
     # kec_p_test_tf = kec.predict_proba(x_test)
     # kec_x_modes = kec.input_mode()
     # kec_y_modes = kec.predict(kec_x_modes)
-    kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=kec_h)
+    # kec = bake.Classifier(kernel=kernel).fit(x_train, y_train, h=kec_h)
     print('KEC Hyperparameters: ', kec_h)
 
     # Train the SVC
@@ -138,8 +140,9 @@ def iris_classification(x_train, y_train, x_test, y_test,
     #                              for l in np.linspace(0.01, 10, 50)])
     # svc_h = search_svc_test(x_train, y_train, x_test, y_test,
     #                             kernel, svc_hyper_search)
+    svc_kernel = bake.kernels.s_gaussian
     svc_h = np.array([1., 1., 1.])
-    svc = SVC(kernel=lambda x1, x2: kernel(x1, x2, svc_h),
+    svc = SVC(kernel=lambda x1, x2: svc_kernel(x1, x2, svc_h),
               probability=True).fit(x_train, y_train)
     print('SVC Hyperparameters: ', svc_h)
 
@@ -249,6 +252,9 @@ def iris_classification(x_train, y_train, x_test, y_test,
     x_rep = x_train[i_rep]
     y_rep = y_train[i_rep]
 
+    kec.sess.close()
+    del kec
+
     for c, image in enumerate(reverse_embedding_images):
         plt.figure()
         plt.pcolormesh(x_1_mesh, x_2_mesh, image, cmap=cm.coolwarm)
@@ -285,54 +291,61 @@ def iris_classification(x_train, y_train, x_test, y_test,
     hyper_history = \
         np.concatenate((th['kernel_hypers'],
                         np.sqrt(th['regularisation'][:, np.newaxis])), axis=1)
-    ph = performance_history(hyper_history, kernel, classes,
+    ph = performance_history(hyper_history, svc_kernel, classes,
                              x_train, y_train, x_test, y_test)
+
+    # ph = performance_history(th['kernel_hypers'], th['regularisation'],
+    #                          kec_kernel, classes,
+    #                          x_train, y_train, x_test, y_test)
 
     fig = plt.figure()
     plt.subplot(6, 1, 1)
-    plt.plot(ph['iterations'], ph['complexity'], c='g',
-             label='Training Complexity')
-    plt.plot(th['iterations'], th['complexity'], c='c', linestyle='--',
+    plt.plot(th['iterations'], th['complexity'], c='c',
              label='Batch Complexity')
+    plt.plot(ph['iterations'], ph['complexity'], c='g', linestyle='--',
+             label='Training Complexity')
     plt.xlim((0, th['iterations'][-1]))
     plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
                fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
     plt.subplot(6, 1, 2)
+    plt.plot(th['iterations'], 100 * th['accuracy'], c='c',
+             label='Batch Accuracy (%)')
     plt.plot(ph['iterations'], 100 * ph['train_accuracy'], c='g',
+             linestyle='--',
              label='Training Accuracy (%)')
     plt.plot(ph['iterations'], 100 * ph['test_accuracy'], c='r',
              label='Test Accuracy (%)')
-    plt.plot(th['iterations'], 100 * th['accuracy'], c='c', linestyle='--',
-             label='Batch Accuracy (%)')
     plt.xlim((0, th['iterations'][-1]))
     plt.ylim((0, 100))
     plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
                fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
     plt.subplot(6, 1, 3)
-    plt.plot(ph['iterations'], ph['train_cross_entropy_loss'], c='g',
-             label='Training Cross Entropy Loss')
-    plt.plot(ph['iterations'], ph['test_cross_entropy_loss'], c='r',
-             label='Test Cross Entropy Loss')
-    plt.plot(th['iterations'], th['cross_entropy_loss'], c='b', linestyle='--',
+    plt.plot(th['iterations'], th['cross_entropy_loss'], c='b',
              label='Batch Raw-Predicted Cross Entropy Loss')
     plt.plot(th['iterations'], th['valid_cross_entropy_loss'],
              c='c', linestyle='--',
              label='Batch Clip-Normalized Cross Entropy Loss')
+    plt.plot(ph['iterations'], ph['train_cross_entropy_loss'], c='g',
+             linestyle='--',
+             label='Training Cross Entropy Loss')
+    plt.plot(ph['iterations'], ph['test_cross_entropy_loss'], c='r',
+             label='Test Cross Entropy Loss')
     plt.xlim((0, th['iterations'][-1]))
     plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
                fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
     plt.subplot(6, 1, 4)
-    plt.plot(th['iterations'], th['gradient_norm'], c='c', linestyle='--',
+    plt.plot(th['iterations'], th['gradient_norm'], c='c',
              label='Gradient Norm')
     plt.xlim((0, th['iterations'][-1]))
     plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
                fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
     plt.subplot(6, 1, 5)
-    plt.plot(th['iterations'], th['kernel_hypers'][:, 0],
+    plt.plot(th['iterations'], th['kernel_hypers'][:, 0], c='g',
              label='Kernel Sensitivity')
-    plt.plot(th['iterations'], th['kernel_hypers'][:, 1:],
-             label=['Kernel Length Scales %d' % (i + 1)
-                    for i in range(th['kernel_hypers'].shape[1])])
+    plt.plot(th['iterations'], th['kernel_hypers'][:, 1], c='c',
+             label='Kernel Length Scales Axis 1')
+    plt.plot(th['iterations'], th['kernel_hypers'][:, 2], c='b',
+             label='Kernel Length Scales Axis 2')
     plt.xlim((0, th['iterations'][-1]))
     plt.legend(loc='upper right', bbox_to_anchor=(1, 1),
                fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
@@ -344,10 +357,10 @@ def iris_classification(x_train, y_train, x_test, y_test,
                fontsize=8, fancybox=True).get_frame().set_alpha(0.5)
     fig.set_size_inches(18, 20, forward=True)
 
-    f = open('%s%s_results.txt' % (directory, name), 'w')
-    f.write('There are %d classes for digits: %s\n' % (n_class, str(classes)))
-    f.write('Training on %d images\n' % n_train)
-    f.write('Testing on %d images\n' % n_test)
+    f = open('%sresults.txt' % directory, 'w')
+    f.write('There are %d classes: %s\n' % (n_class, str(classes)))
+    f.write('Training on %d examples\n' % n_train)
+    f.write('Testing on %d examples\n' % n_test)
     f.write('-----\n')
     f.write('Kernel Embedding Classifier Training Setup:\n')
     f.write('Initial Hyperparameters: {} {}\n'.format(theta_init, zeta_init))
@@ -357,7 +370,7 @@ def iris_classification(x_train, y_train, x_test, y_test,
         f.write('Batch Size for Stochastic Gradient Descent: %d\n'
                 % n_sgd_batch)
     else:
-        f.write('Batch Size for Stochastic Gradient Descent: Full Dataset')
+        f.write('Batch Size for Stochastic Gradient Descent: Full Dataset\n')
     f.write('-----\n')
     f.write('Kernel Embedding Classifier Final Training Configuration:\n')
     f.write('Training Iterations: %d\n' % kec_steps_train)
@@ -542,6 +555,49 @@ def performance_history(hyper_history, kernel, classes,
             'test_cross_entropy_loss': test_cel_history}
 
 
+# def performance_history(kernel_hypers, regularisation, kernel, classes,
+#                         x_train, y_train, x_test, y_test):
+#
+#     n_steps = kernel_hypers.shape[0]
+#     complexity_history = np.zeros(n_steps)
+#     train_accuracy_history = np.zeros(n_steps)
+#     train_cel_history = np.zeros(n_steps)
+#     test_accuracy_history = np.zeros(n_steps)
+#     test_cel_history = np.zeros(n_steps)
+#     for i in range(n_steps):
+#         theta = kernel_hypers[i]
+#         zeta = regularisation[i]
+#         kec = cake.KEC(kernel=kernel).fit(x_train, y_train,
+#                                           theta=theta, zeta=zeta,
+#                                           to_train=False)
+#         complexity = kec.complexity_train
+#         kec_p_train = kec.predict_proba(x_train)
+#         kec_y_train = bake.infer.classify(kec_p_train, classes=classes)
+#         kec_train_accuracy = np.mean(kec_y_train == y_train.ravel())
+#         kec_train_log_loss = log_loss(y_train, kec_p_train)
+#
+#         kec_p_test = kec.predict_proba(x_test)
+#         kec_y_test = bake.infer.classify(kec_p_test, classes=classes)
+#         kec_test_accuracy = np.mean(kec_y_test == y_test.ravel())
+#         kec_test_log_loss = log_loss(y_test, kec_p_test)
+#
+#         kec.sess.close()
+#         del kec
+#
+#         complexity_history[i] = complexity
+#         train_accuracy_history[i] = kec_train_accuracy
+#         train_cel_history[i] = kec_train_log_loss
+#         test_accuracy_history[i] = kec_test_accuracy
+#         test_cel_history[i] = kec_test_log_loss
+#
+#     return {'iterations': np.arange(n_steps) + 1,
+#             'complexity': complexity_history,
+#             'train_accuracy': train_accuracy_history,
+#             'train_cross_entropy_loss': train_cel_history,
+#             'test_accuracy': test_accuracy_history,
+#             'test_cross_entropy_loss': test_cel_history}
+
+
 
 
 if __name__ == "__main__":
@@ -552,7 +608,8 @@ if __name__ == "__main__":
     for a in np.arange(n_attr):
         for b in np.arange(a + 1, n_attr):
 
-            full_directory = './iris_%s_attributes_%d_%d/' % (now_string, a, b)
+            full_directory = './iris_%s_%s_attributes_%d_%d/' \
+                             % (now_string, name, a, b)
             os.mkdir(full_directory)
             print('Results will be saved in "%s"' % full_directory)
 

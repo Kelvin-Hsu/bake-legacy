@@ -6,8 +6,8 @@ These are the core but simple inference algorithms used by kernel embeddings.
 import tensorflow as tf
 import numpy as np
 
-tf_float_type = tf.float64
-tf_int_type = tf.int64
+tf_float_type = tf.float32
+tf_int_type = tf.int32
 
 
 def expectance(y, w):

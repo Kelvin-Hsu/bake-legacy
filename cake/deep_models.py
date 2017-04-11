@@ -18,7 +18,7 @@ np_float_type = np.float32
 np_int_type = np.int32
 
 
-class KEC():
+class DKEC():
 
     def __init__(self, kernel=_s_gaussian):
         """
@@ -29,7 +29,97 @@ class KEC():
         kernel : callable, optional
             A kernel function
         """
-        self.kernel = kernel
+        self.out_kernel = kernel
+
+    def kernel(self, x_p, x_q, *args):
+
+        Xp = tf.reshape(x_p, shape=[-1, 28, 28, 1])
+        Xq = tf.reshape(x_q, shape=[-1, 28, 28, 1])
+
+        K = 4  # first convolutional layer output depth
+        L = 8  # second convolutional layer output depth
+        M = 12  # third convolutional layer
+
+        W1 = tf.cast(self.w1, tf_float_type)
+        B1 = tf.cast(self.b1, tf_float_type)
+        W2 = tf.cast(self.w2, tf_float_type)
+        B2 = tf.cast(self.b2, tf_float_type)
+        W3 = tf.cast(self.w3, tf_float_type)
+        B3 = tf.cast(self.b3, tf_float_type)
+
+        # The model
+        stride = 1  # output is 28x28
+        Y1p = tf.nn.relu(tf.nn.conv2d(Xp, W1, strides=[1, stride, stride, 1],
+                                     padding='SAME') + B1)
+        stride = 2  # output is 14x14
+        Y2p = tf.nn.relu(tf.nn.conv2d(Y1p, W2, strides=[1, stride, stride, 1],
+                                     padding='SAME') + B2)
+        stride = 2  # output is 7x7
+        Y3p = tf.nn.relu(tf.nn.conv2d(Y2p, W3, strides=[1, stride, stride, 1],
+                                     padding='SAME') + B3)
+
+        # reshape the output from the third convolution
+        # for the fully connected layer
+        YYp = tf.reshape(Y3p, shape=[-1, 7 * 7 * M])
+
+        # The model
+        stride = 1  # output is 28x28
+        Y1q = tf.nn.relu(tf.nn.conv2d(Xq, W1, strides=[1, stride, stride, 1],
+                                      padding='SAME') + B1)
+        stride = 2  # output is 14x14
+        Y2q = tf.nn.relu(tf.nn.conv2d(Y1q, W2, strides=[1, stride, stride, 1],
+                                      padding='SAME') + B2)
+        stride = 2  # output is 7x7
+        Y3q = tf.nn.relu(tf.nn.conv2d(Y2q, W3, strides=[1, stride, stride, 1],
+                                      padding='SAME') + B3)
+
+        # print(Y1p, Y2p, Y3p)
+        # reshape the output from the third convolution
+        # for the fully connected layer
+        YYq = tf.reshape(Y3q, shape=[-1, 7 * 7 * M])
+
+        return self.out_kernel(YYp, YYq, self.theta)
+
+    def compute_features(self, x):
+
+        x_input = tf.placeholder(tf_float_type, list(x.shape))
+
+        Xp = tf.reshape(x_input, shape=[-1, 28, 28, 1])
+        W1 = tf.cast(self.w1, tf_float_type)
+        B1 = tf.cast(self.b1, tf_float_type)
+        W2 = tf.cast(self.w2, tf_float_type)
+        B2 = tf.cast(self.b2, tf_float_type)
+        W3 = tf.cast(self.w3, tf_float_type)
+        B3 = tf.cast(self.b3, tf_float_type)
+
+        # The model
+        stride = 1  # output is 28x28
+        Y1p = tf.nn.relu(tf.nn.conv2d(Xp, W1, strides=[1, stride, stride, 1],
+                                     padding='SAME') + B1)
+        stride = 2  # output is 14x14
+        Y2p = tf.nn.relu(tf.nn.conv2d(Y1p, W2, strides=[1, stride, stride, 1],
+                                     padding='SAME') + B2)
+        stride = 2  # output is 7x7
+        Y3p = tf.nn.relu(tf.nn.conv2d(Y2p, W3, strides=[1, stride, stride, 1],
+                                     padding='SAME') + B3)
+
+        return self.sess.run([Y1p, Y2p, Y3p], feed_dict={x_input: x})
+
+    def build_deep_variables(self):
+
+        K = 4  # first convolutional layer output depth
+        L = 8  # second convolutional layer output depth
+        M = 12  # third convolutional layer
+
+        # 5x5 patch, 1 input channel, K output channels
+        self.w1 = tf.Variable(tf.truncated_normal([5, 5, 1, K], stddev=0.1))
+        self.b1 = tf.Variable(tf.ones([K]) / 10)
+        self.w2 = tf.Variable(tf.truncated_normal([5, 5, K, L], stddev=0.1))
+        self.b2 = tf.Variable(tf.ones([L]) / 10)
+        self.w3 = tf.Variable(tf.truncated_normal([4, 4, L, M], stddev=0.1))
+        self.b3 = tf.Variable(tf.ones([M]) / 10)
+        self.deep_var_list = \
+            [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3]
 
     def fit(self, x, y,
             theta=np.array([1., 1.]), zeta=0.01,
@@ -113,6 +203,9 @@ class KEC():
             self.zeta = tf.Variable(np.atleast_1d(zeta).astype(np_float_type),
                                     name="zeta")
             var_list = [self.theta, self.zeta]
+
+        self.build_deep_variables()
+        var_list += self.deep_var_list
 
         if n_sgd_batch:
             print('Batch size for stochastic gradient descent: %d'
@@ -276,6 +369,7 @@ class KEC():
         print('Achieved Training Accuracy: ', self.acc_train)
         print('Achieved Cross Entropy Loss: ', self.cel_train)
         print('Achieved Mean Sum of Probabilities: ', self.msp_train)
+        print(self.sess.run(var_list))
         return self
 
     def _setup_train_graph(self):
