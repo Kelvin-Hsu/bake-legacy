@@ -301,6 +301,7 @@ class DKEC():
         step = 0
         _train_history = []
         grad_norm_check = grad_tol + 1
+        # np.set_printoptions(3)
         if to_train:
             while grad_norm_check > grad_tol:
 
@@ -332,7 +333,8 @@ class DKEC():
                       '|| Complexity: ', complexity,
                       '|| Train Accuracy: ', acc,
                       '|| Cross Entropy Loss: ', cel,
-                      '|| Gradient Norm: ', grad_norm)
+                      '|| Gradient Norm: ', grad_norm,
+                      np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
                 step += 1
                 _train_history.append([step, complexity, acc, cel, cel_valid,
                                        grad_norm]
