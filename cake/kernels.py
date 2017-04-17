@@ -36,7 +36,7 @@ def sqdist(x_p, x_q, theta):
     return d_p[:, tf.newaxis] - 2 * d_pq + d_q  # (n_p, n_q)
 
 
-def linear(x_p, x_q, *args):
+def linear(x_p, x_q, theta):
     """
     Define the linear kernel.
 
@@ -55,7 +55,7 @@ def linear(x_p, x_q, *args):
     tensorflow.Tensor
         The gram matrix (n_p, n_q)
     """
-    return tf.matmul(x_p, tf.transpose(x_q))
+    return tf.square(theta) * tf.matmul(x_p, tf.transpose(x_q))
 
 
 def gaussian(x_p, x_q, theta):
