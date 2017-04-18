@@ -18,7 +18,7 @@ np_float_type = np.float32
 np_int_type = np.int32
 
 
-class DKEC():
+class DeepConvolutionalKernelEmbeddingClassifier():
 
     def __init__(self, kernel=_s_gaussian):
         """
@@ -53,6 +53,12 @@ class DKEC():
             self.b2 = tf.Variable(b2_init, name='b2')
             self.w3 = tf.Variable(w3_init, name='w3')
             self.b3 = tf.Variable(b3_init, name='b3')
+            tf.summary.histogram('w1', self.w1)
+            tf.summary.histogram('b1', self.b1)
+            tf.summary.histogram('w2', self.w2)
+            tf.summary.histogram('b2', self.b2)
+            tf.summary.histogram('w3', self.w3)
+            tf.summary.histogram('b3', self.b3)
             self.deep_var_list = [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3]
 
     def features(self, x, return_all_layers=False):
@@ -85,11 +91,28 @@ class DKEC():
             stride_3 = 2  # output is 7x7
             phi_3 = tf.nn.relu(tf.nn.conv2d(phi_2, self.w3, strides=[1, stride_3, stride_3, 1], padding='SAME') + self.b3, name='phi_3')
 
+            width_1 = int(width / stride_1)
+            height_1 = int(height / stride_1)
+            width_2 = int(width / (stride_1 * stride_2))
+            height_2 = int(height / (stride_1 * stride_2))
+            width_3 = int(width / (stride_1 * stride_2 * stride_3))
+            height_3 = int(height / (stride_1 * stride_2 * stride_3))
+
             # Reshape the last layer to standard form
-            final_width = width / (stride_1 * stride_2 * stride_3)
-            final_height = height / (stride_1 * stride_2 * stride_3)
+            final_width = int(width / (stride_1 * stride_2 * stride_3))
+            final_height = int(height / (stride_1 * stride_2 * stride_3))
             n_flat = int(final_width * final_height * self.channels_3)
             z = tf.reshape(phi_3, shape=[-1, n_flat], name='z')
+
+            for i in range(self.channels_1):
+                phi_1_i = tf.reshape(phi_1[:, :, :, i], shape=[-1, width_1, height_1, 1], name='phi_1_%d' % i)
+                tf.summary.image('phi_1_%d' % i, phi_1_i, max_outputs=3)
+            for i in range(self.channels_2):
+                phi_2_i = tf.reshape(phi_2[:, :, :, i], shape=[-1, width_2, height_2, 1], name='phi_2_%d' % i)
+                tf.summary.image('phi_2_%d' % i, phi_2_i, max_outputs=3)
+            for i in range(self.channels_3):
+                phi_3_i = tf.reshape(phi_3[:, :, :, i], shape=[-1, width_3, height_3, 1], name='phi_3_%d' % i)
+                tf.summary.image('phi_3_%d' % i, phi_3_i, max_outputs=3)
 
             # Return
             if return_all_layers:
@@ -97,7 +120,7 @@ class DKEC():
             else:
                 return z
 
-    def kernel(self, x_p, x_q, *args, name=None):
+    def kernel(self, x_p, x_q, name=None):
         """
         Build a general deep kernel.
 
@@ -116,11 +139,12 @@ class DKEC():
         with tf.name_scope('kernel'):
             return self.out_kernel(self.features(x_p), self.features(x_q), self.theta, name=name)
 
-    def fit(self, x, y,
+    def fit(self, x, y, x_test, y_test,
             theta=np.array([1., 1.]), zeta=0.01,
-            learning_rate=0.01, grad_tol=0.01, n_sgd_batch=None,
+            learning_rate=0.01, grad_tol=0.01, max_iter=100, n_sgd_batch=None,
             sequential_batch=False,
-            log_hypers=True, to_train=True):
+            log_hypers=True, to_train=True,
+            tensorboard_directory=None):
         """
         Fit the kernel embedding classifier.
 
@@ -148,7 +172,7 @@ class DKEC():
         bake.Classifier
             The trained classifier
         """
-        with tf.name_scope('data'):
+        with tf.name_scope('train_data'):
 
             # Determine the classes
             classes = np.unique(y)
@@ -169,6 +193,18 @@ class DKEC():
             self.y_one_hot = tf.equal(self.y, self.classes, name='y_one_hot')
             self.y_indices = _decode_one_hot(self.y_one_hot, name='y_indices')
 
+        with tf.name_scope('test_data'):
+
+            # Setup the data
+            self.x_test = tf.placeholder(tf_float_type, shape=[None, x_test.shape[1]], name='x_test')
+            self.y_test = tf.placeholder(tf_float_type, shape=[None, y_test.shape[1]], name='y_test')
+            self.feed_dict.update({self.x_test: x_test, self.y_test: y_test})
+            self.n_test = tf.shape(self.x_test)[0]
+
+            # Determine the one hot encoding and index form of the training labels
+            self.y_test_one_hot = tf.equal(self.y_test, self.classes, name='y_test_one_hot')
+            self.y_test_indices = _decode_one_hot(self.y_test_one_hot, name='y_test_indices')
+
         with tf.name_scope('hyperparameters'):
             # Setup the output kernel hyperparameters and regulariser
             if log_hypers:
@@ -182,6 +218,9 @@ class DKEC():
                 self.zeta = tf.Variable(np.atleast_1d(zeta).astype(np_float_type), name="zeta")
                 var_list = [self.theta, self.zeta]
 
+            tf.summary.histogram('theta', self.theta)
+            tf.summary.histogram('zeta', self.zeta[0])
+
             # Setup deep hyperparameters
             self.initialise_deep_parameters()
             var_list += self.deep_var_list
@@ -190,9 +229,9 @@ class DKEC():
             # Setup the training graph
             self._setup_train_graph()
 
-        with tf.name_scope('query_graph'):
-            # Setup the query graph
-            self._setup_query_graph()
+        with tf.name_scope('test_graph'):
+            # Setup the testing graph
+            self._setup_test_graph()
 
         with tf.name_scope('optimisation'):
 
@@ -207,18 +246,27 @@ class DKEC():
             # Run the optimisation
             self.sess = tf.Session()
             self.sess.run(tf.global_variables_initializer())
+
+            # Merge all the summaries
+            if tensorboard_directory:
+                merged_summary = tf.summary.merge_all()
+                writer = tf.summary.FileWriter(tensorboard_directory)
+                writer.add_graph(self.sess.graph)
+
+            # Run the optimisation
             print('Starting Training')
             print('Batch size for stochastic gradient descent: %d' % n_sgd_batch) if n_sgd_batch else print('Using full dataset for gradient descent')
             feed_dict = self.feed_dict
             _train_history = []
             step = 0
             grad_norm_check = grad_tol + 1 if to_train else 0
-            while grad_norm_check > grad_tol:
+            np.set_printoptions(precision=2)
+            while grad_norm_check > grad_tol and step < max_iter:
 
                 # Sample the data batch for this training iteration
                 if n_sgd_batch:
                     sgd_indices = np.arange(step * n_sgd_batch, (step + 1) * n_sgd_batch) % n_all if sequential_batch else np.random.choice(n_all, n_sgd_batch, replace=False)
-                    feed_dict = {self.x: x[sgd_indices], self.y: y[sgd_indices]}
+                    feed_dict.update({self.x: x[sgd_indices], self.y: y[sgd_indices]})
 
                 theta = self.sess.run(self.theta)
                 zeta = self.sess.run(self.zeta)
@@ -226,19 +274,25 @@ class DKEC():
                 cel = self.sess.run(self.cross_entropy_loss, feed_dict=feed_dict)
                 cel_valid = self.sess.run(self.cross_entropy_loss_valid, feed_dict=feed_dict)
                 acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
+                t_cel = self.sess.run(self.test_cross_entropy_loss, feed_dict=feed_dict)
+                t_cel_valid = self.sess.run(self.test_cross_entropy_loss_valid, feed_dict=feed_dict)
+                t_acc = self.sess.run(self.test_accuracy, feed_dict=feed_dict)
                 grad = self.sess.run(self.grad, feed_dict=feed_dict)
                 grad_norm = compute_grad_norm(grad)
                 grad_norm_check = grad_norm
 
-                _train_history.append([step, complexity, acc, cel, cel_valid, grad_norm] + list(np.append(theta, zeta)))
-                step += 1
+                if tensorboard_directory:
+                    s = self.sess.run(merged_summary, feed_dict=feed_dict)
+                    writer.add_summary(s, step)
+                    # s = self.sess.run(merged_summary, feed_dict=self.feed_dict)
+                    # writer.add_summary(s, step)
 
                 self.sess.run(train, feed_dict=feed_dict)
 
-                print('Step %d' % step, '|| Hyperparameters: ', theta, zeta, '|| Complexity: ', complexity, '|| Train Accuracy: ', acc, '|| Cross Entropy Loss: ', cel, '|| Gradient Norm: ', grad_norm, np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
-
-
-
+                _train_history.append([step, complexity, acc, cel, cel_valid, t_acc, t_cel, t_cel_valid, grad_norm] + list(np.append(theta, zeta)))
+                step += 1
+                print('Step %d' % step, '|| H: ', theta, zeta[0], '|| C: ', complexity, '|| ACC: ', acc, '|| CEL: ', cel, '|| CELV: ', cel_valid, '|| TACC: ', t_acc, '|| TCEL: ', t_cel, '|| TCELV: ', t_cel_valid, '|| Gradient Norm: ', grad_norm)
+                print('Gradient Norms: ', np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
             # Store train history
             _train_history = np.array(_train_history)
             self.train_history = {'iterations': _train_history[:, 0],
@@ -246,8 +300,11 @@ class DKEC():
                                   'accuracy': _train_history[:, 2],
                                   'cross_entropy_loss': _train_history[:, 3],
                                   'valid_cross_entropy_loss': _train_history[:, 4],
-                                  'gradient_norm': _train_history[:, 5],
-                                  'kernel_hypers': _train_history[:, 6:-1],
+                                  'test_accuracy': _train_history[:, 5],
+                                  'test_cross_entropy_loss': _train_history[:, 6],
+                                  'test_valid_cross_entropy_loss': _train_history[:, 7],
+                                  'gradient_norm': _train_history[:, 8],
+                                  'kernel_hypers': _train_history[:, 9:-1],
                                   'regularisation': _train_history[:, -1]} if to_train else None
 
         # Store the optimal hyperparameters
@@ -265,7 +322,13 @@ class DKEC():
         print('Achieved Training Accuracy: ', self.acc_train)
         print('Achieved Cross Entropy Loss: ', self.cel_train)
         print('Achieved Mean Sum of Probabilities: ', self.msp_train)
-        print(self.sess.run(var_list))
+        # print(self.sess.run(var_list))
+
+        self.sess.close()
+        # with tf.name_scope('query_graph'):
+        #     # Setup the query graph
+        #     self._setup_query_graph()
+
         return self
 
     def _setup_train_graph(self):
@@ -280,7 +343,7 @@ class DKEC():
         self.chol_l_reg = tf.cholesky(self.l_reg, name='chol_l_reg')
 
         # The gram matrix and regularised version thereof for the input space
-        self.k = self.kernel(self.x, self.x, self.theta, name='k')
+        self.k = self.kernel(self.x, self.x, name='k')
         self.k_reg = tf.add(self.k, reg, name='k_reg')
         self.chol_k_reg = tf.cholesky(self.k_reg, name='chol_k_reg')
 
@@ -301,7 +364,7 @@ class DKEC():
         self.p_want = tf.gather_nd(self.p_pred, tf.stack([indices, self.y_indices], axis=1), name='p_want')
 
         # The cross entropy loss over the training data
-        self.cross_entropy_loss = - tf.reduce_mean(tf.log(self.p_want), name='cross_entropy_loss')
+        self.cross_entropy_loss = tf.reduce_mean(- tf.log(self.p_want), name='cross_entropy_loss')
 
         # The clip-normalised valid decision probabilities
         self.p_pred_valid = tf.transpose(_clip_normalize(tf.transpose(self.p_pred)), name='p_pred_valid')
@@ -320,13 +383,60 @@ class DKEC():
         self.prob_constraint = tf.reduce_sum(self.w, axis=0) - 1
         self.msp = tf.reduce_mean(self.prob_constraint + 1, name='msp')
 
+        tf.summary.scalar('complexity', self.complexity)
+        tf.summary.scalar('train_accuracy', self.train_accuracy)
+        tf.summary.scalar('cross_entropy_loss', self.cross_entropy_loss)
+        tf.summary.scalar('cross_entropy_loss_valid', self.cross_entropy_loss_valid)
+        tf.summary.scalar('msp', self.msp)
+
+    def _setup_test_graph(self):
+
+        # Inference Gram Matrix
+        self.k_test = self.kernel(self.x, self.x_test, name='k_test')
+
+        # Conditional Embedding Weights
+        self.w_test = tf.cholesky_solve(self.chol_k_reg, self.k_test, name='w_test')
+
+        # Decision Probability
+        self.p_test_pred = _expectance(tf.cast(tf.equal(self.y, self.classes), tf_float_type), self.w_test, name='p_test_pred')
+
+        # Prediction
+        self.y_test_pred = _classify(self.p_test_pred, classes=self.classes, name='y_test_pred')
+
+        # The training accuracy
+        self.test_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.y_test_pred, tf.reshape(self.y_test, [-1])), tf_float_type), name='test_accuracy')
+
+        # The prediction probabilities on the actual label
+        test_indices = tf.cast(tf.range(self.n_test), tf_int_type, name='indices')
+        self.p_test_want = tf.gather_nd(self.p_test_pred, tf.stack([test_indices, self.y_test_indices], axis=1), name='p_test_want')
+
+        # The cross entropy loss over the training data
+        self.test_cross_entropy_loss = tf.reduce_mean(- tf.log(tf.clip_by_value(self.p_test_want, 1e-15, np.inf)), name='test_cross_entropy_loss')
+
+        # The clip-normalised valid decision probabilities
+        self.p_test_pred_valid = tf.transpose(_clip_normalize(tf.transpose(self.p_test_pred)), name='p_test_pred_valid')
+
+        # The clip-normalised valid decision probabilities on the actual label
+        self.p_test_want_valid = tf.gather_nd(self.p_test_pred_valid, tf.stack([test_indices, self.y_test_indices], axis=1), name='p_test_want_valid')
+
+        # The valid cross entropy loss over the training data
+        self.test_cross_entropy_loss_valid = tf.reduce_mean(- tf.log(tf.clip_by_value(self.p_test_want_valid, 1e-15, np.inf)), name='test_cross_entropy_loss_valid')
+
+        # Other interesting quantities
+        self.msp_test = tf.reduce_mean(tf.reduce_sum(self.w_test, axis=0), name='msp_test')
+
+        tf.summary.scalar('test_accuracy', self.test_accuracy)
+        tf.summary.scalar('test_cross_entropy_loss', self.test_cross_entropy_loss)
+        tf.summary.scalar('test_cross_entropy_loss_valid', self.test_cross_entropy_loss_valid)
+        tf.summary.scalar('test_msp', self.msp_test)
+
     def _setup_query_graph(self):
         """Setup the query inference computational graph."""
         # Query on x
         self.x_query = tf.placeholder(tf_float_type, shape=[None, self.d], name='x_query')
 
         # Inference Gram Matrix
-        self.k_query = self.kernel(self.x, self.x_query, self.theta, name='k_query')
+        self.k_query = self.kernel(self.x, self.x_query, name='k_query')
 
         # Conditional Embedding Weights
         self.w_query = tf.cholesky_solve(self.chol_k_reg, self.k_query, name='w_query')
@@ -336,7 +446,7 @@ class DKEC():
         self.p_query_valid = tf.transpose(_clip_normalize(tf.transpose(self.p_query)), name='p_query_valid')
 
         # Prediction
-        self.y_query = _classify(self.p_query, classes=self.classes, name='y_query')
+        self.y_query_pred = _classify(self.p_query, classes=self.classes, name='y_query_pred')
 
         # Information Entropy
         ind = tf.reshape(self.y_indices, [-1])
@@ -358,7 +468,7 @@ class DKEC():
         self.v_query = tf.cholesky_solve(self.chol_l_reg, self.l_query, name='v_query')
 
         # Reverse Embedding
-        self.mu_xy = tf.matmul(self.kernel(self.x_query, self.x, self.theta), self.v_query, name='mu_xy')
+        self.mu_xy = tf.matmul(self.kernel(self.x_query, self.x), self.v_query, name='mu_xy')
 
         # Input Expectance
         self.x_exp = _expectance(self.x, self.v_query, name='x_exp')
