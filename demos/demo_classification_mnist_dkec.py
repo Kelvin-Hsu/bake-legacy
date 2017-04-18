@@ -215,6 +215,10 @@ def digit_classification(x_train, y_train, images_train,
     print('\n--------------------------------------------------------------\n')
     print('There are %d classes for digits: ' % n_class, classes)
 
+    for c in classes:
+        print('There are %d observations for class %d'
+              % (np.sum(y_train == c), c))
+
     # Report the number of training and testing points used in this test
     n_train = y_train.shape[0]
     n_test = y_test.shape[0]
@@ -254,11 +258,11 @@ def digit_classification(x_train, y_train, images_train,
     # kec = bake.Classifier(kernel=kec_kernel).fit(x_train, y_train, h=h_fixed)
 
     # Train the kernel embedding classifier
-    theta_init = 1.0 * np.ones(1 + 1)
+    theta_init = np.array([10., 10.])
     zeta_init = 1e-4
-    learning_rate = 0.01
-    grad_tol = 0.01
-    n_sgd_batch = 200
+    learning_rate = 0.005
+    grad_tol = 0.05
+    n_sgd_batch = None
     kec = cake.DKEC(
         kernel=cake.kernels.s_gaussian).fit(x_train, y_train,
                                             theta=theta_init, zeta=zeta_init,
@@ -273,17 +277,31 @@ def digit_classification(x_train, y_train, images_train,
     print('kec train log loss: %.9f' % kec_train_log_loss)
     kec_p_test = kec.predict_proba(x_test)
     kec_y_test = bake.infer.classify(kec_p_test, classes=classes)
-    kec_test_accuracy = np.mean(kec_y_test == y_test.ravel())
-    kec_test_log_loss = log_loss(y_test.ravel(), kec_p_test)
-    print('kec test accuracy: %.9f' % kec_test_accuracy)
-    print('kec test log loss: %.9f' % kec_test_log_loss)
+    try:
+        kec_test_accuracy = np.mean(kec_y_test == y_test.ravel())
+        print('kec test accuracy: %.9f' % kec_test_accuracy)
+    except:
+        pass
+    try:
+        kec_test_log_loss = log_loss(y_test.ravel(), kec_p_test.astype(np.float64))
+        print('kec test log loss: %.9f' % kec_test_log_loss)
+    except:
+        try:
+            p = kec_p_test.astype(np.float64)
+            p[np.isnan(p)] = 1e-15
+            kec_test_log_loss = log_loss(y_test.ravel(), p)
+            print('kec test log loss: %.9f' % kec_test_log_loss)
+        except:
+            pass
+
 
     K = 4  # first convolutional layer output depth
     L = 8  # second convolutional layer output depth
     M = 12  # third convolutional layer
 
     for b in range(20):
-        features = kec.compute_features(x_test[b*10:(b + 1)*10])
+        x_test_b = x_test[b * 10:(b + 1) * 10]
+        features = kec.compute_features(x_test_b)
 
         layer1, layer2, layer3 = features[0], features[1], features[2]
 
@@ -293,7 +311,7 @@ def digit_classification(x_train, y_train, images_train,
         for i in range(10):
             plt.subplot(10, K + 1, count)
             plt.axis('off')
-            plt.imshow(np.reshape(x_test[i], (28, 28)), cmap=plt.cm.gray_r, interpolation='nearest')
+            plt.imshow(np.reshape(x_test_b[i], (28, 28)), cmap=plt.cm.gray_r, interpolation='nearest')
             count += 1
             for j in range(K):
                 plt.subplot(10, K + 1, count)
@@ -307,7 +325,7 @@ def digit_classification(x_train, y_train, images_train,
         for i in range(10):
             plt.subplot(10, L + 1, count)
             plt.axis('off')
-            plt.imshow(np.reshape(x_test[i], (28, 28)), cmap=plt.cm.gray_r, interpolation='nearest')
+            plt.imshow(np.reshape(x_test_b[i], (28, 28)), cmap=plt.cm.gray_r, interpolation='nearest')
             count += 1
             for j in range(L):
                 plt.subplot(10, L + 1, count)
@@ -321,7 +339,7 @@ def digit_classification(x_train, y_train, images_train,
         for i in range(10):
             plt.subplot(10, M + 1, count)
             plt.axis('off')
-            plt.imshow(np.reshape(x_test[i], (28, 28)), cmap=plt.cm.gray_r, interpolation='nearest')
+            plt.imshow(np.reshape(x_test_b[i], (28, 28)), cmap=plt.cm.gray_r, interpolation='nearest')
             count += 1
             for j in range(M):
                 plt.subplot(10, M + 1, count)
@@ -781,7 +799,7 @@ def digit_classification(x_train, y_train, images_train,
 
 def main():
     """Runs the digit classification task through different scenarios."""
-    n_sample = 55000
+    n_sample = 500
     digits_list = [np.arange(10),
                    np.array([1, 4, 9])]
 

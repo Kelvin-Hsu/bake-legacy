@@ -8,9 +8,9 @@ from .infer import variance as _variance
 from .infer import clip_normalize as _clip_normalize
 from .infer import adjust_prob as _adjust_prob
 from .infer import classify as _classify
+from .infer import decode_one_hot as _decode_one_hot
 from .kernels import s_gaussian as _s_gaussian
 from .kernels import kronecker_delta as _kronecker_delta
-from sklearn.model_selection import KFold as _KFold
 
 tf_float_type = tf.float32
 tf_int_type = tf.int32
@@ -31,95 +31,90 @@ class DKEC():
         """
         self.out_kernel = kernel
 
-    def kernel(self, x_p, x_q, *args):
+    def initialise_deep_parameters(self):
+        """Define the deep parameters of the kernel embedding network."""
+        with tf.name_scope('deep_parameters'):
+            self.channels_in = 1
+            self.k_size_1 = 5
+            self.k_size_2 = 5
+            self.k_size_3 = 4
+            self.channels_1 = 4
+            self.channels_2 = 8
+            self.channels_3 = 12
+            w1_init = tf.cast(tf.truncated_normal([self.k_size_1, self.k_size_1, self.channels_in, self.channels_1], stddev=0.1), tf_float_type)
+            w2_init = tf.cast(tf.truncated_normal([self.k_size_2, self.k_size_2, self.channels_1, self.channels_2], stddev=0.1), tf_float_type)
+            w3_init = tf.cast(tf.truncated_normal([self.k_size_3, self.k_size_3, self.channels_2, self.channels_3], stddev=0.1), tf_float_type)
+            b1_init = tf.cast(tf.ones([self.channels_1]) / 10, tf_float_type)
+            b2_init = tf.cast(tf.ones([self.channels_2]) / 10, tf_float_type)
+            b3_init = tf.cast(tf.ones([self.channels_3]) / 10, tf_float_type)
+            self.w1 = tf.Variable(w1_init, name='w1')
+            self.b1 = tf.Variable(b1_init, name='b1')
+            self.w2 = tf.Variable(w2_init, name='w2')
+            self.b2 = tf.Variable(b2_init, name='b2')
+            self.w3 = tf.Variable(w3_init, name='w3')
+            self.b3 = tf.Variable(b3_init, name='b3')
+            self.deep_var_list = [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3]
 
-        Xp = tf.reshape(x_p, shape=[-1, 28, 28, 1])
-        Xq = tf.reshape(x_q, shape=[-1, 28, 28, 1])
+    def features(self, x, return_all_layers=False):
+        """
+        Define the deep features of the kernel embedding network.
 
-        K = 4  # first convolutional layer output depth
-        L = 8  # second convolutional layer output depth
-        M = 12  # third convolutional layer
+        Parameters
+        ----------
+        x : tensorflow.Tensor
+            An input example of size (n, d)
+        return_all_layers : bool
+            To return all the intermediate layers or only the final output
 
-        W1 = tf.cast(self.w1, tf_float_type)
-        B1 = tf.cast(self.b1, tf_float_type)
-        W2 = tf.cast(self.w2, tf_float_type)
-        B2 = tf.cast(self.b2, tf_float_type)
-        W3 = tf.cast(self.w3, tf_float_type)
-        B3 = tf.cast(self.b3, tf_float_type)
+        Returns
+        -------
+        tensorflow.Tensor or list
+            The output of the final layer or a list of outputs of each layer
+        """
+        with tf.name_scope('deep_features'):
+            # Reshape the input back to an image
+            width = 28
+            height = 28
+            x_image = tf.reshape(x, shape=[-1, width, height, 1], name='x_image')
 
-        # The model
-        stride = 1  # output is 28x28
-        Y1p = tf.nn.relu(tf.nn.conv2d(Xp, W1, strides=[1, stride, stride, 1],
-                                     padding='SAME') + B1)
-        stride = 2  # output is 14x14
-        Y2p = tf.nn.relu(tf.nn.conv2d(Y1p, W2, strides=[1, stride, stride, 1],
-                                     padding='SAME') + B2)
-        stride = 2  # output is 7x7
-        Y3p = tf.nn.relu(tf.nn.conv2d(Y2p, W3, strides=[1, stride, stride, 1],
-                                     padding='SAME') + B3)
+            # Build the deep layers
+            stride_1 = 1  # output is 28x28
+            phi_1 = tf.nn.relu(tf.nn.conv2d(x_image, self.w1, strides=[1, stride_1, stride_1, 1], padding='SAME') + self.b1, name='phi_1')
+            stride_2 = 2  # output is 14x14
+            phi_2 = tf.nn.relu(tf.nn.conv2d(phi_1, self.w2, strides=[1, stride_2, stride_2, 1], padding='SAME') + self.b2, name='phi_2')
+            stride_3 = 2  # output is 7x7
+            phi_3 = tf.nn.relu(tf.nn.conv2d(phi_2, self.w3, strides=[1, stride_3, stride_3, 1], padding='SAME') + self.b3, name='phi_3')
 
-        # reshape the output from the third convolution
-        # for the fully connected layer
-        YYp = tf.reshape(Y3p, shape=[-1, 7 * 7 * M])
+            # Reshape the last layer to standard form
+            final_width = width / (stride_1 * stride_2 * stride_3)
+            final_height = height / (stride_1 * stride_2 * stride_3)
+            n_flat = int(final_width * final_height * self.channels_3)
+            z = tf.reshape(phi_3, shape=[-1, n_flat], name='z')
 
-        # The model
-        stride = 1  # output is 28x28
-        Y1q = tf.nn.relu(tf.nn.conv2d(Xq, W1, strides=[1, stride, stride, 1],
-                                      padding='SAME') + B1)
-        stride = 2  # output is 14x14
-        Y2q = tf.nn.relu(tf.nn.conv2d(Y1q, W2, strides=[1, stride, stride, 1],
-                                      padding='SAME') + B2)
-        stride = 2  # output is 7x7
-        Y3q = tf.nn.relu(tf.nn.conv2d(Y2q, W3, strides=[1, stride, stride, 1],
-                                      padding='SAME') + B3)
+            # Return
+            if return_all_layers:
+                return [phi_1, phi_2, phi_3, z]
+            else:
+                return z
 
-        # print(Y1p, Y2p, Y3p)
-        # reshape the output from the third convolution
-        # for the fully connected layer
-        YYq = tf.reshape(Y3q, shape=[-1, 7 * 7 * M])
+    def kernel(self, x_p, x_q, *args, name=None):
+        """
+        Build a general deep kernel.
 
-        return self.out_kernel(YYp, YYq, self.theta)
+        Parameters
+        ----------
+        x_p : tensorflow.Tensor
+            A dataset of size (n_p, d)
+        x_q : tensorflow.Tensor
+            A dataset of size (n_p, d)
 
-    def compute_features(self, x):
-
-        x_input = tf.placeholder(tf_float_type, list(x.shape))
-
-        Xp = tf.reshape(x_input, shape=[-1, 28, 28, 1])
-        W1 = tf.cast(self.w1, tf_float_type)
-        B1 = tf.cast(self.b1, tf_float_type)
-        W2 = tf.cast(self.w2, tf_float_type)
-        B2 = tf.cast(self.b2, tf_float_type)
-        W3 = tf.cast(self.w3, tf_float_type)
-        B3 = tf.cast(self.b3, tf_float_type)
-
-        # The model
-        stride = 1  # output is 28x28
-        Y1p = tf.nn.relu(tf.nn.conv2d(Xp, W1, strides=[1, stride, stride, 1],
-                                     padding='SAME') + B1)
-        stride = 2  # output is 14x14
-        Y2p = tf.nn.relu(tf.nn.conv2d(Y1p, W2, strides=[1, stride, stride, 1],
-                                     padding='SAME') + B2)
-        stride = 2  # output is 7x7
-        Y3p = tf.nn.relu(tf.nn.conv2d(Y2p, W3, strides=[1, stride, stride, 1],
-                                     padding='SAME') + B3)
-
-        return self.sess.run([Y1p, Y2p, Y3p], feed_dict={x_input: x})
-
-    def build_deep_variables(self):
-
-        K = 4  # first convolutional layer output depth
-        L = 8  # second convolutional layer output depth
-        M = 12  # third convolutional layer
-
-        # 5x5 patch, 1 input channel, K output channels
-        self.w1 = tf.Variable(tf.truncated_normal([5, 5, 1, K], stddev=0.1))
-        self.b1 = tf.Variable(tf.ones([K]) / 10)
-        self.w2 = tf.Variable(tf.truncated_normal([5, 5, K, L], stddev=0.1))
-        self.b2 = tf.Variable(tf.ones([L]) / 10)
-        self.w3 = tf.Variable(tf.truncated_normal([4, 4, L, M], stddev=0.1))
-        self.b3 = tf.Variable(tf.ones([M]) / 10)
-        self.deep_var_list = \
-            [self.w1, self.b1, self.w2, self.b2, self.w3, self.b3]
+        Returns
+        -------
+        tensorflow.Tensor
+            The gram matrix (n_p, n_q)
+        """
+        with tf.name_scope('kernel'):
+            return self.out_kernel(self.features(x_p), self.features(x_q), self.theta, name=name)
 
     def fit(self, x, y,
             theta=np.array([1., 1.]), zeta=0.01,
@@ -153,217 +148,116 @@ class DKEC():
         bake.Classifier
             The trained classifier
         """
-        # Determine the classes
-        classes = np.unique(y)
-        class_indices = np.arange(classes.shape[0])
-        self.classes = tf.cast(tf.constant(classes), tf_float_type)
-        self.class_indices = tf.cast(tf.constant(class_indices), tf_int_type)
-        self.n_classes = classes.shape[0]
+        with tf.name_scope('data'):
 
-        # Setup the data
-        self.x = tf.placeholder(tf_float_type, shape=[None, x.shape[1]])
-        self.y = tf.placeholder(tf_float_type, shape=[None, y.shape[1]])
-        self.feed_dict = {self.x: x, self.y: y}
-        self.n = tf.shape(self.x)[0]
-        self.d = x.shape[1]
-        n_all = x.shape[0]
+            # Determine the classes
+            classes = np.unique(y)
+            class_indices = np.arange(classes.shape[0])
+            self.classes = tf.cast(tf.constant(classes), tf_float_type, name='classes')
+            self.class_indices = tf.cast(tf.constant(class_indices), tf_int_type, name='class_indices')
+            self.n_classes = classes.shape[0]
 
-        # Determine the one hot encoding and index form of the training labels
-        self.y_one_hot = tf.equal(self.y, self.classes)
-        self.y_indices = \
-            tf.cast(tf.reduce_sum(
-                tf.where(self.y_one_hot,
-                         tf.ones(tf.shape(self.y_one_hot)) * class_indices,
-                         tf.zeros(tf.shape(self.y_one_hot))), axis=1),
-                    tf_int_type)
+            # Setup the data
+            self.x = tf.placeholder(tf_float_type, shape=[None, x.shape[1]], name='x')
+            self.y = tf.placeholder(tf_float_type, shape=[None, y.shape[1]], name='y')
+            self.feed_dict = {self.x: x, self.y: y}
+            self.n = tf.shape(self.x)[0]
+            self.d = x.shape[1]
+            n_all = x.shape[0]
 
-        # Setup the hyperparameters
-        offset = False
-        if log_hypers:
-            self.log_theta = tf.Variable(np.log(theta).astype(np_float_type),
-                                         name="log_theta")
-            self.log_zeta = tf.Variable(
-                np.log(np.atleast_1d(zeta)).astype(np_float_type),
-                name="log_zeta")
-            if offset:
-                self.theta_offset = \
-                    tf.Variable(np.atleast_1d(0.0).astype(np_float_type))
-                d = tf.concat([np.array([0.0]),
-                               tf.ones(theta.shape[0] - 1) *
-                               self.theta_offset ** 2], axis=0)
-                self.theta = tf.exp(self.log_theta) + d
-                self.zeta = tf.exp(self.log_zeta)
-                var_list = [self.log_theta, self.log_zeta, self.theta_offset]
-            else:
+            # Determine the one hot encoding and index form of the training labels
+            self.y_one_hot = tf.equal(self.y, self.classes, name='y_one_hot')
+            self.y_indices = _decode_one_hot(self.y_one_hot, name='y_indices')
+
+        with tf.name_scope('hyperparameters'):
+            # Setup the output kernel hyperparameters and regulariser
+            if log_hypers:
+                self.log_theta = tf.Variable(np.log(theta).astype(np_float_type), name="log_theta")
+                self.log_zeta = tf.Variable(np.log(np.atleast_1d(zeta)).astype(np_float_type), name="log_zeta")
                 self.theta = tf.exp(self.log_theta, name="theta")
                 self.zeta = tf.exp(self.log_zeta, name="zeta")
                 var_list = [self.log_theta, self.log_zeta]
-        else:
-            self.theta = tf.Variable(theta.astype(np_float_type), name="theta")
-            self.zeta = tf.Variable(np.atleast_1d(zeta).astype(np_float_type),
-                                    name="zeta")
-            var_list = [self.theta, self.zeta]
+            else:
+                self.theta = tf.Variable(theta.astype(np_float_type), name="theta")
+                self.zeta = tf.Variable(np.atleast_1d(zeta).astype(np_float_type), name="zeta")
+                var_list = [self.theta, self.zeta]
 
-        self.build_deep_variables()
-        var_list += self.deep_var_list
+            # Setup deep hyperparameters
+            self.initialise_deep_parameters()
+            var_list += self.deep_var_list
 
-        if n_sgd_batch:
-            print('Batch size for stochastic gradient descent: %d'
-                  % n_sgd_batch)
-        else:
-            # n_sgd_batch = x.shape[0]
-            print('Using full dataset for gradient descent')
-        # complexity_ratio = np.sqrt(n_all / n_sgd_batch)
+        with tf.name_scope('train_graph'):
+            # Setup the training graph
+            self._setup_train_graph()
 
-        # Setup the training graph
-        self._setup_train_graph()
+        with tf.name_scope('query_graph'):
+            # Setup the query graph
+            self._setup_query_graph()
 
-        # Setup the query graph
-        self._setup_query_graph()
+        with tf.name_scope('optimisation'):
 
-        # Setup the lagrangian objective
-        # self.lagrangian = tf.log(complexity_ratio * self.complexity ** 2)
-        self.lagrangian = self.complexity
-        self.grad = tf.gradients(self.lagrangian, var_list)
-        # self.grad_norm = tf.reduce_max(tf.abs(tf.concat(self.grad, axis=0)))
-        # self.stop_criterion = tf.greater_equal(self.grad_norm, grad_tol)
+            # Setup the lagrangian objective
+            self.lagrangian = self.complexity
+            self.grad = tf.gradients(self.lagrangian, var_list)
 
-        # Setup the training optimisation program
-        opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
-        train = opt.minimize(self.lagrangian, var_list=var_list)
+            # Setup the training optimisation program
+            opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
+            train = opt.minimize(self.lagrangian, var_list=var_list)
 
-        # # Run the optimisation
-        # print('Starting Training')
-        # if n_sgd_batch > 1:
-        #     k_fold = _KFold(n_splits=n_sgd_batch)
-        # feed_dict = self.feed_dict
-        # self.sess = tf.Session()
-        # self.sess.run(tf.global_variables_initializer())
-        # step = 0
-        # _train_history = []
-        # grad_norm_check = grad_tol + 1
-        # while grad_norm_check > grad_tol:
-        #     if n_sgd_batch > 1:
-        #         grad_norm_list = []
-        #         for train_indices, test_indices in k_fold.split(x):
-        #             feed_dict = {self.x: x[test_indices],
-        #                          self.y: y[test_indices]}
-        #             theta = self.sess.run(self.theta)
-        #             zeta = self.sess.run(self.zeta)
-        #             complexity = self.sess.run(self.complexity,
-        #                                        feed_dict=feed_dict)
-        #             cel = self.sess.run(self.cross_entropy_loss,
-        #                                 feed_dict=feed_dict)
-        #             acc = self.sess.run(self.train_accuracy,
-        #                                 feed_dict=feed_dict)
-        #             grad_norm = self.sess.run(self.grad_norm,
-        #                                       feed_dict=feed_dict)
-        #             grad_norm_list.append(grad_norm)
-        #             self.sess.run(train, feed_dict=feed_dict)
-        #             print('Step %d' % step,
-        #                   '|| Hyperparameters: ', theta, zeta,
-        #                   '|| Complexity: ', complexity,
-        #                   '|| Train Accuracy: ', acc,
-        #                   '|| Cross Entropy Loss: ', cel,
-        #                   '|| Gradient Norm: ', grad_norm)
-        #             step += 1
-        #             _train_history.append(
-        #                 [step, complexity, acc, cel, grad_norm]
-        #                 + list(np.append(theta, zeta)))
-        #         grad_norm_check = np.max(grad_norm_list)
-        #     else:
-        #         theta = self.sess.run(self.theta)
-        #         zeta = self.sess.run(self.zeta)
-        #         complexity = self.sess.run(self.complexity,
-        #                                    feed_dict=feed_dict)
-        #         cel = self.sess.run(self.cross_entropy_loss,
-        #                             feed_dict=feed_dict)
-        #         acc = self.sess.run(self.train_accuracy,
-        #                             feed_dict=feed_dict)
-        #         grad_norm = self.sess.run(self.grad_norm, feed_dict=feed_dict)
-        #         grad_norm_check = grad_norm
-        #         self.sess.run(train, feed_dict=feed_dict)
-        #         print('Step %d' % step,
-        #               '|| Hyperparameters: ', theta, zeta,
-        #               '|| Complexity: ', complexity,
-        #               '|| Train Accuracy: ', acc,
-        #               '|| Cross Entropy Loss: ', cel,
-        #               '|| Gradient Norm: ', grad_norm)
-        #         step += 1
-        #         _train_history.append([step, complexity, acc, cel, grad_norm]
-        #                               + list(np.append(theta, zeta)))
-
-        # Run the optimisation
-        print('Starting Training')
-        feed_dict = self.feed_dict
-        self.sess = tf.Session()
-        self.sess.run(tf.global_variables_initializer())
-        step = 0
-        _train_history = []
-        grad_norm_check = grad_tol + 1
-        # np.set_printoptions(3)
-        if to_train:
+            # Run the optimisation
+            self.sess = tf.Session()
+            self.sess.run(tf.global_variables_initializer())
+            print('Starting Training')
+            print('Batch size for stochastic gradient descent: %d' % n_sgd_batch) if n_sgd_batch else print('Using full dataset for gradient descent')
+            feed_dict = self.feed_dict
+            _train_history = []
+            step = 0
+            grad_norm_check = grad_tol + 1 if to_train else 0
             while grad_norm_check > grad_tol:
 
+                # Sample the data batch for this training iteration
                 if n_sgd_batch:
-                    sgd_indices = \
-                        np.arange(step * n_sgd_batch,
-                                  (step + 1) * n_sgd_batch) % n_all \
-                            if sequential_batch \
-                            else np.random.choice(n_all, n_sgd_batch,
-                                                  replace=False)
-                    feed_dict = {self.x: x[sgd_indices],
-                                 self.y: y[sgd_indices]}
+                    sgd_indices = np.arange(step * n_sgd_batch, (step + 1) * n_sgd_batch) % n_all if sequential_batch else np.random.choice(n_all, n_sgd_batch, replace=False)
+                    feed_dict = {self.x: x[sgd_indices], self.y: y[sgd_indices]}
 
                 theta = self.sess.run(self.theta)
                 zeta = self.sess.run(self.zeta)
-                complexity = self.sess.run(self.complexity,
-                                           feed_dict=feed_dict)
-                cel = self.sess.run(self.cross_entropy_loss,
-                                    feed_dict=feed_dict)
-                cel_valid = self.sess.run(self.cross_entropy_loss_valid,
-                                          feed_dict=feed_dict)
+                complexity = self.sess.run(self.complexity, feed_dict=feed_dict)
+                cel = self.sess.run(self.cross_entropy_loss, feed_dict=feed_dict)
+                cel_valid = self.sess.run(self.cross_entropy_loss_valid, feed_dict=feed_dict)
                 acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
                 grad = self.sess.run(self.grad, feed_dict=feed_dict)
                 grad_norm = compute_grad_norm(grad)
                 grad_norm_check = grad_norm
-                self.sess.run(train, feed_dict=feed_dict)
-                print('Step %d' % step,
-                      '|| Hyperparameters: ', theta, zeta,
-                      '|| Complexity: ', complexity,
-                      '|| Train Accuracy: ', acc,
-                      '|| Cross Entropy Loss: ', cel,
-                      '|| Gradient Norm: ', grad_norm,
-                      np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
-                step += 1
-                _train_history.append([step, complexity, acc, cel, cel_valid,
-                                       grad_norm]
-                                      + list(np.append(theta, zeta)))
 
-        # Store train history
-        _train_history = np.array(_train_history)
-        self.train_history = {'iterations': _train_history[:, 0],
-                              'complexity': _train_history[:, 1],
-                              'accuracy': _train_history[:, 2],
-                              'cross_entropy_loss': _train_history[:, 3],
-                              'valid_cross_entropy_loss': _train_history[:, 4],
-                              'gradient_norm': _train_history[:, 5],
-                              'kernel_hypers': _train_history[:, 6:-1],
-                              'regularisation': _train_history[:, -1]} \
-            if to_train else None
+                _train_history.append([step, complexity, acc, cel, cel_valid, grad_norm] + list(np.append(theta, zeta)))
+                step += 1
+
+                self.sess.run(train, feed_dict=feed_dict)
+
+                print('Step %d' % step, '|| Hyperparameters: ', theta, zeta, '|| Complexity: ', complexity, '|| Train Accuracy: ', acc, '|| Cross Entropy Loss: ', cel, '|| Gradient Norm: ', grad_norm, np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
+
+
+
+            # Store train history
+            _train_history = np.array(_train_history)
+            self.train_history = {'iterations': _train_history[:, 0],
+                                  'complexity': _train_history[:, 1],
+                                  'accuracy': _train_history[:, 2],
+                                  'cross_entropy_loss': _train_history[:, 3],
+                                  'valid_cross_entropy_loss': _train_history[:, 4],
+                                  'gradient_norm': _train_history[:, 5],
+                                  'kernel_hypers': _train_history[:, 6:-1],
+                                  'regularisation': _train_history[:, -1]} if to_train else None
 
         # Store the optimal hyperparameters
         self.theta_train = self.sess.run(self.theta)
         self.zeta_train = self.sess.run(self.zeta)
         self.steps_train = step
-        self.complexity_train = self.sess.run(self.complexity,
-                                              feed_dict=self.feed_dict)
-        self.acc_train = self.sess.run(self.train_accuracy,
-                                       feed_dict=self.feed_dict)
-        self.cel_train = self.sess.run(self.cross_entropy_loss,
-                                       feed_dict=self.feed_dict)
-        self.grad_norm_train = compute_grad_norm(self.sess.run(self.grad,
-                                                 feed_dict=self.feed_dict))
+        self.complexity_train = self.sess.run(self.complexity, feed_dict=self.feed_dict)
+        self.acc_train = self.sess.run(self.train_accuracy, feed_dict=self.feed_dict)
+        self.cel_train = self.sess.run(self.cross_entropy_loss, feed_dict=self.feed_dict)
+        self.grad_norm_train = compute_grad_norm(self.sess.run(self.grad, feed_dict=self.feed_dict))
         self.msp_train = self.sess.run(self.msp, feed_dict=self.feed_dict)
         print('Training Finished')
         print('Learned Hyperparameters: ', self.theta_train, self.zeta_train)
@@ -377,112 +271,102 @@ class DKEC():
     def _setup_train_graph(self):
         """Setup the training computational graph."""
         # The regulariser matrix
-        i = tf.cast(tf.eye(self.n), tf_float_type)
-        reg = tf.cast(self.n, tf_float_type) * self.zeta * i
+        i = tf.cast(tf.eye(self.n), tf_float_type, name='i')
+        reg = tf.multiply(tf.cast(self.n, tf_float_type), tf.multiply(self.zeta, i), name='reg')
 
         # The gram matrix and regularised version thereof for the output space
-        self.l = _kronecker_delta(self.y, self.y)
-        self.l_reg = self.l + reg
-        self.chol_l_reg = tf.cholesky(self.l_reg)
+        self.l = _kronecker_delta(self.y, self.y, name='l')
+        self.l_reg = tf.add(self.l, reg, name='l_reg')
+        self.chol_l_reg = tf.cholesky(self.l_reg, name='chol_l_reg')
 
         # The gram matrix and regularised version thereof for the input space
-        self.k = self.kernel(self.x, self.x, self.theta)
-        self.k_reg = self.k + reg
-        self.chol_k_reg = tf.cholesky(self.k_reg)
+        self.k = self.kernel(self.x, self.x, self.theta, name='k')
+        self.k_reg = tf.add(self.k, reg, name='k_reg')
+        self.chol_k_reg = tf.cholesky(self.k_reg, name='chol_k_reg')
 
         # The embedding weights on the training data
-        self.w = tf.cholesky_solve(self.chol_k_reg, self.k)
+        self.w = tf.cholesky_solve(self.chol_k_reg, self.k, name='w')
 
         # The decision probabilities on the training data
-        self.p_pred = _expectance(tf.cast(tf.equal(self.y, self.classes),
-                                          tf_float_type), self.w)
+        self.p_pred = _expectance(tf.cast(tf.equal(self.y, self.classes), tf_float_type), self.w, name='p_pred')
 
         # The predictions on the training data
-        self.y_pred = _classify(self.p_pred, classes=self.classes)
+        self.y_pred = _classify(self.p_pred, classes=self.classes, name='y_pred')
 
         # The training accuracy
-        self.train_accuracy = tf.reduce_mean(tf.cast(
-            tf.equal(self.y_pred, tf.reshape(self.y, [-1])), tf_float_type))
+        self.train_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.y_pred, tf.reshape(self.y, [-1])), tf_float_type), name='train_accuracy')
 
         # The prediction probabilities on the actual label
-        indices = tf.cast(tf.range(self.n), tf_int_type)
-        self.p_want = tf.gather_nd(self.p_pred,
-                                   tf.stack([indices, self.y_indices], axis=1))
+        indices = tf.cast(tf.range(self.n), tf_int_type, name='indices')
+        self.p_want = tf.gather_nd(self.p_pred, tf.stack([indices, self.y_indices], axis=1), name='p_want')
 
         # The cross entropy loss over the training data
-        self.cross_entropy_loss = - tf.reduce_mean(tf.log(self.p_want))
+        self.cross_entropy_loss = - tf.reduce_mean(tf.log(self.p_want), name='cross_entropy_loss')
 
         # The clip-normalised valid decision probabilities
-        self.p_pred_valid = \
-            tf.transpose(_clip_normalize(tf.transpose(self.p_pred)))
+        self.p_pred_valid = tf.transpose(_clip_normalize(tf.transpose(self.p_pred)), name='p_pred_valid')
 
         # The clip-normalised valid decision probabilities on the actual label
-        self.p_want_valid = \
-            tf.gather_nd(self.p_pred_valid, tf.stack([indices, self.y_indices],
-                                                     axis=1))
+        self.p_want_valid = tf.gather_nd(self.p_pred_valid, tf.stack([indices, self.y_indices], axis=1), name='p_want_valid')
 
         # The valid cross entropy loss over the training data
-        self.cross_entropy_loss_valid = \
-            - tf.reduce_mean(tf.log(self.p_want_valid))
+        self.cross_entropy_loss_valid = tf.reduce_mean(- tf.log(self.p_want_valid), name='cross_entropy_loss_valid')
 
         # The model complexity of the classifier
-        self.complexity = self._define_complexity()
+        self.complexity = self._define_complexity(name='complexity')
 
         # Other interesting quantities
         self.pred_constraint = self.p_want - 1 / self.n_classes
         self.prob_constraint = tf.reduce_sum(self.w, axis=0) - 1
-        self.msp = tf.reduce_mean(self.prob_constraint + 1)
+        self.msp = tf.reduce_mean(self.prob_constraint + 1, name='msp')
 
     def _setup_query_graph(self):
         """Setup the query inference computational graph."""
         # Query on x
-        self.x_query = tf.placeholder(tf_float_type, shape=[None, self.d])
+        self.x_query = tf.placeholder(tf_float_type, shape=[None, self.d], name='x_query')
 
         # Inference Gram Matrix
-        self.k_query = self.kernel(self.x, self.x_query, self.theta)
+        self.k_query = self.kernel(self.x, self.x_query, self.theta, name='k_query')
 
         # Conditional Embedding Weights
-        self.w_query = tf.cholesky_solve(self.chol_k_reg, self.k_query)
+        self.w_query = tf.cholesky_solve(self.chol_k_reg, self.k_query, name='w_query')
 
         # Decision Probability
-        self.p_query = _expectance(tf.cast(tf.equal(self.y, self.classes),
-                                           tf_float_type), self.w_query)
-        self.p_query_valid = \
-            tf.transpose(_clip_normalize(tf.transpose(self.p_query)))
+        self.p_query = _expectance(tf.cast(tf.equal(self.y, self.classes), tf_float_type), self.w_query, name='p_query')
+        self.p_query_valid = tf.transpose(_clip_normalize(tf.transpose(self.p_query)), name='p_query_valid')
 
         # Prediction
-        self.y_query = _classify(self.p_query, classes=self.classes)
+        self.y_query = _classify(self.p_query, classes=self.classes, name='y_query')
 
         # Information Entropy
         ind = tf.reshape(self.y_indices, [-1])
-        self.p_field = tf.transpose(tf.gather(tf.transpose(self.p_query), ind))
-        self.p_field_adjust = _adjust_prob(self.p_field)  # (n_query, n_train)
-        self.u_field = -tf.log(self.p_field_adjust)
+        self.p_field = tf.transpose(tf.gather(tf.transpose(self.p_query), ind), name='p_field')
+        self.p_field_adjust = _adjust_prob(self.p_field, name='p_field_adjust')  # (n_query, n_train)
+        self.u_field = tf.subtract(0., tf.log(self.p_field_adjust), name='u_field')
         # TODO: Einstein Sum for diagonal of matrix product
         # self.h_query = tf.einsum('ij,ji->i', u, self.w_query)
-        self.h_query = tf.diag_part(tf.matmul(self.u_field, self.w_query))
-        self.h_query_valid = tf.clip_by_value(self.h_query, 0, np.inf)
+        self.h_query = tf.diag_part(tf.matmul(self.u_field, self.w_query), name='h_query')
+        self.h_query_valid = tf.clip_by_value(self.h_query, 0, np.inf, name='h_query_valid')
 
         # Query on y
-        self.y_query = tf.placeholder(tf_float_type, shape=[None, 1])
+        self.y_query = tf.placeholder(tf_float_type, shape=[None, 1], name='y_query')
 
         # Reverse Inference Gram Matrix
-        self.l_query = _kronecker_delta(self.y, self.y_query)
+        self.l_query = _kronecker_delta(self.y, self.y_query, name='l_query')
 
         # Reverse Conditional Embedding Weights
-        self.v_query = tf.cholesky_solve(self.chol_l_reg, self.l_query)
+        self.v_query = tf.cholesky_solve(self.chol_l_reg, self.l_query, name='v_query')
 
         # Reverse Embedding
-        self.mu_xy = tf.matmul(self.kernel(self.x_query, self.x, self.theta),
-                               self.v_query)
+        self.mu_xy = tf.matmul(self.kernel(self.x_query, self.x, self.theta), self.v_query, name='mu_xy')
 
         # Input Expectance
-        self.x_exp = _expectance(self.x, self.v_query)
+        self.x_exp = _expectance(self.x, self.v_query, name='x_exp')
 
         # Input Variance
-        self.x_var = _variance(self.x, self.v_query)
+        self.x_var = _variance(self.x, self.v_query, name='x_var')
 
-    def _define_complexity(self, complexity='Global Rademacher Complexity'):
+    def _define_complexity(self, complexity='Global Rademacher Complexity', name=None):
         """
         Define the kernel embedding classifier model complexity.
 
@@ -491,15 +375,16 @@ class DKEC():
         float
             The model complexity
         """
-        if complexity == 'Embedding Trace':
-            return tf.trace(self.w)
-        elif complexity == 'Global Rademacher Complexity':
-            b = _kronecker_delta(self.y, self.classes[:, tf.newaxis])
-            v = tf.cholesky_solve(self.chol_k_reg, b)
-            wtw = tf.matmul(tf.transpose(v), tf.matmul(self.k, v))
-            return tf.sqrt(tf.trace(wtw))
-        else:
-            raise ValueError('No complexity measure named "%s"' % complexity)
+        with tf.name_scope('complexity_definition'):
+            if complexity == 'Embedding Trace':
+                return tf.trace(self.w, name=name)
+            elif complexity == 'Global Rademacher Complexity':
+                b = _kronecker_delta(self.y, self.classes[:, tf.newaxis])
+                v = tf.cholesky_solve(self.chol_k_reg, b)
+                wtw = tf.matmul(tf.transpose(v), tf.matmul(self.k, v))
+                return tf.sqrt(tf.trace(wtw), name=name)
+            else:
+                raise ValueError('No complexity measure named "%s"' % complexity)
 
     def predict_weights(self, x_query):
         """
@@ -535,8 +420,7 @@ class DKEC():
             The query probability estimates of size (n_query, n_class)
         """
         self.feed_dict.update({self.x_query: x_query})
-        return self.sess.run(self.p_query_valid if normalize else self.p_query,
-                             feed_dict=self.feed_dict)
+        return self.sess.run(self.p_query_valid if normalize else self.p_query, feed_dict=self.feed_dict)
 
     def predict(self, x_query):
         """
@@ -573,8 +457,7 @@ class DKEC():
         """
         self.feed_dict.update({self.x_query: x_query})
         if tensorflow:
-            return self.sess.run(self.h_query_valid if clip else self.h_query,
-                                 feed_dict=self.feed_dict)
+            return self.sess.run(self.h_query_valid if clip else self.h_query, feed_dict=self.feed_dict)
         else:
             u_field = self.sess.run(self.u_field, feed_dict=self.feed_dict)
             w_query = self.sess.run(self.w_query, feed_dict=self.feed_dict)
@@ -708,6 +591,24 @@ class DKEC():
         #           % self.sess.run(mu_yx[c, 0], feed_dict=self.feed_dict))
         # print('All Modes Decoded: \n', x_mode)
         # return x_mode
+
+    def compute_features(self, x):
+        """
+        Compute the deep features of the kernel embedding network.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            The input of size (n, d)
+
+        Returns
+        -------
+        list
+            A list of the output of each layer, including the final output
+        """
+        x_input = tf.placeholder(tf_float_type, list(x.shape))
+        phi_list = self.features(x_input, return_all_layers=True)
+        return self.sess.run(phi_list, feed_dict={x_input: x})
 
 
 def compute_grad_norm(grad):
