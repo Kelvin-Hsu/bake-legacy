@@ -76,7 +76,7 @@ def mnist_classification(x_train, y_train, images_train,
     grad_tol = 0.1
     n_sgd_batch = 100
     max_iter = 1000
-    kec = cake.DeepConvolutionalKernelEmbeddingClassifier(kernel=cake.kernels.s_gaussian).fit(
+    kec = cake.DeepConvolutionalKernelEmbeddingClassifier3NoPool().fit(
         x_train, y_train, x_test, y_test, theta=theta_init, zeta=zeta_init, learning_rate=learning_rate, grad_tol=grad_tol, max_iter=max_iter, n_sgd_batch=n_sgd_batch, tensorboard_directory=tensorboard_directory)
 
     return

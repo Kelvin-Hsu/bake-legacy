@@ -2,28 +2,61 @@
 Define deep convolutional kernel embedding classifier.
 """
 import tensorflow as tf
+from .kernels import s_gaussian as _s_gaussian
 from .data_type_def import *
 from .base_classifier import KernelEmbeddingClassifier
 
 
-class DeepConvolutionalKernelEmbeddingClassifier(KernelEmbeddingClassifier):
+class DeepConvolutionalKernelEmbeddingClassifier3NoPool(KernelEmbeddingClassifier):
+
+    def __init__(self, kernel=_s_gaussian, width=28, height=28, channels_in=1,
+                 channels_1=4, channels_2=8, channels_3=12,
+                 k_size_1=5, k_size_2=5, k_size_3=4,
+                 stride_1=1, stride_2=2, stride_3=2,
+                 weights_std=0.1, bias_init=0.1, seed=0):
+        """
+        Initialize the classifier.
+
+        Parameters
+        ----------
+        kernel : callable, optional
+            A kernel function
+        """
+        super().__init__()
+        self.out_kernel = kernel
+
+        self.width = width
+        self.height = height
+
+        self.channels_in = channels_in
+        self.channels_1 = channels_1
+        self.channels_2 = channels_2
+        self.channels_3 = channels_3
+        self.k_size_1 = k_size_1
+        self.k_size_2 = k_size_2
+        self.k_size_3 = k_size_3
+
+        self.stride_1 = stride_1  # output is 28x28
+        self.stride_2 = stride_2  # output is 14x14
+        self.stride_3 = stride_3  # output is 7x7
+
+        self.weights_std = weights_std
+        self.bias_init = bias_init
+        self.seed = seed
 
     def initialise_deep_parameters(self):
         """Define the deep parameters of the kernel embedding network."""
         with tf.name_scope('deep_parameters'):
-            self.channels_in = 1
-            self.k_size_1 = 5
-            self.k_size_2 = 5
-            self.k_size_3 = 4
-            self.channels_1 = 4
-            self.channels_2 = 8
-            self.channels_3 = 12
-            w1_init = tf.cast(tf.truncated_normal([self.k_size_1, self.k_size_1, self.channels_in, self.channels_1], stddev=0.1), tf_float_type)
-            w2_init = tf.cast(tf.truncated_normal([self.k_size_2, self.k_size_2, self.channels_1, self.channels_2], stddev=0.1), tf_float_type)
-            w3_init = tf.cast(tf.truncated_normal([self.k_size_3, self.k_size_3, self.channels_2, self.channels_3], stddev=0.1), tf_float_type)
-            b1_init = tf.cast(tf.ones([self.channels_1]) / 10, tf_float_type)
-            b2_init = tf.cast(tf.ones([self.channels_2]) / 10, tf_float_type)
-            b3_init = tf.cast(tf.ones([self.channels_3]) / 10, tf_float_type)
+
+            tf.set_random_seed(self.seed)
+            weights_std = self.weights_std
+            bias_init = self.bias_init
+            w1_init = tf.cast(tf.truncated_normal([self.k_size_1, self.k_size_1, self.channels_in, self.channels_1], stddev=weights_std), tf_float_type)
+            w2_init = tf.cast(tf.truncated_normal([self.k_size_2, self.k_size_2, self.channels_1, self.channels_2], stddev=weights_std), tf_float_type)
+            w3_init = tf.cast(tf.truncated_normal([self.k_size_3, self.k_size_3, self.channels_2, self.channels_3], stddev=weights_std), tf_float_type)
+            b1_init = tf.cast(tf.ones([self.channels_1]) * bias_init, tf_float_type)
+            b2_init = tf.cast(tf.ones([self.channels_2]) * bias_init, tf_float_type)
+            b3_init = tf.cast(tf.ones([self.channels_3]) * bias_init, tf_float_type)
             self.w1 = tf.Variable(w1_init, name='w1')
             self.b1 = tf.Variable(b1_init, name='b1')
             self.w2 = tf.Variable(w2_init, name='w2')
@@ -55,17 +88,18 @@ class DeepConvolutionalKernelEmbeddingClassifier(KernelEmbeddingClassifier):
             The output of the final layer or a list of outputs of each layer
         """
         with tf.name_scope('deep_features'):
+            width = self.width
+            height = self.height
+            stride_1 = self.stride_1
+            stride_2 = self.stride_2
+            stride_3 = self.stride_3
+
             # Reshape the input back to an image
-            width = 28
-            height = 28
             x_image = tf.reshape(x, shape=[-1, width, height, 1], name='x_image')
 
             # Build the deep layers
-            stride_1 = 1  # output is 28x28
             phi_1 = tf.nn.relu(tf.nn.conv2d(x_image, self.w1, strides=[1, stride_1, stride_1, 1], padding='SAME') + self.b1, name='phi_1')
-            stride_2 = 2  # output is 14x14
             phi_2 = tf.nn.relu(tf.nn.conv2d(phi_1, self.w2, strides=[1, stride_2, stride_2, 1], padding='SAME') + self.b2, name='phi_2')
-            stride_3 = 2  # output is 7x7
             phi_3 = tf.nn.relu(tf.nn.conv2d(phi_2, self.w3, strides=[1, stride_3, stride_3, 1], padding='SAME') + self.b3, name='phi_3')
 
             width_1 = int(width / stride_1)
