@@ -39,7 +39,6 @@ def mnist_classification(x_train, y_train, images_train,
     # this digit classification test
     classes = np.unique(y_train)
     n_class = classes.shape[0]
-    d = x_train.shape[1]
     print('\n--------------------------------------------------------------\n')
     print('There are %d classes for digits: ' % n_class, classes)
     for c in classes:
@@ -51,49 +50,26 @@ def mnist_classification(x_train, y_train, images_train,
     print('Training on %d images' % n_train)
     print('Testing on %d images' % n_test)
 
+    # Specify the parameters
+    kernel = cake.kernels.s_gaussian
+    theta_init = np.array([10., 50])
+    zeta_init = 1e-4
+    learning_rate = 0.005
+    grad_tol = 0.1
+    n_sgd_batch = 250
+    max_iter = 1000
+    param_string = 'theta_10_50_zeta_en4_lr_0p005_grad_tol_0p1_sgd_250_max_iter_1000'
     # Create full directory
-    digits_str = ''.join([str(i) for i in classes])
-    full_directory = './%s_mnist_%d_sgd_100/' % (now_string, n_train)
+    full_directory = './%s_mnist_%d_tf_tute_arch_%s/' % (now_string, n_train, param_string)
     os.mkdir(full_directory)
     print('Results will be saved in "%s"' % full_directory)
-
-    # Save the training and test data
-    np.savez('%strain_test_data.npz' % full_directory,
-             x_train=x_train,
-             y_train=y_train,
-             images_train=images_train,
-             x_test=x_test,
-             y_test=y_test,
-             images_test=images_test)
 
     tensorboard_directory = full_directory + 'tensorboard/'
     os.mkdir(tensorboard_directory)
 
     # Train the kernel embedding classifier
-    theta_init = np.array([10., 10.])
-    zeta_init = 1e-4
-    learning_rate = 0.005
-    grad_tol = 0.1
-    n_sgd_batch = 100
-    max_iter = 1000
-    kec = cake.DeepConvolutionalKernelEmbeddingClassifier3NoPool().fit(
+    kec = cake.MNISTClassifier_TensorFlowTutorialArchitecture(kernel=kernel).fit(
         x_train, y_train, x_test, y_test, theta=theta_init, zeta=zeta_init, learning_rate=learning_rate, grad_tol=grad_tol, max_iter=max_iter, n_sgd_batch=n_sgd_batch, tensorboard_directory=tensorboard_directory)
-
-    return
-
-    # kec_p_train = kec.predict_proba(x_train)
-    # kec_y_train = kec.predict(x_train)
-    # kec_train_accuracy = np.mean(kec_y_train == y_train.ravel())
-    # kec_train_log_loss = log_loss(y_train.ravel(), kec_p_train)
-    # print('kec train accuracy: %.9f' % kec_train_accuracy)
-    # print('kec train log loss: %.9f' % kec_train_log_loss)
-    # kec_p_test = kec.predict_proba(x_test)
-    # kec_y_test = kec.predict(x_test)
-    # kec_test_accuracy = np.mean(kec_y_test == y_test.ravel())
-    # kec_test_log_loss = log_loss(y_test.ravel(), kec_p_test)
-    # print('kec test accuracy: %.9f' % kec_test_accuracy)
-    # print('kec test log loss: %.9f' % kec_test_log_loss)
-
 
 def create_mnist_data(load_from_tf=True):
     """
@@ -226,7 +202,7 @@ def process_mnist_data(x, y, images, x_test, y_test, images_test,
 
 def main():
     """Runs the digit classification task through different scenarios."""
-    n_sample = 500
+    n_sample = 1000
     digits_list = [np.arange(10)]
 
     for digits in digits_list:

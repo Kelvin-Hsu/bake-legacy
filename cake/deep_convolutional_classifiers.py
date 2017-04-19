@@ -2,18 +2,17 @@
 Define deep convolutional kernel embedding classifier.
 """
 import tensorflow as tf
-from .kernels import s_gaussian as _s_gaussian
 from .data_type_def import *
 from .base_classifier import KernelEmbeddingClassifier
 
 
-class DeepConvolutionalKernelEmbeddingClassifier3NoPool(KernelEmbeddingClassifier):
+class MNISTClassifier_GoogleCloudArchitecture(KernelEmbeddingClassifier):
 
-    def __init__(self, kernel=_s_gaussian, width=28, height=28, channels_in=1,
+    def __init__(self, width=28, height=28, channels_in=1,
                  channels_1=4, channels_2=8, channels_3=12,
                  k_size_1=5, k_size_2=5, k_size_3=4,
                  stride_1=1, stride_2=2, stride_3=2,
-                 weights_std=0.1, bias_init=0.1, seed=0):
+                 weights_std=0.1, bias_init=0.1, seed=0, **kwargs):
         """
         Initialize the classifier.
 
@@ -22,8 +21,7 @@ class DeepConvolutionalKernelEmbeddingClassifier3NoPool(KernelEmbeddingClassifie
         kernel : callable, optional
             A kernel function
         """
-        super().__init__()
-        self.out_kernel = kernel
+        super().__init__(**kwargs)
 
         self.width = width
         self.height = height
@@ -148,3 +146,100 @@ class DeepConvolutionalKernelEmbeddingClassifier3NoPool(KernelEmbeddingClassifie
         x_input = tf.placeholder(tf_float_type, list(x.shape))
         phi_list = self.features(x_input, return_all_layers=True)
         return self.sess.run(phi_list, feed_dict={x_input: x})
+
+
+class MNISTClassifier_TensorFlowTutorialArchitecture(KernelEmbeddingClassifier):
+
+    def __init__(self, seed=0, **kwargs):
+        """
+        Initialize the classifier.
+
+        Parameters
+        ----------
+        kernel : callable, optional
+            A kernel function
+        """
+        super().__init__(**kwargs)
+        self.seed = seed
+
+    def initialise_deep_parameters(self):
+        """Define the deep parameters of the kernel embedding network."""
+        with tf.name_scope('deep_parameters'):
+
+            tf.set_random_seed(self.seed)
+
+            def weight_variable(shape):
+                initial = tf.truncated_normal(shape, stddev=0.1)
+                return tf.Variable(initial)
+
+            def bias_variable(shape):
+                initial = tf.constant(0.1, shape=shape)
+                return tf.Variable(initial)
+
+            W_conv1 = weight_variable([5, 5, 1, 32])
+            b_conv1 = bias_variable([32])
+
+            W_conv2 = weight_variable([5, 5, 32, 64])
+            b_conv2 = bias_variable([64])
+
+            # W_fc1 = weight_variable([7 * 7 * 64, 1024])
+            # b_fc1 = bias_variable([1024])
+
+            self.W_conv1 = W_conv1
+            self.b_conv1 = b_conv1
+            self.W_conv2 = W_conv2
+            self.b_conv2 = b_conv2
+            # self.W_fc1 = W_fc1
+            # self.b_fc1 = b_fc1
+
+            # self.deep_var_list = [self.W_conv1, self.b_conv1, self.W_conv2, self.b_conv2, self.W_fc1, self.b_fc1]
+            self.deep_var_list = [self.W_conv1, self.b_conv1, self.W_conv2, self.b_conv2]
+
+    def features(self, x):
+        """
+        Define the deep features of the kernel embedding network.
+
+        Parameters
+        ----------
+        x : tensorflow.Tensor
+            An input example of size (n, d)
+        return_all_layers : bool
+            To return all the intermediate layers or only the final output
+
+        Returns
+        -------
+        tensorflow.Tensor or list
+            The output of the final layer or a list of outputs of each layer
+        """
+        with tf.name_scope('deep_features'):
+
+            def conv2d(x, W):
+                return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+
+            def max_pool_2x2(x):
+                return tf.nn.max_pool(x, ksize=[1, 2, 2, 1],
+                                      strides=[1, 2, 2, 1], padding='SAME')
+
+            x_image = tf.reshape(x, [-1, 28, 28, 1])
+
+            W_conv1 = self.W_conv1
+            b_conv1 = self.b_conv1
+            W_conv2 = self.W_conv2
+            b_conv2 = self.b_conv2
+            # W_fc1 = self.W_fc1
+            # b_fc1 = self.b_fc1
+
+            h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
+            h_pool1 = max_pool_2x2(h_conv1)
+
+            h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
+            h_pool2 = max_pool_2x2(h_conv2)
+
+            h_pool2_flat = tf.reshape(h_pool2, [-1, 7 * 7 * 64])
+            # h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
+
+            # keep_prob = tf.placeholder(tf_float_type)
+            # h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+
+            z = h_pool2_flat
+            return z

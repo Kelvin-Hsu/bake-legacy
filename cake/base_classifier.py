@@ -193,7 +193,7 @@ class KernelEmbeddingClassifier():
             # Run the optimisation
             print('Starting Training')
             print('Batch size for stochastic gradient descent: %d' % n_sgd_batch) if n_sgd_batch else print('Using full dataset for gradient descent')
-            feed_dict = self.feed_dict
+            feed_dict = self.feed_dict.copy()
             # _train_history = []
             step = 0
             grad_norm_check = grad_tol + 1 if to_train else 0
@@ -203,7 +203,7 @@ class KernelEmbeddingClassifier():
                 # Sample the data batch for this training iteration
                 if n_sgd_batch:
                     sgd_indices = np.arange(step * n_sgd_batch, (step + 1) * n_sgd_batch) % n_all if sequential_batch else np.random.choice(n_all, n_sgd_batch, replace=False)
-                    feed_dict = {self.x: x[sgd_indices], self.y: y[sgd_indices], self.x_test: x_test, self.y_test: y_test}
+                    feed_dict.update({self.x: x[sgd_indices], self.y: y[sgd_indices]})
 
                 theta = self.sess.run(self.theta)
                 zeta = self.sess.run(self.zeta)
