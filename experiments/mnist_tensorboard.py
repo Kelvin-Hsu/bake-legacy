@@ -53,7 +53,7 @@ def mnist_classification(x_train, y_train, images_train,
 
     # Create full directory
     digits_str = ''.join([str(i) for i in classes])
-    full_directory = './%s_mnist_digits_%s_with_%d_training_images/' % (now_string, digits_str, n_train)
+    full_directory = './%s_mnist_%d_sgd_100/' % (now_string, n_train)
     os.mkdir(full_directory)
     print('Results will be saved in "%s"' % full_directory)
 
@@ -73,9 +73,9 @@ def mnist_classification(x_train, y_train, images_train,
     theta_init = np.array([10., 10.])
     zeta_init = 1e-4
     learning_rate = 0.005
-    grad_tol = 0.05
-    n_sgd_batch = None
-    max_iter = 10000
+    grad_tol = 0.1
+    n_sgd_batch = 100
+    max_iter = 1000
     kec = cake.DeepConvolutionalKernelEmbeddingClassifier(kernel=cake.kernels.s_gaussian).fit(
         x_train, y_train, x_test, y_test, theta=theta_init, zeta=zeta_init, learning_rate=learning_rate, grad_tol=grad_tol, max_iter=max_iter, n_sgd_batch=n_sgd_batch, tensorboard_directory=tensorboard_directory)
 

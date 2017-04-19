@@ -250,14 +250,22 @@ class DeepConvolutionalKernelEmbeddingClassifier():
             # Merge all the summaries
             if tensorboard_directory:
                 merged_summary = tf.summary.merge_all()
-                writer = tf.summary.FileWriter(tensorboard_directory)
-                writer.add_graph(self.sess.graph)
+
+                if n_sgd_batch:
+                    writer = tf.summary.FileWriter(tensorboard_directory + 'batch/')
+                    writer.add_graph(self.sess.graph)
+                    writer_whole = tf.summary.FileWriter(tensorboard_directory + 'whole/')
+                    writer_whole.add_graph(self.sess.graph)
+
+                else:
+                    writer = tf.summary.FileWriter(tensorboard_directory)
+                    writer.add_graph(self.sess.graph)
 
             # Run the optimisation
             print('Starting Training')
             print('Batch size for stochastic gradient descent: %d' % n_sgd_batch) if n_sgd_batch else print('Using full dataset for gradient descent')
             feed_dict = self.feed_dict
-            _train_history = []
+            # _train_history = []
             step = 0
             grad_norm_check = grad_tol + 1 if to_train else 0
             np.set_printoptions(precision=2)
@@ -266,7 +274,7 @@ class DeepConvolutionalKernelEmbeddingClassifier():
                 # Sample the data batch for this training iteration
                 if n_sgd_batch:
                     sgd_indices = np.arange(step * n_sgd_batch, (step + 1) * n_sgd_batch) % n_all if sequential_batch else np.random.choice(n_all, n_sgd_batch, replace=False)
-                    feed_dict.update({self.x: x[sgd_indices], self.y: y[sgd_indices]})
+                    feed_dict = {self.x: x[sgd_indices], self.y: y[sgd_indices], self.x_test: x_test, self.y_test: y_test}
 
                 theta = self.sess.run(self.theta)
                 zeta = self.sess.run(self.zeta)
@@ -282,30 +290,31 @@ class DeepConvolutionalKernelEmbeddingClassifier():
                 grad_norm_check = grad_norm
 
                 if tensorboard_directory:
+                    if n_sgd_batch and step % 1 == 0:
+                        s = self.sess.run(merged_summary, feed_dict=self.feed_dict)
+                        writer_whole.add_summary(s, step)
                     s = self.sess.run(merged_summary, feed_dict=feed_dict)
                     writer.add_summary(s, step)
-                    # s = self.sess.run(merged_summary, feed_dict=self.feed_dict)
-                    # writer.add_summary(s, step)
 
                 self.sess.run(train, feed_dict=feed_dict)
 
-                _train_history.append([step, complexity, acc, cel, cel_valid, t_acc, t_cel, t_cel_valid, grad_norm] + list(np.append(theta, zeta)))
+                # _train_history.append([step, complexity, acc, cel, cel_valid, t_acc, t_cel, t_cel_valid, grad_norm] + list(np.append(theta, zeta)))
                 step += 1
                 print('Step %d' % step, '|| H: ', theta, zeta[0], '|| C: ', complexity, '|| ACC: ', acc, '|| CEL: ', cel, '|| CELV: ', cel_valid, '|| TACC: ', t_acc, '|| TCEL: ', t_cel, '|| TCELV: ', t_cel_valid, '|| Gradient Norm: ', grad_norm)
                 print('Gradient Norms: ', np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
             # Store train history
-            _train_history = np.array(_train_history)
-            self.train_history = {'iterations': _train_history[:, 0],
-                                  'complexity': _train_history[:, 1],
-                                  'accuracy': _train_history[:, 2],
-                                  'cross_entropy_loss': _train_history[:, 3],
-                                  'valid_cross_entropy_loss': _train_history[:, 4],
-                                  'test_accuracy': _train_history[:, 5],
-                                  'test_cross_entropy_loss': _train_history[:, 6],
-                                  'test_valid_cross_entropy_loss': _train_history[:, 7],
-                                  'gradient_norm': _train_history[:, 8],
-                                  'kernel_hypers': _train_history[:, 9:-1],
-                                  'regularisation': _train_history[:, -1]} if to_train else None
+            # _train_history = np.array(_train_history)
+            # self.train_history = {'iterations': _train_history[:, 0],
+            #                       'complexity': _train_history[:, 1],
+            #                       'accuracy': _train_history[:, 2],
+            #                       'cross_entropy_loss': _train_history[:, 3],
+            #                       'valid_cross_entropy_loss': _train_history[:, 4],
+            #                       'test_accuracy': _train_history[:, 5],
+            #                       'test_cross_entropy_loss': _train_history[:, 6],
+            #                       'test_valid_cross_entropy_loss': _train_history[:, 7],
+            #                       'gradient_norm': _train_history[:, 8],
+            #                       'kernel_hypers': _train_history[:, 9:-1],
+            #                       'regularisation': _train_history[:, -1]} if to_train else None
 
         # Store the optimal hyperparameters
         self.theta_train = self.sess.run(self.theta)
@@ -383,11 +392,11 @@ class DeepConvolutionalKernelEmbeddingClassifier():
         self.prob_constraint = tf.reduce_sum(self.w, axis=0) - 1
         self.msp = tf.reduce_mean(self.prob_constraint + 1, name='msp')
 
-        tf.summary.scalar('complexity', self.complexity)
         tf.summary.scalar('train_accuracy', self.train_accuracy)
-        tf.summary.scalar('cross_entropy_loss', self.cross_entropy_loss)
-        tf.summary.scalar('cross_entropy_loss_valid', self.cross_entropy_loss_valid)
-        tf.summary.scalar('msp', self.msp)
+        tf.summary.scalar('train_cross_entropy_loss', self.cross_entropy_loss)
+        tf.summary.scalar('train_cross_entropy_loss_valid', self.cross_entropy_loss_valid)
+        tf.summary.scalar('train_msp', self.msp)
+        tf.summary.scalar('train_complexity', self.complexity)
 
     def _setup_test_graph(self):
 
