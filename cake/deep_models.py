@@ -342,55 +342,65 @@ class DeepConvolutionalKernelEmbeddingClassifier():
 
     def _setup_train_graph(self):
         """Setup the training computational graph."""
-        # The regulariser matrix
-        i = tf.cast(tf.eye(self.n), tf_float_type, name='i')
-        reg = tf.multiply(tf.cast(self.n, tf_float_type), tf.multiply(self.zeta, i), name='reg')
+        with tf.name_scope('regularisation_matrix'):
+            # The regulariser matrix
+            i = tf.cast(tf.eye(self.n), tf_float_type, name='i')
+            reg = tf.multiply(tf.cast(self.n, tf_float_type), tf.multiply(self.zeta, i), name='reg')
 
-        # The gram matrix and regularised version thereof for the output space
-        self.l = _kronecker_delta(self.y, self.y, name='l')
-        self.l_reg = tf.add(self.l, reg, name='l_reg')
-        self.chol_l_reg = tf.cholesky(self.l_reg, name='chol_l_reg')
+        with tf.name_scope('output_gram_matrix'):
+            # The gram matrix and regularised version thereof for the output space
+            self.l = _kronecker_delta(self.y, self.y, name='l')
+            self.l_reg = tf.add(self.l, reg, name='l_reg')
+            self.chol_l_reg = tf.cholesky(self.l_reg, name='chol_l_reg')
 
-        # The gram matrix and regularised version thereof for the input space
-        self.k = self.kernel(self.x, self.x, name='k')
-        self.k_reg = tf.add(self.k, reg, name='k_reg')
-        self.chol_k_reg = tf.cholesky(self.k_reg, name='chol_k_reg')
+        with tf.name_scope('input_gram_matrix'):
+            # The gram matrix and regularised version thereof for the input space
+            self.k = self.kernel(self.x, self.x, name='k')
+            self.k_reg = tf.add(self.k, reg, name='k_reg')
+            self.chol_k_reg = tf.cholesky(self.k_reg, name='chol_k_reg')
 
-        # The embedding weights on the training data
-        self.w = tf.cholesky_solve(self.chol_k_reg, self.k, name='w')
+        with tf.name_scope('train_embedding_weights'):
+            # The embedding weights on the training data
+            self.w = tf.cholesky_solve(self.chol_k_reg, self.k, name='w')
 
-        # The decision probabilities on the training data
-        self.p_pred = _expectance(tf.cast(tf.equal(self.y, self.classes), tf_float_type), self.w, name='p_pred')
+        with tf.name_scope('train_decision_probabilities'):
+            # The decision probabilities on the training data
+            self.p_pred = _expectance(tf.cast(tf.equal(self.y, self.classes), tf_float_type), self.w, name='p_pred')
 
-        # The predictions on the training data
-        self.y_pred = _classify(self.p_pred, classes=self.classes, name='y_pred')
+        with tf.name_scope('train_predictions'):
+            # The predictions on the training data
+            self.y_pred = _classify(self.p_pred, classes=self.classes, name='y_pred')
 
-        # The training accuracy
-        self.train_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.y_pred, tf.reshape(self.y, [-1])), tf_float_type), name='train_accuracy')
+        with tf.name_scope('train_accuracy'):
+            # The training accuracy
+            self.train_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.y_pred, tf.reshape(self.y, [-1])), tf_float_type), name='train_accuracy')
 
-        # The prediction probabilities on the actual label
-        indices = tf.cast(tf.range(self.n), tf_int_type, name='indices')
-        self.p_want = tf.gather_nd(self.p_pred, tf.stack([indices, self.y_indices], axis=1), name='p_want')
+        with tf.name_scope('train_cross_entropy_loss'):
+            # The prediction probabilities on the actual label
+            indices = tf.cast(tf.range(self.n), tf_int_type, name='indices')
+            self.p_want = tf.gather_nd(self.p_pred, tf.stack([indices, self.y_indices], axis=1), name='p_want')
 
-        # The cross entropy loss over the training data
-        self.cross_entropy_loss = tf.reduce_mean(- tf.log(self.p_want), name='cross_entropy_loss')
+            # The cross entropy loss over the training data
+            self.cross_entropy_loss = tf.reduce_mean(- tf.log(self.p_want), name='cross_entropy_loss')
 
-        # The clip-normalised valid decision probabilities
-        self.p_pred_valid = tf.transpose(_clip_normalize(tf.transpose(self.p_pred)), name='p_pred_valid')
+            # The clip-normalised valid decision probabilities
+            self.p_pred_valid = tf.transpose(_clip_normalize(tf.transpose(self.p_pred)), name='p_pred_valid')
 
-        # The clip-normalised valid decision probabilities on the actual label
-        self.p_want_valid = tf.gather_nd(self.p_pred_valid, tf.stack([indices, self.y_indices], axis=1), name='p_want_valid')
+            # The clip-normalised valid decision probabilities on the actual label
+            self.p_want_valid = tf.gather_nd(self.p_pred_valid, tf.stack([indices, self.y_indices], axis=1), name='p_want_valid')
 
-        # The valid cross entropy loss over the training data
-        self.cross_entropy_loss_valid = tf.reduce_mean(- tf.log(self.p_want_valid), name='cross_entropy_loss_valid')
+            # The valid cross entropy loss over the training data
+            self.cross_entropy_loss_valid = tf.reduce_mean(- tf.log(self.p_want_valid), name='cross_entropy_loss_valid')
 
-        # The model complexity of the classifier
-        self.complexity = self._define_complexity(name='complexity')
+        with tf.name_scope('complexity'):
+            # The model complexity of the classifier
+            self.complexity = self._define_complexity(name='complexity')
 
-        # Other interesting quantities
-        self.pred_constraint = self.p_want - 1 / self.n_classes
-        self.prob_constraint = tf.reduce_sum(self.w, axis=0) - 1
-        self.msp = tf.reduce_mean(self.prob_constraint + 1, name='msp')
+        with tf.name_scope('other'):
+            # Other interesting quantities
+            self.pred_constraint = self.p_want - 1 / self.n_classes
+            self.prob_constraint = tf.reduce_sum(self.w, axis=0) - 1
+            self.msp = tf.reduce_mean(tf.reduce_sum(self.w, axis=0), name='msp')
 
         tf.summary.scalar('train_accuracy', self.train_accuracy)
         tf.summary.scalar('train_cross_entropy_loss', self.cross_entropy_loss)
@@ -400,39 +410,46 @@ class DeepConvolutionalKernelEmbeddingClassifier():
 
     def _setup_test_graph(self):
 
-        # Inference Gram Matrix
-        self.k_test = self.kernel(self.x, self.x_test, name='k_test')
+        with tf.name_scope('inference_kernel_matrix'):
+            # Inference Gram Matrix
+            self.k_test = self.kernel(self.x, self.x_test, name='k_test')
 
-        # Conditional Embedding Weights
-        self.w_test = tf.cholesky_solve(self.chol_k_reg, self.k_test, name='w_test')
+        with tf.name_scope('test_embedding_weights'):
+            # Conditional Embedding Weights
+            self.w_test = tf.cholesky_solve(self.chol_k_reg, self.k_test, name='w_test')
 
-        # Decision Probability
-        self.p_test_pred = _expectance(tf.cast(tf.equal(self.y, self.classes), tf_float_type), self.w_test, name='p_test_pred')
+        with tf.name_scope('test_decision_probabilities'):
+            # Decision Probability
+            self.p_test_pred = _expectance(tf.cast(tf.equal(self.y, self.classes), tf_float_type), self.w_test, name='p_test_pred')
 
-        # Prediction
-        self.y_test_pred = _classify(self.p_test_pred, classes=self.classes, name='y_test_pred')
+        with tf.name_scope('test_predictions'):
+            # Prediction
+            self.y_test_pred = _classify(self.p_test_pred, classes=self.classes, name='y_test_pred')
 
-        # The training accuracy
-        self.test_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.y_test_pred, tf.reshape(self.y_test, [-1])), tf_float_type), name='test_accuracy')
+        with tf.name_scope('test_accuracy'):
+            # The training accuracy
+            self.test_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.y_test_pred, tf.reshape(self.y_test, [-1])), tf_float_type), name='test_accuracy')
 
-        # The prediction probabilities on the actual label
-        test_indices = tf.cast(tf.range(self.n_test), tf_int_type, name='indices')
-        self.p_test_want = tf.gather_nd(self.p_test_pred, tf.stack([test_indices, self.y_test_indices], axis=1), name='p_test_want')
+        with tf.name_scope('test_cross_entropy_loss'):
+            # The prediction probabilities on the actual label
+            test_indices = tf.cast(tf.range(self.n_test), tf_int_type, name='indices')
+            self.p_test_want = tf.gather_nd(self.p_test_pred, tf.stack([test_indices, self.y_test_indices], axis=1), name='p_test_want')
 
-        # The cross entropy loss over the training data
-        self.test_cross_entropy_loss = tf.reduce_mean(- tf.log(tf.clip_by_value(self.p_test_want, 1e-15, np.inf)), name='test_cross_entropy_loss')
+            # The cross entropy loss over the training data
+            self.test_cross_entropy_loss = tf.reduce_mean(- tf.log(tf.clip_by_value(self.p_test_want, 1e-15, np.inf)), name='test_cross_entropy_loss')
 
-        # The clip-normalised valid decision probabilities
-        self.p_test_pred_valid = tf.transpose(_clip_normalize(tf.transpose(self.p_test_pred)), name='p_test_pred_valid')
+            # The clip-normalised valid decision probabilities
+            self.p_test_pred_valid = tf.transpose(_clip_normalize(tf.transpose(self.p_test_pred)), name='p_test_pred_valid')
 
-        # The clip-normalised valid decision probabilities on the actual label
-        self.p_test_want_valid = tf.gather_nd(self.p_test_pred_valid, tf.stack([test_indices, self.y_test_indices], axis=1), name='p_test_want_valid')
+            # The clip-normalised valid decision probabilities on the actual label
+            self.p_test_want_valid = tf.gather_nd(self.p_test_pred_valid, tf.stack([test_indices, self.y_test_indices], axis=1), name='p_test_want_valid')
 
-        # The valid cross entropy loss over the training data
-        self.test_cross_entropy_loss_valid = tf.reduce_mean(- tf.log(tf.clip_by_value(self.p_test_want_valid, 1e-15, np.inf)), name='test_cross_entropy_loss_valid')
+            # The valid cross entropy loss over the training data
+            self.test_cross_entropy_loss_valid = tf.reduce_mean(- tf.log(tf.clip_by_value(self.p_test_want_valid, 1e-15, np.inf)), name='test_cross_entropy_loss_valid')
 
-        # Other interesting quantities
-        self.msp_test = tf.reduce_mean(tf.reduce_sum(self.w_test, axis=0), name='msp_test')
+        with tf.name_scope('others'):
+            # Other interesting quantities
+            self.msp_test = tf.reduce_mean(tf.reduce_sum(self.w_test, axis=0), name='msp_test')
 
         tf.summary.scalar('test_accuracy', self.test_accuracy)
         tf.summary.scalar('test_cross_entropy_loss', self.test_cross_entropy_loss)
