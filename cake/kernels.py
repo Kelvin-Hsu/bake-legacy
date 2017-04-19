@@ -4,10 +4,7 @@ Kernel Function Module.
 These are the definitions of commonly used characteristic kernels.
 """
 import tensorflow as tf
-import numpy as np
-
-tf_float_type = tf.float32
-tf_int_type = tf.int32
+from .data_type_def import *
 
 
 def sqdist(x_p, x_q, theta):
