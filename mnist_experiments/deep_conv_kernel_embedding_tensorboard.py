@@ -54,11 +54,11 @@ def mnist_classification(x_train, y_train, images_train,
     kernel = cake.kernels.s_gaussian
     theta_init = np.array([10., 50])
     zeta_init = 1e-4
-    learning_rate = 0.005
-    grad_tol = 0.1
-    n_sgd_batch = 250
-    max_iter = 1000
-    param_string = 'theta_10_50_zeta_en4_lr_0p005_grad_tol_0p1_sgd_250_max_iter_1000'
+    learning_rate = 0.001
+    grad_tol = 0.01
+    n_sgd_batch = 50
+    max_iter = 2000
+    param_string = 'theta_10_50_zeta_en4_lr_0p001_grad_tol_0p1_sgd_50_max_iter_2000'
     # Create full directory
     full_directory = './%s_mnist_%d_tf_tute_arch_%s/' % (now_string, n_train, param_string)
     os.mkdir(full_directory)
@@ -127,8 +127,8 @@ def create_mnist_data(load_from_tf=True):
                  images_test=images_test)
     else:
         file = np.load('./MNIST_data/mnist_data.npz')
-        x = file['x']
-        y = file['y']
+        x = file['x_train']
+        y = file['y_train']
         images = file['images']
         x_test = file['x_test']
         y_test = file['y_test']
@@ -202,7 +202,7 @@ def process_mnist_data(x, y, images, x_test, y_test, images_test,
 
 def main():
     """Runs the digit classification task through different scenarios."""
-    n_sample = 1000
+    n_sample = 5000
     digits_list = [np.arange(10)]
 
     for digits in digits_list:
