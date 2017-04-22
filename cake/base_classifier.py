@@ -70,6 +70,35 @@ class KernelEmbeddingClassifier():
             self.summary_train_str = ['train_accuracy', 'train_cross_entropy_loss', 'train_cross_entropy_loss_valid', 'train_msp', 'complexity']
             self.summary_test_str = ['test_accuracy', 'test_cross_entropy_loss', 'test_cross_entropy_loss_valid', 'test_msp']
 
+    def results(self, directory):
+
+        theta = self.sess.run(self.theta)
+        zeta = self.sess.run(self.zeta)
+
+        train_acc = self.sess.run(self.train_accuracy, feed_dict=self.feed_dict)
+        train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=self.feed_dict)
+        train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=self.feed_dict)
+        train_msp = self.sess.run(self.train_msp, feed_dict=self.feed_dict)
+        complexity = self.sess.run(self.complexity, feed_dict=self.feed_dict)
+
+        test_acc = self.sess.run(self.test_accuracy, feed_dict=self.feed_dict)
+        test_cel = self.sess.run(self.test_cross_entropy_loss, feed_dict=self.feed_dict)
+        test_cel_valid = self.sess.run(self.test_cross_entropy_loss_valid, feed_dict=self.feed_dict)
+        test_msp = self.sess.run(self.test_msp, feed_dict=self.feed_dict)
+
+        result = {'theta': theta,
+                  'zeta': zeta,
+                  'train_acc': train_acc,
+                  'train_cel': train_cel,
+                  'train_cel_valid': train_cel_valid,
+                  'train_msp': train_msp,
+                  'complexity': complexity,
+                  'test_acc': test_acc,
+                  'test_cel': test_cel,
+                  'test_cel_valid': test_cel_valid,
+                  'test_msp': test_msp}
+        return result
+
     def kernel(self, x_p, x_q, name=None):
         """
         Build a general kernel.
