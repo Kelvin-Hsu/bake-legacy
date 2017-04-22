@@ -250,6 +250,10 @@ class KernelEmbeddingClassifier():
                     sgd_indices = np.arange(step * n_sgd_batch, (step + 1) * n_sgd_batch) % self.n if sequential_batch else np.random.choice(self.n, n_sgd_batch, replace=False)
                     feed_dict.update({self.x_train: x_train[sgd_indices], self.y_train: y_train[sgd_indices]})
 
+                # Run a training step
+                self.sess.run(train, feed_dict=feed_dict)
+
+                # Log and save the progress every so iterations
                 if step % 100 == 0:
                     theta = self.sess.run(self.theta)
                     zeta = self.sess.run(self.zeta)
@@ -307,7 +311,6 @@ class KernelEmbeddingClassifier():
                             summary = self.sess.run(self.summary_test, feed_dict=feed_dict)
                             writer.add_summary(summary, step)
 
-                self.sess.run(train, feed_dict=feed_dict)
                 print('Step %d' % step)
                 step += 1
 
