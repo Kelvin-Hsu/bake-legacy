@@ -1,0 +1,110 @@
+import numpy as np
+import datetime
+import cake
+import os
+
+now = datetime.datetime.now()
+now_string = '%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
+                                    now.hour, now.minute, now.second)
+
+def run_experiment(x_train, y_train, x_test, y_test,
+                   name='experiment_%s' % now_string,
+                   s_init=1.,
+                   l_init=np.array([1.]),
+                   zeta_init=1e-4,
+                   learning_rate=0.001,
+                   grad_tol=0.01,
+                   max_iter=1000,
+                   n_sgd_batch=50):
+    """
+    Runs exeriment.
+
+    Parameters
+    ----------
+    x_train : numpy.ndarray
+        The training inputs (n_train, d)
+    y_train : numpy.ndarray
+        The training outputs (n_train, 1)
+    x_test : numpy.ndarray
+        The test inputs (n_test, d)
+    y_test : numpy.ndarray
+        The test outputs (n_test, 1)
+    name : str, optional
+        Name of the experiment
+
+    Returns
+    -------
+    None
+    """
+    print('\n--------------------------------------------------------------\n')
+    full_directory = './%s/' % name
+    os.mkdir(full_directory)
+    tensorboard_directory = full_directory + 'tensorboard/'
+    os.mkdir(tensorboard_directory)
+    print('Running Experiment: %s' % name)
+    print('Results will be saved in "%s"' % full_directory)
+    print('Tensorboard results will be saved in "%s"' % tensorboard_directory)
+
+    classes = np.unique(y_train)
+    n_class = classes.shape[0]
+    print('There are %d classes for this dataset: ' % n_class, classes)
+    for c in classes:
+        print('There are %d observations for class %d.'
+              % (np.sum(y_train == c), c))
+    n_train = y_train.shape[0]
+    n_test = y_test.shape[0]
+    print('Training on %d examples' % n_train)
+    print('Testing on %d examples' % n_test)
+
+    print('Initial Sensitivity: %g' % s_init)
+    print('Initial Length Scale: %s' % np.array_str(l_init))
+    print('Initial Regularisation Parameter: %g', zeta_init)
+    print('Learning Rate: %g' % learning_rate)
+    print('Gradient Error Tolerance: %g' % grad_tol)
+    print('Maximum Iterations: %g' % max_iter)
+    print('Batch Size for Stochastic Gradient Descent: %g' % n_sgd_batch)
+
+    # Specify the kernl and kernel parameters
+    kernel = cake.kernels.s_gaussian
+    theta_init = np.ones(l_init.shape[0] + 1)
+    theta_init[0] = s_init
+    theta_init[1:] = l_init
+
+    # Train the kernel embedding classifier
+    kec = cake.KernelEmbeddingClassifier(kernel=kernel)
+    kec.fit(x_train, y_train, x_test, y_test,
+            theta=theta_init, zeta=zeta_init,
+            learning_rate=learning_rate, grad_tol=grad_tol, max_iter=max_iter,
+            n_sgd_batch=n_sgd_batch,
+            tensorboard_directory=tensorboard_directory)
+
+    result = kec.results(full_directory)
+
+    np.savez('%sresults.npz' % full_directory, **result)
+
+    f = open('%sresults.txt' % full_directory, 'w')
+    f.write('Date and Time: %s\n' % now_string)
+    f.write('Experiment: %s\n' % name)
+    f.write('Number of classes for this dataset: %d \n' % n_class)
+    for c in classes:
+        f.write('\tNumber of observations for class %d: %d\n'
+                % (c, np.sum(y_train == c)))
+    f.write('Size of training data: %d\n' % n_train)
+    f.write('Size of test data: %d\n' % n_test)
+
+    f.write('Initial Sensitivity: %g\n' % s_init)
+    f.write('Initial Length Scale: %s\n' % np.array_str(l_init))
+    f.write('Initial Regularisation Parameter: %g\n', zeta_init)
+    f.write('Learning Rate: %g\n' % learning_rate)
+    f.write('Gradient Error Tolerance: %g\n' % grad_tol)
+    f.write('Maximum Iterations: %g\n' % max_iter)
+    f.write('Batch Size for Stochastic Gradient Descent: %g\n' % n_sgd_batch)
+    f.write('----------------------------------------\n')
+    f.write('Final Results:')
+    for key in result:
+        quantity = result[key]
+        if isinstance(quantity, np.ndarray):
+            f.write('%s: %s\n' % (key, np.array_str(quantity)))
+        else:
+            f.write('%s: %g\n' % (key, quantity))
+    f.close()
