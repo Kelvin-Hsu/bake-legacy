@@ -1,14 +1,12 @@
 import numpy as np
 import datetime
-import cake
 import os
+from tensorflow import name_scope
+import cake
 
-now = datetime.datetime.now()
-now_string = '%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
-                                    now.hour, now.minute, now.second)
 
 def run_experiment(x_train, y_train, x_test, y_test,
-                   name='experiment_%s' % now_string,
+                   name='experiment',
                    s_init=1.,
                    l_init=np.array([1.]),
                    zeta_init=1e-4,
@@ -17,7 +15,7 @@ def run_experiment(x_train, y_train, x_test, y_test,
                    max_iter=1000,
                    n_sgd_batch=50):
     """
-    Runs exeriment.
+    Run experiment with the kernel embedding classifier.
 
     Parameters
     ----------
@@ -36,6 +34,10 @@ def run_experiment(x_train, y_train, x_test, y_test,
     -------
     None
     """
+    now = datetime.datetime.now()
+    now_string = '_%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
+                                        now.hour, now.minute, now.second)
+    name += now_string
     print('\n--------------------------------------------------------------\n')
     full_directory = './%s/' % name
     os.mkdir(full_directory)
@@ -58,27 +60,34 @@ def run_experiment(x_train, y_train, x_test, y_test,
 
     print('Initial Sensitivity: %g' % s_init)
     print('Initial Length Scale: %s' % np.array_str(l_init))
-    print('Initial Regularisation Parameter: %g', zeta_init)
+    print('Initial Regularisation Parameter: %g' % zeta_init)
     print('Learning Rate: %g' % learning_rate)
     print('Gradient Error Tolerance: %g' % grad_tol)
     print('Maximum Iterations: %g' % max_iter)
-    print('Batch Size for Stochastic Gradient Descent: %g' % n_sgd_batch)
+    if n_sgd_batch:
+        print('Batch Size for Stochastic Gradient Descent: %g' % n_sgd_batch)
+    else:
+        print('Using full dataset for Gradient Descent')
 
-    # Specify the kernl and kernel parameters
+    # Specify the kernel and kernel parameters
     kernel = cake.kernels.s_gaussian
     theta_init = np.ones(l_init.shape[0] + 1)
     theta_init[0] = s_init
     theta_init[1:] = l_init
 
     # Train the kernel embedding classifier
-    kec = cake.KernelEmbeddingClassifier(kernel=kernel)
-    kec.fit(x_train, y_train, x_test, y_test,
-            theta=theta_init, zeta=zeta_init,
-            learning_rate=learning_rate, grad_tol=grad_tol, max_iter=max_iter,
-            n_sgd_batch=n_sgd_batch,
-            tensorboard_directory=tensorboard_directory)
-
-    result = kec.results(full_directory)
+    with name_scope(name):
+        kec = cake.KernelEmbeddingClassifier(kernel=kernel)
+        kec.fit(x_train, y_train, x_test, y_test,
+                theta=theta_init,
+                zeta=zeta_init,
+                learning_rate=learning_rate,
+                grad_tol=grad_tol,
+                max_iter=max_iter,
+                n_sgd_batch=n_sgd_batch,
+                tensorboard_directory=tensorboard_directory)
+        result = kec.results(full_directory)
+        kec.sess.close()
 
     np.savez('%sresults.npz' % full_directory, **result)
 
@@ -94,17 +103,24 @@ def run_experiment(x_train, y_train, x_test, y_test,
 
     f.write('Initial Sensitivity: %g\n' % s_init)
     f.write('Initial Length Scale: %s\n' % np.array_str(l_init))
-    f.write('Initial Regularisation Parameter: %g\n', zeta_init)
+    f.write('Initial Regularisation Parameter: %g\n' % zeta_init)
     f.write('Learning Rate: %g\n' % learning_rate)
     f.write('Gradient Error Tolerance: %g\n' % grad_tol)
     f.write('Maximum Iterations: %g\n' % max_iter)
-    f.write('Batch Size for Stochastic Gradient Descent: %g\n' % n_sgd_batch)
+    if n_sgd_batch:
+        f.write('Batch Size for Stochastic Gradient Descent: %g\n'
+                % n_sgd_batch)
+    else:
+        f.write('Using full dataset for Gradient Descent\n')
     f.write('----------------------------------------\n')
-    f.write('Final Results:')
-    for key in result:
+    f.write('Final Results:\n')
+    result_keys = ['theta', 'zeta', 'complexity',
+                   'train_acc', 'train_cel', 'train_cel_valid', 'train_msp',
+                   'test_acc', 'test_cel', 'test_cel_valid', 'test_msp']
+    for key in result_keys:
         quantity = result[key]
         if isinstance(quantity, np.ndarray):
-            f.write('%s: %s\n' % (key, np.array_str(quantity)))
+            f.write('%s: %s\n' % (key, np.array_str(quantity, precision=8)))
         else:
-            f.write('%s: %g\n' % (key, quantity))
+            f.write('%s: %f\n' % (key, quantity))
     f.close()

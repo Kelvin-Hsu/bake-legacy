@@ -1,15 +1,11 @@
 import numpy as np
-import tensorflow as tf
 import datetime
 import cake
 import os
-from sklearn.metrics import log_loss
-
 
 now = datetime.datetime.now()
 now_string = '%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
                                     now.hour, now.minute, now.second)
-
 
 def mnist_classification(x_train, y_train, images_train,
                          x_test, y_test, images_test):

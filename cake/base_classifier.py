@@ -52,26 +52,26 @@ class KernelEmbeddingClassifier():
     def define_summary_graph(self):
         """Setup the summary graph for tensorboard."""
         with tf.name_scope('summary'):
-            tf.summary.histogram('theta', self.theta)
-            tf.summary.histogram('zeta', self.zeta[0])
+            theta_str = tf.summary.histogram('theta', self.theta)
+            zeta_str = tf.summary.histogram('zeta', self.zeta[0])
 
-            tf.summary.scalar('train_accuracy', self.train_accuracy)
-            tf.summary.scalar('train_cross_entropy_loss', self.train_cross_entropy_loss)
-            tf.summary.scalar('train_cross_entropy_loss_valid', self.train_cross_entropy_loss_valid)
-            tf.summary.scalar('train_msp', self.train_msp)
-            tf.summary.scalar('complexity', self.complexity)
+            train_str_1 = tf.summary.scalar('train_accuracy', self.train_accuracy)
+            train_str_2 = tf.summary.scalar('train_cross_entropy_loss', self.train_cross_entropy_loss)
+            train_str_3 = tf.summary.scalar('train_cross_entropy_loss_valid', self.train_cross_entropy_loss_valid)
+            train_str_4 = tf.summary.scalar('train_msp', self.train_msp)
+            train_str_5 = tf.summary.scalar('complexity', self.complexity)
 
-            tf.summary.scalar('test_accuracy', self.test_accuracy)
-            tf.summary.scalar('test_cross_entropy_loss', self.test_cross_entropy_loss)
-            tf.summary.scalar('test_cross_entropy_loss_valid', self.test_cross_entropy_loss_valid)
-            tf.summary.scalar('test_msp', self.test_msp)
+            test_str_1 = tf.summary.scalar('test_accuracy', self.test_accuracy)
+            test_str_2 = tf.summary.scalar('test_cross_entropy_loss', self.test_cross_entropy_loss)
+            test_str_3 = tf.summary.scalar('test_cross_entropy_loss_valid', self.test_cross_entropy_loss_valid)
+            test_str_4 = tf.summary.scalar('test_msp', self.test_msp)
 
-            self.summary_hypers_str = ['theta', 'zeta']
-            self.summary_train_str = ['train_accuracy', 'train_cross_entropy_loss', 'train_cross_entropy_loss_valid', 'train_msp', 'complexity']
-            self.summary_test_str = ['test_accuracy', 'test_cross_entropy_loss', 'test_cross_entropy_loss_valid', 'test_msp']
+            self.summary_hypers_str = [theta_str, zeta_str]
+            self.summary_train_str = [train_str_1, train_str_2, train_str_3, train_str_4, train_str_5]
+            self.summary_test_str = [test_str_1, test_str_2, test_str_3, test_str_4]
 
-    def results(self, directory):
-
+    def results(self):
+        """Compute relevant results."""
         theta = self.sess.run(self.theta)
         zeta = self.sess.run(self.zeta)
 
@@ -270,9 +270,9 @@ class KernelEmbeddingClassifier():
             print('Batch size for stochastic gradient descent: %d' % n_sgd_batch) if n_sgd_batch else print('Using full dataset for gradient descent')
             feed_dict = self.feed_dict.copy()
             step = 0
-            grad_norm_check = grad_tol + 1 if to_train else 0
+            grad_norm = grad_tol + 1 if to_train else 0
             np.set_printoptions(precision=2)
-            while grad_norm_check > grad_tol and step < max_iter:
+            while grad_norm > grad_tol and step < max_iter:
 
                 # Sample the data batch for this training iteration
                 if n_sgd_batch:
@@ -283,38 +283,39 @@ class KernelEmbeddingClassifier():
                 self.sess.run(train, feed_dict=feed_dict)
 
                 # Log and save the progress every so iterations
-                if step % 100 == 0:
+                if step % 1 == 0:
                     theta = self.sess.run(self.theta)
                     zeta = self.sess.run(self.zeta)
-                    print('theta, zeta: ', theta, zeta)
-                    complexity = self.sess.run(self.complexity, feed_dict=feed_dict)
-                    print('complexity: ', complexity)
-                    cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=feed_dict)
-                    print('cel: ', cel)
-                    cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=feed_dict)
-                    print('cel_valid: ', cel_valid)
-                    acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
-                    print('acc: ', acc)
 
-                    t_cel = self.sess.run(self.test_cross_entropy_loss, feed_dict=self.feed_dict)
-                    print('t_cel: ', t_cel)
-                    t_cel_valid = self.sess.run(self.test_cross_entropy_loss_valid, feed_dict=self.feed_dict)
-                    print('t_cel_valid: ', t_cel_valid)
-                    t_acc = self.sess.run(self.test_accuracy, feed_dict=self.feed_dict)
-                    print('t_acc', t_acc)
+                    train_acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
+                    train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=feed_dict)
+                    train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=feed_dict)
+                    train_msp = self.sess.run(self.train_msp, feed_dict=feed_dict)
+                    complexity = self.sess.run(self.complexity, feed_dict=feed_dict)
+
+                    test_acc = self.sess.run(self.test_accuracy, feed_dict=self.feed_dict)
+                    test_cel = self.sess.run(self.test_cross_entropy_loss, feed_dict=self.feed_dict)
+                    test_cel_valid = self.sess.run(self.test_cross_entropy_loss_valid, feed_dict=self.feed_dict)
+                    test_msp = self.sess.run(self.test_msp, feed_dict=self.feed_dict)
 
                     grad = self.sess.run(self.grad, feed_dict=feed_dict)
                     grad_norm = compute_grad_norm(grad)
-                    grad_norm_check = grad_norm
-                    print('grad_norm: ', grad_norm)
 
-                    # print('Step %d' % step, '|| H: ', theta, zeta[0], '|| C: ',
-                    #       complexity, '|| ACC: ', acc, '|| CEL: ', cel,
-                    #       '|| CELV: ', cel_valid, '|| TACC: ', t_acc,
-                    #       '|| TCEL: ', t_cel, '|| TCELV: ', t_cel_valid,
-                    #       '|| Gradient Norm: ', grad_norm)
-                    print('Gradient Norms: ',
-                          np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
+                    print('Step %d' % step,
+                          '|H:', theta, zeta[0],
+                          '|C:', complexity,
+                          '|ACC:', train_acc,
+                          '|CEL:', train_cel,
+                          '|CELV:', train_cel_valid,
+                          '|MSP:', train_msp,
+                          '|TACC:', test_acc,
+                          '|TCEL:', test_cel,
+                          '|TCELV:', test_cel_valid,
+                          '|TMSP:', test_msp,
+                          '|Gradient Norm:', grad_norm)
+                    print('Gradient Norms:', np.array([np.max(np.abs(grad_i))
+                                                       for grad_i in grad]))
+
                     if tensorboard_directory:
 
                         if n_sgd_batch:
