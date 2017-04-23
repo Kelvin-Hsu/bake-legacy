@@ -123,6 +123,7 @@ class KernelEmbeddingClassifier():
             learning_rate=0.01, grad_tol=0.01, max_iter=100, n_sgd_batch=None,
             sequential_batch=False,
             log_hypers=True, to_train=True,
+            save_step=100,
             tensorboard_directory=None):
         """
         Fit the kernel embedding classifier.
@@ -153,6 +154,8 @@ class KernelEmbeddingClassifier():
             To train over the log-space of the hyperparameters instead
         to_train : bool, optional
             The train the hyperparameters or not
+        save_step : int, optional
+            The number of steps to wait before saving tensorboard results again
         tensorboard_directory : str, optional
             A directory to store all the tensorboard information
 
@@ -243,6 +246,7 @@ class KernelEmbeddingClassifier():
             # Setup the training optimisation program
             opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
             train = opt.minimize(self.lagrangian, var_list=var_list)
+            # train_complexity = opt.minimize(self.complexity, var_list=var_list)
 
             # Run the optimisation
             self.sess = tf.Session()
@@ -279,11 +283,8 @@ class KernelEmbeddingClassifier():
                     sgd_indices = np.arange(step * n_sgd_batch, (step + 1) * n_sgd_batch) % self.n if sequential_batch else np.random.choice(self.n, n_sgd_batch, replace=False)
                     feed_dict.update({self.x_train: x_train[sgd_indices], self.y_train: y_train[sgd_indices]})
 
-                # Run a training step
-                self.sess.run(train, feed_dict=feed_dict)
-
                 # Log and save the progress every so iterations
-                if step % 1 == 0:
+                if step % save_step == 0:
                     theta = self.sess.run(self.theta)
                     zeta = self.sess.run(self.zeta)
 
@@ -341,6 +342,14 @@ class KernelEmbeddingClassifier():
                             summary = self.sess.run(self.summary_test, feed_dict=feed_dict)
                             writer.add_summary(summary, step)
 
+                # Run a training step
+                # if self.sess.run(self.train_accuracy, feed_dict=feed_dict) >= 1.0:
+                #     print('Training only on complexity')
+                #     self.sess.run(train_complexity, feed_dict=feed_dict)
+                # else:
+                #     self.sess.run(train, feed_dict=feed_dict)
+                self.sess.run(train, feed_dict=feed_dict)
+
                 print('Step %d' % step)
                 step += 1
 
@@ -373,7 +382,7 @@ class KernelEmbeddingClassifier():
             self.train_w = tf.cholesky_solve(self.chol_k_reg, self.train_k, name='train_w')
 
         with tf.name_scope('train_decision_probabilities'):
-            # The decision probabilities on the training data
+            # The decision probabilities on the training datatrain_cross_entropy_loss
             self.train_p = _expectance(tf.cast(tf.equal(self.y_train, self.classes), tf_float_type), self.train_w, name='train_p')
             # The clip-normalised valid decision probabilities
             self.train_p_valid = tf.transpose(_clip_normalize(tf.transpose(self.train_p)), name='train_p_valid')
