@@ -120,17 +120,17 @@ class KernelEmbeddingClassifier():
 
     def fit(self, x_train, y_train, x_test, y_test,
             theta=np.array([1., 1.]),
-            zeta=0.01,
-            learning_rate=0.01,
-            grad_tol=0.01,
-            max_iter=100,
+            zeta=1e-4,
+            learning_rate=0.1,
+            grad_tol=0.00,
+            max_iter=1000,
             n_sgd_batch=None,
-            n_train_limit=5000,
+            n_train_limit=10000,
             objective='full',
             sequential_batch=False,
             log_hypers=True,
             to_train=True,
-            save_step=100,
+            save_step=10,
             tensorboard_directory=None):
         """
         Fit the kernel embedding classifier.

@@ -11,16 +11,16 @@ def run_experiment(x_train, y_train, x_test, y_test,
                    fix_s=False,
                    l_init=np.array([1.]),
                    zeta_init=1e-4,
-                   learning_rate=0.01,
-                   grad_tol=0.01,
-                   max_iter=100,
+                   learning_rate=0.1,
+                   grad_tol=0.00,
+                   max_iter=1000,
                    n_sgd_batch=None,
-                   n_train_limit=5000,
+                   n_train_limit=10000,
                    objective='full',
                    sequential_batch=False,
                    log_hypers=True,
                    to_train=True,
-                   save_step=100):
+                   save_step=10):
     """
     Run experiment with the kernel embedding classifier.
 
@@ -36,6 +36,32 @@ def run_experiment(x_train, y_train, x_test, y_test,
         The test outputs (n_test, 1)
     name : str, optional
         Name of the experiment
+    s_init : float, optional
+        The initial sensitivity parameters
+    fix_s : bool, optional
+        To fix the sensitivity parameter or not during training
+    l_init : numpy.ndarray, optional
+        The initial length scale parameters
+    zeta_init : float, optional
+        The initial regularisation parameter
+    learning_rate : float, optional
+        The learning rate for the gradient descent optimiser
+    grad_tol : float, optional
+        The gradient error tolerance for the stopping criteria
+    max_iter : int, optional
+        The maximum number of iterations for training
+    n_sgd_batch : int, optional
+        The number of batches used for stochastic gradient descent
+    n_train_limit: int, optional
+        The training data size limit before random features are used
+    objective : str, optional
+        The training objective ['full', 'cross_entropy_loss', 'complexity']
+    log_hypers : bool, optional
+        To train over the log-space of the hyperparameters instead
+    to_train : bool, optional
+        The train the hyperparameters or not
+    save_step : int, optional
+        The number of steps to wait before saving tensorboard results again
 
     Returns
     -------
