@@ -225,3 +225,73 @@ def run_experiment(x_train, y_train, x_test, y_test,
         else:
             f.write('%s: %f\n' % (key, quantity))
     f.close()
+
+
+def load_train_test_data(name, normalize_features=True):
+    """
+    Load the dataset.
+
+    Parameters
+    ----------
+    name : str
+        The name of the dataset
+    normalize_features : bool, optional
+        To normalize the features or not
+
+    Returns
+    -------
+    numpy.ndarray
+        The training features (n_train, d)
+    numpy.ndarray
+        The training target labels (n_train, 1)
+    numpy.ndarray
+        The testing features (n_test, d)
+    numpy.ndarray
+        The testing target labels (n_test, 1)
+    numpy.ndarray
+        The class names (?,)
+    """
+    train_data = np.load('%s_train.npz' % name)
+    x_train = train_data['x']
+    y_train = train_data['y'][:, np.newaxis]
+    class_names = train_data['class_names']
+    test_data = np.load('%s_test.npz' % name)
+    x_test = test_data['x']
+    y_test = test_data['y'][:, np.newaxis]
+    if normalize_features:
+        x = np.concatenate((x_train, x_test), axis=0)
+        x_min = np.min(x, axis=0)
+        x_max = np.max(x, axis=0)
+        x_train = (x_train - x_min) / (x_max - x_min)
+        x_test = (x_test - x_min) / (x_max - x_min)
+    return x_train, y_train, x_test, y_test, class_names
+
+
+def load_all_data(name, normalize_features=True):
+    """
+    Load the dataset.
+
+    Parameters
+    ----------
+    name : str
+        The name of the dataset
+    normalize_features : bool, optional
+        To normalize the features or not
+
+    Returns
+    -------
+    numpy.ndarray
+        The features (n, d)
+    numpy.ndarray
+        The target labels (n, 1)
+    numpy.ndarray
+        The class names (?,)
+    """
+    data = np.load('%s.npz' % name)
+    x = data['x']
+    if normalize_features:
+        x -= np.min(x, axis=0)
+        x /= np.max(x, axis=0)
+    y = data['y'][:, np.newaxis]
+    class_names = data['class_names']
+    return x, y, class_names
