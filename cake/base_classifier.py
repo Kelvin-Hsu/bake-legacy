@@ -119,10 +119,17 @@ class KernelEmbeddingClassifier():
             return self.out_kernel(self.features(x_p), self.features(x_q), self.theta, name=name)
 
     def fit(self, x_train, y_train, x_test, y_test,
-            theta=np.array([1., 1.]), zeta=0.01,
-            learning_rate=0.01, grad_tol=0.01, max_iter=100, n_sgd_batch=None,
+            theta=np.array([1., 1.]),
+            zeta=0.01,
+            learning_rate=0.01,
+            grad_tol=0.01,
+            max_iter=100,
+            n_sgd_batch=None,
+            n_train_limit=5000,
+            objective='full',
             sequential_batch=False,
-            log_hypers=True, to_train=True,
+            log_hypers=True,
+            to_train=True,
             save_step=100,
             tensorboard_directory=None):
         """
@@ -149,7 +156,11 @@ class KernelEmbeddingClassifier():
         max_iter : int, optional
             The maximum number of iterations for training
         n_sgd_batch : int, optional
-            The number of batches used for stochastic gradient descent.
+            The number of batches used for stochastic gradient descent
+        n_train_limit: int, optional
+            The training data size limit before random features are used
+        objective : str, optional
+            The training objective ['full', 'cross_entropy_loss', 'complexity']
         log_hypers : bool, optional
             To train over the log-space of the hyperparameters instead
         to_train : bool, optional
@@ -226,10 +237,8 @@ class KernelEmbeddingClassifier():
 
         with tf.name_scope('test_graph'):
             # Setup the testing graph
-            n_limit = 2000
-            if self.n > n_limit:
-                n_basis = 1000
-                self._setup_fast_test_graph(n_basis=n_basis)
+            if self.n > n_train_limit:
+                self._setup_fast_test_graph()
             else:
                 self._setup_test_graph()
 
@@ -238,15 +247,21 @@ class KernelEmbeddingClassifier():
             self._setup_query_graph()
 
         with tf.name_scope('optimisation'):
-
             # Setup the lagrangian objective
-            self.lagrangian = self.complexity
+            if objective == 'full':
+                self.lagrangian = self.train_cross_entropy_loss + self.complexity
+            elif objective == 'cross_entropy_loss':
+                self.lagrangian = self.train_cross_entropy_loss
+            elif objective == 'complexity':
+                self.lagrangian = self.complexity
+            else:
+                raise ValueError('No such objective named %s' % objective)
+
             self.grad = tf.gradients(self.lagrangian, var_list)
 
             # Setup the training optimisation program
             opt = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
             train = opt.minimize(self.lagrangian, var_list=var_list)
-            # train_complexity = opt.minimize(self.complexity, var_list=var_list)
 
             # Run the optimisation
             self.sess = tf.Session()
@@ -272,7 +287,7 @@ class KernelEmbeddingClassifier():
             # Run the optimisation
             print('Starting Training')
             print('Batch size for stochastic gradient descent: %d' % n_sgd_batch) if n_sgd_batch else print('Using full dataset for gradient descent')
-            feed_dict = self.feed_dict.copy()
+            batch_feed_dict = self.feed_dict.copy()
             step = 0
             grad_norm = grad_tol + 1 if to_train else 0
             np.set_printoptions(precision=2)
@@ -281,39 +296,60 @@ class KernelEmbeddingClassifier():
                 # Sample the data batch for this training iteration
                 if n_sgd_batch:
                     sgd_indices = np.arange(step * n_sgd_batch, (step + 1) * n_sgd_batch) % self.n if sequential_batch else np.random.choice(self.n, n_sgd_batch, replace=False)
-                    feed_dict.update({self.x_train: x_train[sgd_indices], self.y_train: y_train[sgd_indices]})
+                    batch_feed_dict.update({self.x_train: x_train[sgd_indices], self.y_train: y_train[sgd_indices]})
 
                 # Log and save the progress every so iterations
                 if step % save_step == 0:
                     theta = self.sess.run(self.theta)
                     zeta = self.sess.run(self.zeta)
 
-                    train_acc = self.sess.run(self.train_accuracy, feed_dict=feed_dict)
-                    train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=feed_dict)
-                    train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=feed_dict)
-                    train_msp = self.sess.run(self.train_msp, feed_dict=feed_dict)
-                    complexity = self.sess.run(self.complexity, feed_dict=feed_dict)
+                    if self.n > n_train_limit:
+                        train_acc = self.sess.run(self.train_accuracy, feed_dict=batch_feed_dict)
+                        train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=batch_feed_dict)
+                        train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=batch_feed_dict)
+                        train_msp = self.sess.run(self.train_msp, feed_dict=batch_feed_dict)
+                        complexity = self.sess.run(self.complexity, feed_dict=batch_feed_dict)
+                    else:
+                        train_acc = self.sess.run(self.train_accuracy, feed_dict=self.feed_dict)
+                        train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=self.feed_dict)
+                        train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=self.feed_dict)
+                        train_msp = self.sess.run(self.train_msp, feed_dict=self.feed_dict)
+                        complexity = self.sess.run(self.complexity, feed_dict=self.feed_dict)
 
                     test_acc = self.sess.run(self.test_accuracy, feed_dict=self.feed_dict)
                     test_cel = self.sess.run(self.test_cross_entropy_loss, feed_dict=self.feed_dict)
                     test_cel_valid = self.sess.run(self.test_cross_entropy_loss_valid, feed_dict=self.feed_dict)
                     test_msp = self.sess.run(self.test_msp, feed_dict=self.feed_dict)
 
-                    grad = self.sess.run(self.grad, feed_dict=feed_dict)
+                    grad = self.sess.run(self.grad, feed_dict=batch_feed_dict)
                     grad_norm = compute_grad_norm(grad)
 
-                    print('Step %d' % step,
-                          '|H:', theta, zeta[0],
-                          '|C:', complexity,
-                          '|ACC:', train_acc,
-                          '|CEL:', train_cel,
-                          '|CELV:', train_cel_valid,
-                          '|MSP:', train_msp,
-                          '|TACC:', test_acc,
-                          '|TCEL:', test_cel,
-                          '|TCELV:', test_cel_valid,
-                          '|TMSP:', test_msp,
-                          '|Gradient Norm:', grad_norm)
+                    if self.n > n_train_limit:
+                        print('Step %d' % step,
+                              '|H:', theta, zeta[0],
+                              '|C:', complexity,
+                              '|BACC:', train_acc,
+                              '|BCEL:', train_cel,
+                              '|BCELV:', train_cel_valid,
+                              '|BMSP:', train_msp,
+                              '|TACC:', test_acc,
+                              '|TCEL:', test_cel,
+                              '|TCELV:', test_cel_valid,
+                              '|TMSP:', test_msp,
+                              '|Gradient Norm:', grad_norm)
+                    else:
+                        print('Step %d' % step,
+                              '|H:', theta, zeta[0],
+                              '|C:', complexity,
+                              '|ACC:', train_acc,
+                              '|CEL:', train_cel,
+                              '|CELV:', train_cel_valid,
+                              '|MSP:', train_msp,
+                              '|TACC:', test_acc,
+                              '|TCEL:', test_cel,
+                              '|TCELV:', test_cel_valid,
+                              '|TMSP:', test_msp,
+                              '|Gradient Norm:', grad_norm)
                     print('Gradient Norms:', np.array([np.max(np.abs(grad_i))
                                                        for grad_i in grad]))
 
@@ -322,35 +358,68 @@ class KernelEmbeddingClassifier():
                         if n_sgd_batch:
                             whole_summary = self.sess.run(self.summary_hypers, feed_dict=self.feed_dict)
                             writer_whole.add_summary(whole_summary, step)
-                            if self.n < n_limit:
+                            if self.n < n_train_limit:
                                 whole_summary = self.sess.run(self.summary_train, feed_dict=self.feed_dict)
                                 writer_whole.add_summary(whole_summary, step)
                             whole_summary = self.sess.run(self.summary_test, feed_dict=self.feed_dict)
                             writer_whole.add_summary(whole_summary, step)
 
-                            batch_summary = self.sess.run(self.summary_hypers, feed_dict=feed_dict)
+                            batch_summary = self.sess.run(self.summary_hypers, feed_dict=batch_feed_dict)
                             writer_batch.add_summary(batch_summary, step)
-                            batch_summary = self.sess.run(self.summary_train, feed_dict=feed_dict)
+                            batch_summary = self.sess.run(self.summary_train, feed_dict=batch_feed_dict)
                             writer_batch.add_summary(batch_summary, step)
-                            batch_summary = self.sess.run(self.summary_test, feed_dict=feed_dict)
+                            batch_summary = self.sess.run(self.summary_test, feed_dict=batch_feed_dict)
                             writer_batch.add_summary(batch_summary, step)
                         else:
-                            summary = self.sess.run(self.summary_hypers, feed_dict=feed_dict)
+                            summary = self.sess.run(self.summary_hypers, feed_dict=batch_feed_dict)
                             writer.add_summary(summary, step)
-                            summary = self.sess.run(self.summary_train, feed_dict=feed_dict)
+                            summary = self.sess.run(self.summary_train, feed_dict=batch_feed_dict)
                             writer.add_summary(summary, step)
-                            summary = self.sess.run(self.summary_test, feed_dict=feed_dict)
+                            summary = self.sess.run(self.summary_test, feed_dict=batch_feed_dict)
+                            writer.add_summary(summary, step)
+
+                # We can still print out the hyperparameters and batch training performance
+                else:
+
+                    theta = self.sess.run(self.theta)
+                    zeta = self.sess.run(self.zeta)
+                    train_acc = self.sess.run(self.train_accuracy, feed_dict=batch_feed_dict)
+                    train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=batch_feed_dict)
+                    train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=batch_feed_dict)
+                    train_msp = self.sess.run(self.train_msp, feed_dict=batch_feed_dict)
+                    complexity = self.sess.run(self.complexity, feed_dict=batch_feed_dict)
+
+                    grad = self.sess.run(self.grad, feed_dict=batch_feed_dict)
+                    grad_norm = compute_grad_norm(grad)
+                    print('Step %d' % step,
+                          '|H:', theta, zeta[0],
+                          '|C:', complexity,
+                          '|ACC:', train_acc,
+                          '|CEL:', train_cel,
+                          '|CELV:', train_cel_valid,
+                          '|MSP:', train_msp,
+                          '|Gradient Norm:', grad_norm,
+                          '|Gradient Norms:', np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
+
+                    if tensorboard_directory:
+
+                        if n_sgd_batch:
+                            batch_summary = self.sess.run(self.summary_hypers, feed_dict=batch_feed_dict)
+                            writer_batch.add_summary(batch_summary, step)
+                            batch_summary = self.sess.run(self.summary_train, feed_dict=batch_feed_dict)
+                            writer_batch.add_summary(batch_summary, step)
+                            batch_summary = self.sess.run(self.summary_test, feed_dict=batch_feed_dict)
+                            writer_batch.add_summary(batch_summary, step)
+                        else:
+                            summary = self.sess.run(self.summary_hypers, feed_dict=batch_feed_dict)
+                            writer.add_summary(summary, step)
+                            summary = self.sess.run(self.summary_train, feed_dict=batch_feed_dict)
+                            writer.add_summary(summary, step)
+                            summary = self.sess.run(self.summary_test, feed_dict=batch_feed_dict)
                             writer.add_summary(summary, step)
 
                 # Run a training step
-                # if self.sess.run(self.train_accuracy, feed_dict=feed_dict) >= 1.0:
-                #     print('Training only on complexity')
-                #     self.sess.run(train_complexity, feed_dict=feed_dict)
-                # else:
-                #     self.sess.run(train, feed_dict=feed_dict)
-                self.sess.run(train, feed_dict=feed_dict)
-
-                print('Step %d' % step)
+                self.sess.run(train, feed_dict=batch_feed_dict)
                 step += 1
 
         return self
@@ -400,14 +469,15 @@ class KernelEmbeddingClassifier():
             train_indices = tf.cast(tf.range(self.n_train), tf_int_type, name='train_indices')
             self.train_p_y = tf.gather_nd(self.train_p, tf.stack([train_indices, self.y_train_indices], axis=1), name='train_p_y')
 
+            # self.train_p_y = np.where()
             # The cross entropy loss over the training data
-            self.train_cross_entropy_loss = tf.reduce_mean(- tf.log(self.train_p_y), name='train_cross_entropy_loss')
+            self.train_cross_entropy_loss = tf.reduce_mean(tf_info(self.train_p_y), name='train_cross_entropy_loss')
 
             # The clip-normalised valid decision probabilities on the actual label
             self.train_p_y_valid = tf.gather_nd(self.train_p_valid, tf.stack([train_indices, self.y_train_indices], axis=1), name='train_p_y_valid')
 
             # The valid cross entropy loss over the training data
-            self.train_cross_entropy_loss_valid = tf.reduce_mean(- tf.log(self.train_p_y_valid), name='train_cross_entropy_loss_valid')
+            self.train_cross_entropy_loss_valid = tf.reduce_mean(tf_info(self.train_p_y_valid), name='train_cross_entropy_loss_valid')
 
         with tf.name_scope('other'):
             # Other interesting quantities
@@ -444,13 +514,13 @@ class KernelEmbeddingClassifier():
             self.test_p_y = tf.gather_nd(self.test_p, tf.stack([test_indices, self.y_test_indices], axis=1), name='test_p_y')
 
             # The cross entropy loss over the testing data
-            self.test_cross_entropy_loss = tf.reduce_mean(- tf.log(tf.clip_by_value(self.test_p_y, 1e-15, np.inf)), name='test_cross_entropy_loss')
+            self.test_cross_entropy_loss = tf.reduce_mean(tf_info(self.test_p_y), name='test_cross_entropy_loss')
 
             # The clip-normalised valid decision probabilities on the actual label
             self.test_p_y_valid = tf.gather_nd(self.test_p_valid, tf.stack([test_indices, self.y_test_indices], axis=1), name='test_p_y_valid')
 
             # The valid cross entropy loss over the testing data
-            self.test_cross_entropy_loss_valid = tf.reduce_mean(- tf.log(tf.clip_by_value(self.test_p_y_valid, 1e-15, np.inf)), name='test_cross_entropy_loss_valid')
+            self.test_cross_entropy_loss_valid = tf.reduce_mean(tf_info(self.test_p_y_valid), name='test_cross_entropy_loss_valid')
 
         with tf.name_scope('others'):
             # Other interesting quantities
@@ -467,9 +537,9 @@ class KernelEmbeddingClassifier():
 
         with tf.name_scope('random_fourier_feature'):
             d = tf.shape(self.features(self.x_train[:1]))[1]
-            shape = d * tf.ones(2)
+            shape = d * tf.cast(tf.ones(2), tf_int_type)
             w = tf.random_normal(shape, mean=0.0, stddev=1.0, dtype=tf_float_type, seed=0) / length_scale
-
+            factor = tf.sqrt(tf.cast(d, tf_float_type))
             def phi(x, name='random_fourier_features'):
                 """
                 Define the approximate feature map.
@@ -486,8 +556,8 @@ class KernelEmbeddingClassifier():
                 """
                 with tf.name_scope(name):
                     z = self.features(x)
-                    c = tf.cos(tf.matmul(w, tf.transpose(z))) / tf.sqrt(d)
-                    s = tf.sin(tf.matmul(w, tf.transpose(z))) / tf.sqrt(d)
+                    c = tf.cos(tf.matmul(w, tf.transpose(z))) / factor
+                    s = tf.sin(tf.matmul(w, tf.transpose(z))) / factor
                     return tf.concat([c, s], 0)
 
         with tf.name_scope('test_decision_probabilities'):
@@ -516,10 +586,12 @@ class KernelEmbeddingClassifier():
             b = tf.cast(tf.equal(self.y_train, self.classes), tf_float_type, name='one_hot_encoded_labels')
 
             # The transformed one hot encoded outputs
-            b_rff = tf.matmul(q, b, name='transformed_one_hot_encoded_labels')
+            b_rff = tf.matmul(q_train, b, name='transformed_one_hot_encoded_labels')
 
             # Decision Probability
-            self.test_p = tf.matmul(tf.transpose(b_rff), w_rff)
+            self.test_p = tf.matmul(tf.transpose(b_rff), w_rff, name='test_p')
+            # The clip-normalised valid decision probabilities
+            self.test_p_valid = tf.transpose(_clip_normalize(tf.transpose(self.test_p)), name='test_p_valid')
 
         with tf.name_scope('test_predictions'):
             # Prediction
@@ -535,13 +607,13 @@ class KernelEmbeddingClassifier():
             self.test_p_y = tf.gather_nd(self.test_p, tf.stack([test_indices, self.y_test_indices], axis=1), name='test_p_y')
 
             # The cross entropy loss over the testing data
-            self.test_cross_entropy_loss = tf.reduce_mean(- tf.log(tf.clip_by_value(self.test_p_y, 1e-15, np.inf)), name='test_cross_entropy_loss')
+            self.test_cross_entropy_loss = tf.reduce_mean(tf_info(self.test_p_y), name='test_cross_entropy_loss')
 
             # The clip-normalised valid decision probabilities on the actual label
             self.test_p_y_valid = tf.gather_nd(self.test_p_valid, tf.stack([test_indices, self.y_test_indices], axis=1), name='test_p_y_valid')
 
             # The valid cross entropy loss over the testing data
-            self.test_cross_entropy_loss_valid = tf.reduce_mean(- tf.log(tf.clip_by_value(self.test_p_y_valid, 1e-15, np.inf)), name='test_cross_entropy_loss_valid')
+            self.test_cross_entropy_loss_valid = tf.reduce_mean(tf_info(self.test_p_y_valid), name='test_cross_entropy_loss_valid')
 
         with tf.name_scope('others'):
             # Other interesting quantities
@@ -839,3 +911,20 @@ def compute_grad_norm(grad):
         The L1 norm of the gradient
     """
     return np.max([np.max(np.abs(grad_i)) for grad_i in grad])
+
+
+def tf_info(p):
+    """
+    Compute information.
+
+    Parameters
+    ----------
+    p : tensorflow.Tensor
+        A tensor of probabilities of any shape
+
+    Returns
+    -------
+    tensorflow.Tensor
+        A tensor of information of the same shape as the input probabilities
+    """
+    return - tf.log(tf.clip_by_value(p, 1e-15, np.inf))

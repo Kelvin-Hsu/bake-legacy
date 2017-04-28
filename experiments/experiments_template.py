@@ -11,11 +11,17 @@ def run_experiment(x_train, y_train, x_test, y_test,
                    fix_s=False,
                    l_init=np.array([1.]),
                    zeta_init=1e-4,
-                   learning_rate=0.001,
+                   learning_rate=0.01,
                    grad_tol=0.01,
-                   max_iter=1000,
-                   n_sgd_batch=50,
-                   save_step=100):
+                   max_iter=100,
+                   n_sgd_batch=None,
+                   n_train_limit=5000,
+                   objective='full',
+                   sequential_batch=False,
+                   log_hypers=True,
+                   to_train=True,
+                   save_step=100,
+                   tensorboard_directory=None):
     """
     Run experiment with the kernel embedding classifier.
 
@@ -73,7 +79,8 @@ def run_experiment(x_train, y_train, x_test, y_test,
 
     # Specify the kernel and kernel parameters
     if fix_s:
-        kernel = lambda *args, **kwargs: (s_init ** 2) * cake.kernels.gaussian(*args, **kwargs)
+        kernel = lambda *args, **kwargs: \
+            (s_init ** 2) * cake.kernels.gaussian(*args, **kwargs)
         theta_init = np.ones(l_init.shape[0])
     else:
         kernel = cake.kernels.s_gaussian
@@ -91,6 +98,11 @@ def run_experiment(x_train, y_train, x_test, y_test,
                 grad_tol=grad_tol,
                 max_iter=max_iter,
                 n_sgd_batch=n_sgd_batch,
+                n_train_limit=n_train_limit,
+                objective=objective,
+                sequential_batch=sequential_batch,
+                log_hypers=log_hypers,
+                to_train=to_train,
                 save_step=save_step,
                 tensorboard_directory=tensorboard_directory)
         result = kec.results()
