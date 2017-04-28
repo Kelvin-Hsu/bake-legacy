@@ -20,8 +20,7 @@ def run_experiment(x_train, y_train, x_test, y_test,
                    sequential_batch=False,
                    log_hypers=True,
                    to_train=True,
-                   save_step=100,
-                   tensorboard_directory=None):
+                   save_step=100):
     """
     Run experiment with the kernel embedding classifier.
 
@@ -110,6 +109,29 @@ def run_experiment(x_train, y_train, x_test, y_test,
 
     np.savez('%sresults.npz' % full_directory, **result)
 
+    config = {'x_train': x_train,
+              'y_train': y_train,
+              'x_test': x_test,
+              'y_test': y_test,
+              'name': name,
+              's_init': s_init,
+              'fix_s': fix_s,
+              'l_init': l_init,
+              'zeta_init': zeta_init,
+              'learning_rate': learning_rate,
+              'grad_tol': grad_tol,
+              'max_iter': max_iter,
+              'n_sgd_batch': n_sgd_batch,
+              'n_train_limit': n_train_limit,
+              'objective': objective,
+              'sequential_batch': sequential_batch,
+              'log_hypers': log_hypers,
+              'to_train': to_train,
+              'save_step': save_step,
+              'tensorboard_directory': tensorboard_directory}
+
+    np.savez('%sconfig.npz' % full_directory, **config)
+
     f = open('%sresults.txt' % full_directory, 'w')
     f.write('Date and Time: %s\n' % now_string)
     f.write('Experiment: %s\n' % name)
@@ -120,7 +142,10 @@ def run_experiment(x_train, y_train, x_test, y_test,
     f.write('Size of training data: %d\n' % n_train)
     f.write('Size of test data: %d\n' % n_test)
 
-    f.write('Initial Sensitivity: %g\n' % s_init)
+    if fix_s:
+        f.write('Initial Sensitivity (Fixed): %g\n' % s_init)
+    else:
+        f.write('Initial Sensitivity: %g\n' % s_init)
     f.write('Initial Length Scale: %s\n' % np.array_str(l_init))
     f.write('Initial Regularisation Parameter: %g\n' % zeta_init)
     f.write('Learning Rate: %g\n' % learning_rate)
@@ -131,6 +156,34 @@ def run_experiment(x_train, y_train, x_test, y_test,
                 % n_sgd_batch)
     else:
         f.write('Using full dataset for Gradient Descent\n')
+    f.write('----------------------------------------\n')
+    f.write('Experiment Configuration:\n')
+    config_keys = ['x_train',
+                   'y_train',
+                   'x_test',
+                   'y_test',
+                   'name',
+                   's_init',
+                   'fix_s',
+                   'l_init',
+                   'zeta_init',
+                   'learning_rate',
+                   'grad_tol',
+                   'max_iter',
+                   'n_sgd_batch',
+                   'n_train_limit',
+                   'objective',
+                   'sequential_batch',
+                   'log_hypers',
+                   'to_train',
+                   'save_step',
+                   'tensorboard_directory']
+    for key in config_keys:
+        quantity = config[key]
+        if isinstance(quantity, np.ndarray):
+            f.write('%s: %s\n' % (key, np.array_str(quantity, precision=8)))
+        else:
+            f.write('%s: %f\n' % (key, quantity))
     f.write('----------------------------------------\n')
     f.write('Final Results:\n')
     result_keys = ['theta', 'zeta', 'complexity',
