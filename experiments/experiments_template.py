@@ -158,11 +158,7 @@ def run_experiment(x_train, y_train, x_test, y_test,
         f.write('Using full dataset for Gradient Descent\n')
     f.write('----------------------------------------\n')
     f.write('Experiment Configuration:\n')
-    config_keys = ['x_train',
-                   'y_train',
-                   'x_test',
-                   'y_test',
-                   'name',
+    config_keys = ['name',
                    's_init',
                    'fix_s',
                    'l_init',
@@ -182,8 +178,15 @@ def run_experiment(x_train, y_train, x_test, y_test,
         quantity = config[key]
         if isinstance(quantity, np.ndarray):
             f.write('%s: %s\n' % (key, np.array_str(quantity, precision=8)))
+        elif isinstance(quantity, bool):
+            f.write('%s: %s\n' % (key, str(quantity)))
+        elif isinstance(quantity, int):
+            f.write('%s: %d\n' % (key, quantity))
         else:
-            f.write('%s: %f\n' % (key, quantity))
+            try:
+                f.write('%s: %f\n' % (key, quantity))
+            except:
+                f.write('%s: %s\n' % (key, str(quantity)))
     f.write('----------------------------------------\n')
     f.write('Final Results:\n')
     result_keys = ['theta', 'zeta', 'complexity',
