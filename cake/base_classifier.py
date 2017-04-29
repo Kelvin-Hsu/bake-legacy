@@ -51,23 +51,26 @@ class KernelEmbeddingClassifier():
 
     def define_summary_graph(self):
         """Setup the summary graph for tensorboard."""
-        with tf.name_scope('summary'):
+        with tf.name_scope('hyperparameter_summary'):
             theta_str = tf.summary.histogram('theta', self.theta)
             zeta_str = tf.summary.histogram('zeta', self.zeta[0])
+            theta_scalar_str = [tf.summary.scalar('theta_%d' % i, self.theta[i]) for i in range(self.d_theta)]
+            zeta_scalar_str = tf.summary.scalar('zeta', self.zeta[0])
+            self.summary_hypers_str = theta_scalar_str + [zeta_scalar_str] + [theta_str, zeta_str]
 
+        with tf.name_scope('train_summary'):
             train_str_1 = tf.summary.scalar('train_accuracy', self.train_accuracy)
             train_str_2 = tf.summary.scalar('train_cross_entropy_loss', self.train_cross_entropy_loss)
             train_str_3 = tf.summary.scalar('train_cross_entropy_loss_valid', self.train_cross_entropy_loss_valid)
             train_str_4 = tf.summary.scalar('train_msp', self.train_msp)
             train_str_5 = tf.summary.scalar('complexity', self.complexity)
+            self.summary_train_str = [train_str_1, train_str_2, train_str_3, train_str_4, train_str_5]
 
+        with tf.name_scope('test_summary'):
             test_str_1 = tf.summary.scalar('test_accuracy', self.test_accuracy)
             test_str_2 = tf.summary.scalar('test_cross_entropy_loss', self.test_cross_entropy_loss)
             test_str_3 = tf.summary.scalar('test_cross_entropy_loss_valid', self.test_cross_entropy_loss_valid)
             test_str_4 = tf.summary.scalar('test_msp', self.test_msp)
-
-            self.summary_hypers_str = [theta_str, zeta_str]
-            self.summary_train_str = [train_str_1, train_str_2, train_str_3, train_str_4, train_str_5]
             self.summary_test_str = [test_str_1, test_str_2, test_str_3, test_str_4]
 
     def results(self):
@@ -185,6 +188,7 @@ class KernelEmbeddingClassifier():
             self.n_classes = classes.shape[0]
             self.n = x_train.shape[0]
             self.d = x_train.shape[1]
+            self.d_theta = theta.shape[0]
 
         with tf.name_scope('train_data'):
 
