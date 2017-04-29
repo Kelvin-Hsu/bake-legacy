@@ -290,8 +290,9 @@ def load_all_data(name, normalize_features=True):
     data = np.load('%s.npz' % name)
     x = data['x']
     if normalize_features:
-        x -= np.min(x, axis=0)
-        x /= np.max(x, axis=0)
+        x_min = np.min(x, axis=0)
+        x_max = np.max(x, axis=0)
+        x = (x - x_min) / (x_max - x_min)
     y = data['y'][:, np.newaxis]
     class_names = data['class_names']
     return x, y, class_names
