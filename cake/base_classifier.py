@@ -400,10 +400,10 @@ class KernelEmbeddingClassifier():
                     print('Step %d' % step,
                           '|H:', theta, zeta[0],
                           '|C:', complexity,
-                          '|ACC:', train_acc,
-                          '|CEL:', train_cel,
-                          '|CELV:', train_cel_valid,
-                          '|MSP:', train_msp,
+                          '|BACC:', train_acc,
+                          '|BCEL:', train_cel,
+                          '|BCELV:', train_cel_valid,
+                          '|BMSP:', train_msp,
                           '|Gradient Norm:', grad_norm,
                           '|Gradient Norms:', np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
 
@@ -596,7 +596,8 @@ class KernelEmbeddingClassifier():
             b_rff = tf.matmul(q_train, b, name='transformed_one_hot_encoded_labels')
 
             # Decision Probability
-            self.test_p = tf.matmul(tf.transpose(b_rff), w_rff, name='test_p')
+            self.test_p = tf.transpose(tf.matmul(tf.transpose(b_rff), w_rff, name='test_p'))
+
             # The clip-normalised valid decision probabilities
             self.test_p_valid = tf.transpose(_clip_normalize(tf.transpose(self.test_p)), name='test_p_valid')
 
