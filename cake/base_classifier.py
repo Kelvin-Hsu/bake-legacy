@@ -130,6 +130,7 @@ class KernelEmbeddingClassifier():
             max_iter=1000,
             n_sgd_batch=None,
             n_train_limit=10000,
+            n_basis=1000,
             objective='full',
             sequential_batch=False,
             log_hypers=True,
@@ -163,6 +164,8 @@ class KernelEmbeddingClassifier():
             The number of batches used for stochastic gradient descent
         n_train_limit: int, optional
             The training data size limit before random features are used
+        n_basis: int, optional
+            The number of orthogonal random fourier basis for approximation
         objective : str, optional
             The training objective ['full', 'cross_entropy_loss', 'complexity']
         log_hypers : bool, optional
@@ -189,6 +192,7 @@ class KernelEmbeddingClassifier():
             self.n_classes = classes.shape[0]
             self.n = x_train.shape[0]
             self.d = x_train.shape[1]
+            self.n_features = self.d
             self.d_theta = theta.shape[0]
 
         with tf.name_scope('train_data'):
@@ -243,7 +247,7 @@ class KernelEmbeddingClassifier():
         with tf.name_scope('test_graph'):
             # Setup the testing graph
             if self.n > n_train_limit:
-                self._setup_fast_test_graph()
+                self._setup_fast_test_graph(n_basis=n_basis)
             else:
                 self._setup_test_graph()
 
@@ -537,17 +541,18 @@ class KernelEmbeddingClassifier():
 
         assert self.out_kernel == _s_gaussian
 
-        print('Using fast test graph with random fourier features')
+        print('Using fast test graph with orthogonal random fourier features')
 
         sensitivity = self.theta[0]
         length_scale = self.theta[1:]
 
-        with tf.name_scope('random_fourier_feature'):
-            d = tf.shape(self.features(self.x_train[:1]))[1]
-            shape = d * tf.cast(tf.ones(2), tf_int_type)
-            w = tf.random_normal(shape, mean=0.0, stddev=1.0, dtype=tf_float_type, seed=0) / length_scale
-            factor = tf.sqrt(tf.cast(d, tf_float_type))
-            def phi(x, name='random_fourier_features'):
+        with tf.name_scope('orthogonal_random_fourier_feature'):
+            np.random.seed(0)
+            g = tf.cast(tf.constant(generate_orf_weights(n_basis, self.n_features)), tf_float_type)
+            w = g / length_scale
+            factor = tf.cast(tf.constant(np.sqrt(self.n_features)), tf_float_type)
+
+            def phi(x, name='orthogonal_random_fourier_feature'):
                 """
                 Define the approximate feature map.
 
@@ -576,7 +581,7 @@ class KernelEmbeddingClassifier():
             qqt = tf.matmul(q_train, tf.transpose(q_train), name='rff_reduced_gram_matrix')
 
             # Compute the regularisation matrix
-            i = tf.cast(tf.eye(2 * d), tf_float_type, name='i')
+            i = tf.cast(tf.eye(2 * n_basis), tf_float_type, name='i')
             reg = tf.multiply(tf.cast(self.n_train, tf_float_type), tf.multiply(self.zeta, i), name='reg')
             reg_rff = tf.divide(reg, tf.square(sensitivity), name='sensitivity_adjusted_reg')
 
@@ -936,3 +941,37 @@ def tf_info(p):
         A tensor of information of the same shape as the input probabilities
     """
     return - tf.log(tf.clip_by_value(p, 1e-15, np.inf))
+
+
+# def generate_random_feature_square_weights(d):
+#
+#     shape = d * tf.cast(tf.ones(2), tf_int_type)
+#     normals = tf.random_normal(shape, mean=0.0, stddev=1.0, dtype=tf_float_type, seed=0)
+#     q, r = tf.qr(normals, full_matrices=True)
+#     normals = tf.random_normal(shape, mean=0.0, stddev=1.0, dtype=tf_float_type, seed=0)
+#     s = tf.reduce_sum(tf.square(normals), axis=1)
+#     g = tf.transpose(tf.multiply(q, s))
+#     return g
+#
+#
+# def generate_random_feature_weights(d, n_basis):
+#
+#     n_repeats = tf.cast(tf.divide(n_basis, d), tf_int_type) + 1
+
+def generate_square_orf_weights(n_features):
+
+    normals = np.random.normal(loc=0, scale=1, size=(n_features, n_features))
+    q, r = np.linalg.qr(normals)
+    normals = np.random.normal(loc=0, scale=1, size=(n_features, n_features))
+    s = np.sum(normals ** 2, axis=1)
+    g = (q * s).T
+    return g
+
+
+def generate_orf_weights(n_basis, n_features):
+
+    n_repeats = int(n_basis / n_features) + 1
+    gs = [generate_square_orf_weights(n_features) for i in range(n_repeats)]
+    g_full = np.concatenate(tuple(gs), axis=0)
+    g = g_full[:n_basis]
+    return g

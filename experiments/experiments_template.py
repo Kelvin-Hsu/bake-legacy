@@ -16,6 +16,7 @@ def run_experiment(x_train, y_train, x_test, y_test,
                    max_iter=1000,
                    n_sgd_batch=None,
                    n_train_limit=10000,
+                   n_basis=1000,
                    objective='full',
                    sequential_batch=False,
                    log_hypers=True,
@@ -54,6 +55,8 @@ def run_experiment(x_train, y_train, x_test, y_test,
         The number of batches used for stochastic gradient descent
     n_train_limit: int, optional
         The training data size limit before random features are used
+    n_basis: int, optional
+        The number of orthogonal random fourier basis for approximation
     objective : str, optional
         The training objective ['full', 'cross_entropy_loss', 'complexity']
     log_hypers : bool, optional
