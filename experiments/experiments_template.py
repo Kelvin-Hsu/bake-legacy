@@ -116,20 +116,25 @@ def run_experiment(x_train, y_train, x_test, y_test,
     # Train the kernel embedding classifier
     with name_scope(name):
         kec = cake.KernelEmbeddingClassifier(kernel=kernel)
-        kec.fit(x_train, y_train, x_test, y_test,
-                theta=theta_init,
-                zeta=zeta_init,
-                learning_rate=learning_rate,
-                grad_tol=grad_tol,
-                max_iter=max_iter,
-                n_sgd_batch=n_sgd_batch,
-                n_train_limit=n_train_limit,
-                objective=objective,
-                sequential_batch=sequential_batch,
-                log_hypers=log_hypers,
-                to_train=to_train,
-                save_step=save_step,
-                tensorboard_directory=tensorboard_directory)
+        try:
+            kec.fit(x_train, y_train, x_test, y_test,
+                    theta=theta_init,
+                    zeta=zeta_init,
+                    learning_rate=learning_rate,
+                    grad_tol=grad_tol,
+                    max_iter=max_iter,
+                    n_sgd_batch=n_sgd_batch,
+                    n_train_limit=n_train_limit,
+                    objective=objective,
+                    sequential_batch=sequential_batch,
+                    log_hypers=log_hypers,
+                    to_train=to_train,
+                    save_step=save_step,
+                    tensorboard_directory=tensorboard_directory)
+        except Exception as e:
+            print(e)
+            print('%d iterations completed' % kec.training_iterations)
+            print('Saving the results so far for this experiment')
         result = kec.results()
         kec.sess.close()
 
@@ -215,15 +220,22 @@ def run_experiment(x_train, y_train, x_test, y_test,
                 f.write('%s: %s\n' % (key, str(quantity)))
     f.write('----------------------------------------\n')
     f.write('Final Results:\n')
-    result_keys = ['theta', 'zeta', 'complexity',
+    result_keys = ['training_iterations', 'theta', 'zeta', 'complexity',
                    'train_acc', 'train_cel', 'train_cel_valid', 'train_msp',
                    'test_acc', 'test_cel', 'test_cel_valid', 'test_msp']
     for key in result_keys:
         quantity = result[key]
         if isinstance(quantity, np.ndarray):
             f.write('%s: %s\n' % (key, np.array_str(quantity, precision=8)))
+        elif isinstance(quantity, bool):
+            f.write('%s: %s\n' % (key, str(quantity)))
+        elif isinstance(quantity, int):
+            f.write('%s: %d\n' % (key, quantity))
         else:
-            f.write('%s: %f\n' % (key, quantity))
+            try:
+                f.write('%s: %f\n' % (key, quantity))
+            except:
+                f.write('%s: %s\n' % (key, str(quantity)))
     f.close()
 
 

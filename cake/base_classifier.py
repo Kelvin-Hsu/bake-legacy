@@ -89,7 +89,8 @@ class KernelEmbeddingClassifier():
         test_cel_valid = self.sess.run(self.test_cross_entropy_loss_valid, feed_dict=self.feed_dict)
         test_msp = self.sess.run(self.test_msp, feed_dict=self.feed_dict)
 
-        result = {'theta': theta,
+        result = {'training_iterations': self.training_iterations,
+                  'theta': theta,
                   'zeta': zeta,
                   'train_acc': train_acc,
                   'train_cel': train_cel,
@@ -293,6 +294,7 @@ class KernelEmbeddingClassifier():
             print('Batch size for stochastic gradient descent: %d' % n_sgd_batch) if n_sgd_batch else print('Using full dataset for gradient descent')
             batch_feed_dict = self.feed_dict.copy()
             step = 0
+            self.training_iterations = step
             grad_norm = grad_tol + 1 if to_train else 0
             np.set_printoptions(precision=2)
             while grad_norm > grad_tol and step < max_iter:
@@ -425,6 +427,7 @@ class KernelEmbeddingClassifier():
                 # Run a training step
                 self.sess.run(train, feed_dict=batch_feed_dict)
                 step += 1
+                self.training_iterations = step
 
         return self
 
