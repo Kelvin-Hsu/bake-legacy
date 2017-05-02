@@ -35,158 +35,62 @@ class MNISTLinearKernelEmbeddingClassifier():
 
     def initialise_deep_parameters(self):
         """Define the deep parameters of the kernel embedding network."""
-        with tf.name_scope('deep_parameters'):
+        with tf.name_scope('all_parameters'):
 
-            self.W_conv1 = weight_variable([5, 5, 1, 32])
-            self.b_conv1 = bias_variable([32])
+            tf.set_random_seed(0)
+            self.zeta_init = 1.
+            self.log_zeta = tf.Variable(np.log(np.atleast_1d(self.zeta_init)).astype(np_float_type), name="log_zeta")
+            self.zeta = tf.exp(self.log_zeta, name="zeta")
 
-            self.W_conv2 = weight_variable([5, 5, 32, 64])
-            self.b_conv2 = bias_variable([64])
+            self.w_conv_1 = weight_variable([5, 5, 1, 32])
+            self.b_conv_1 = bias_variable([32])
 
-            self.W_fc1 = weight_variable([7 * 7 * 64, 1024])
-            self.b_fc1 = bias_variable([1024])
+            self.w_conv_2 = weight_variable([5, 5, 32, 64])
+            self.b_conv_2 = bias_variable([64])
 
-            self.deep_var_list = [self.W_conv1, self.b_conv1, self.W_conv2, self.b_conv2, self.W_fc1, self.b_fc1]
+            self.w_fc_1 = weight_variable([7 * 7 * 64, 1024])
+            self.b_fc_1 = bias_variable([1024])
+
+            self.var_list = [self.log_zeta, self.w_conv_1, self.b_conv_1, self.w_conv_2, self.b_conv_2, self.w_fc_1, self.b_fc_1]
+
+            self.dropout = tf.placeholder(tf_float_type)
 
     def features(self, x):
-        """
-        Define the features of the kernel embedding network.
 
-        Parameters
-        ----------
-        x : tensorflow.Tensor
-            An input example of size (n_train, d)
-
-        Returns
-        -------
-        tensorflow.Tensor
-            The features of the kernel embedding classifier
-        """
         with tf.name_scope('features'):
             x_image = tf.reshape(x, [-1, 28, 28, 1])
 
-            h_conv1 = tf.nn.relu(conv2d(x_image, self.W_conv1) + self.b_conv1)
-            h_pool1 = max_pool_2x2(h_conv1)
+            # (n, 28, 28, 32)
+            h_conv_1 = tf.nn.relu(conv2d(x_image, self.w_conv_1) + self.b_conv_1)
+            # (n, 14, 14, 32)
+            h_pool_1 = max_pool_2x2(h_conv_1)
 
-            h_conv2 = tf.nn.relu(conv2d(h_pool1, self.W_conv2) + self.b_conv2)
-            h_pool2 = max_pool_2x2(h_conv2)
+            # (n, 14, 14, 64)
+            h_conv_2 = tf.nn.relu(conv2d(h_pool_1, self.w_conv_2) + self.b_conv_2)
+            # (n, 7, 7, 64)
+            h_pool_2 = max_pool_2x2(h_conv_2)
 
-            h_pool2_flat = tf.reshape(h_pool2, [-1, 7 * 7 * 64])
-            h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, self.W_fc1) + self.b_fc1)
+            # (n, 7 * 7 * 64)
+            h_pool_2_flat = tf.reshape(h_pool_2, [-1, 7 * 7 * 64])
+            # (n, 1024)
+            h_fc_1 = tf.nn.relu(tf.matmul(h_pool_2_flat, self.w_fc_1) + self.b_fc_1)
 
-            h_fc1_drop = tf.nn.dropout(h_fc1, self.dropout)
-            return h_fc1_drop
-
-
-    def define_summary_graph(self):
-        """Setup the summary graph for tensorboard."""
-        with tf.name_scope('hyperparameter_summary'):
-            theta_str = tf.summary.histogram('theta', self.theta)
-            zeta_str = tf.summary.histogram('zeta', self.zeta[0])
-            theta_scalar_str = [tf.summary.scalar('theta_%d' % i, self.theta[i]) for i in range(self.d_theta)]
-            zeta_scalar_str = tf.summary.scalar('zeta', self.zeta[0])
-            self.summary_hypers_str = theta_scalar_str + [zeta_scalar_str] + [theta_str, zeta_str]
-
-        with tf.name_scope('train_summary'):
-            train_str_1 = tf.summary.scalar('train_accuracy', self.train_accuracy)
-            train_str_2 = tf.summary.scalar('train_cross_entropy_loss', self.train_cross_entropy_loss)
-            train_str_3 = tf.summary.scalar('train_cross_entropy_loss_valid', self.train_cross_entropy_loss_valid)
-            train_str_4 = tf.summary.scalar('train_msp', self.train_msp)
-            train_str_5 = tf.summary.scalar('complexity', self.complexity)
-            self.summary_train_str = [train_str_1, train_str_2, train_str_3, train_str_4, train_str_5]
-
-        with tf.name_scope('test_summary'):
-            test_str_1 = tf.summary.scalar('test_accuracy', self.test_accuracy)
-            test_str_2 = tf.summary.scalar('test_cross_entropy_loss', self.test_cross_entropy_loss)
-            test_str_3 = tf.summary.scalar('test_cross_entropy_loss_valid', self.test_cross_entropy_loss_valid)
-            test_str_4 = tf.summary.scalar('test_msp', self.test_msp)
-            self.summary_test_str = [test_str_1, test_str_2, test_str_3, test_str_4]
-
-    def results(self):
-        """Compute relevant results."""
-        theta = self.sess.run(self.theta)
-        zeta = self.sess.run(self.zeta)
-
-        train_acc = self.sess.run(self.train_accuracy, feed_dict=self.feed_dict)
-        train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=self.feed_dict)
-        train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=self.feed_dict)
-        train_msp = self.sess.run(self.train_msp, feed_dict=self.feed_dict)
-        complexity = self.sess.run(self.complexity, feed_dict=self.feed_dict)
-
-        test_acc = self.sess.run(self.test_accuracy, feed_dict=self.feed_dict)
-        test_cel = self.sess.run(self.test_cross_entropy_loss, feed_dict=self.feed_dict)
-        test_cel_valid = self.sess.run(self.test_cross_entropy_loss_valid, feed_dict=self.feed_dict)
-        test_msp = self.sess.run(self.test_msp, feed_dict=self.feed_dict)
-
-        result = {'training_iterations': self.training_iterations,
-                  'theta': theta,
-                  'zeta': zeta,
-                  'train_acc': train_acc,
-                  'train_cel': train_cel,
-                  'train_cel_valid': train_cel_valid,
-                  'train_msp': train_msp,
-                  'complexity': complexity,
-                  'test_acc': test_acc,
-                  'test_cel': test_cel,
-                  'test_cel_valid': test_cel_valid,
-                  'test_msp': test_msp}
-        return result
+            # (n, 1024)
+            h_fc_1_dropout = tf.nn.dropout(h_fc_1, self.dropout)
+            return h_fc_1_dropout
 
     def fit(self, x_train, y_train, x_test, y_test,
-            theta=np.array([1., 1.]),
-            zeta=1e-4,
             learning_rate=0.1,
             dropout=0.5,
             grad_tol=0.00,
-            max_iter=1000,
-            n_sgd_batch=None,
+            max_iter=60000,
+            n_sgd_batch=2048,
             objective='full',
             sequential_batch=False,
-            log_hypers=True,
             to_train=True,
-            save_step=10,
-            tensorboard_directory=None):
-        """
-        Fit the kernel embedding classifier.
+            save_step=1,
+            directory='./'):
 
-        Parameters
-        ----------
-        x_train : numpy.ndarray
-            The training inputs of size (n_train, d)
-        y_train : numpy.ndarray
-            The training outputs of size (n_train, 1)
-        x_test : numpy.ndarray
-            The testing inputs of size (n_test, d)
-        y_test : numpy.ndarray
-            The testing outputs of size (n_test, 1)
-        theta : numpy.ndarray, optional
-            The initial kernel hyperparameters (?,)
-        zeta : float or numpy.ndarray, optional
-            The initial regularisation parameter (scalar or 1 element array)
-        learning_rate : float, optional
-            The learning rate for the gradient descent optimiser
-        grad_tol : float, optional
-            The gradient error tolerance for the stopping criteria
-        max_iter : int, optional
-            The maximum number of iterations for training
-        n_sgd_batch : int, optional
-            The number of batches used for stochastic gradient descent
-        objective : str, optional
-            The training objective ['full', 'cross_entropy_loss', 'complexity']
-        log_hypers : bool, optional
-            To train over the log-space of the hyperparameters instead
-        to_train : bool, optional
-            The train the hyperparameters or not
-        save_step : int, optional
-            The number of steps to wait before saving tensorboard results again
-        tensorboard_directory : str, optional
-            A directory to store all the tensorboard information
-
-        Returns
-        -------
-        KernelEmbeddingClassifier
-            The trained classifier
-        """
         with tf.name_scope('class_data'):
 
             # Determine the classes
@@ -198,229 +102,154 @@ class MNISTLinearKernelEmbeddingClassifier():
             self.n = x_train.shape[0]
             self.d = x_train.shape[1]
             self.n_features = self.d
-            self.d_theta = theta.shape[0]
 
+        with tf.name_scope('core_graph'):
+            # Setup the core graph
+            self._setup_core_graph()
+
+        with tf.name_scope('query_graph'):
+            # Setup the training graph
+            self._setup_query_graph()
+
+        with tf.name_scope('optimisation'):
+            # Setup the lagrangian objective
+            if objective == 'full':
+                self.lagrangian = self.query_cross_entropy_loss + self.complexity
+            elif objective == 'cross_entropy_loss':
+                self.lagrangian = self.query_cross_entropy_loss
+            elif objective == 'complexity':
+                self.lagrangian = self.complexity
+            else:
+                raise ValueError('No such objective named %s' % objective)
+
+            self.grad = tf.gradients(self.lagrangian, self.var_list)
+
+            # Setup the training optimisation program
+            opt = tf.train.AdamOptimizer(learning_rate=learning_rate)
+            train = opt.minimize(self.lagrangian, var_list=self.var_list)
+
+            # Run the optimisation
+            self.sess = tf.Session()
+            self.sess.run(tf.global_variables_initializer())
+
+            # Run the optimisation
+            print('Starting Training')
+            print('Batch size for stochastic gradient descent: %d' % n_sgd_batch) if n_sgd_batch else print('Using full dataset for gradient descent')
+            self.training_iterations = 0
+            batch_grad_norm = grad_tol + 1 if to_train else 0
+            np.set_printoptions(precision=2)
+            test_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
+
+            while batch_grad_norm > grad_tol and self.training_iterations < max_iter:
+
+                # Sample the data batch for this training iteration
+                if n_sgd_batch:
+                    sgd_indices = np.arange(self.training_iterations * n_sgd_batch, (self.training_iterations + 1) * n_sgd_batch) % self.n if sequential_batch else np.random.choice(self.n, n_sgd_batch, replace=False)
+                    x_batch = x_train[sgd_indices]
+                    y_batch = y_train[sgd_indices]
+                    batch_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: x_batch, self.y_query: y_batch, self.dropout: dropout}
+                    batch_test_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
+
+                zeta = self.sess.run(self.zeta)
+                w_conv_1 = self.sess.run(self.w_conv_1)
+                b_conv_1 = self.sess.run(self.b_conv_1)
+                w_conv_2 = self.sess.run(self.w_conv_2)
+                b_conv_2 = self.sess.run(self.b_conv_2)
+                w_fc_1 = self.sess.run(self.w_fc_1)
+                b_fc_1 = self.sess.run(self.b_fc_1)
+
+                batch_acc = self.sess.run(self.query_accuracy, feed_dict=batch_feed_dict)
+                batch_cel = self.sess.run(self.query_cross_entropy_loss, feed_dict=batch_feed_dict)
+                batch_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_feed_dict)
+                batch_msp = self.sess.run(self.query_msp, feed_dict=batch_feed_dict)
+                batch_complexity = self.sess.run(self.complexity, feed_dict=batch_feed_dict)
+
+                batch_grad = self.sess.run(self.grad, feed_dict=batch_feed_dict)
+                batch_grad_norms = np.array([np.max(np.abs(grad_i)) for grad_i in batch_grad])
+                batch_grad_norm = np.max(batch_grad_norms)
+
+                print('Step %d' % self.training_iterations,
+                      '|Reg:', zeta[0],
+                      '|BC:', batch_complexity,
+                      '|BACC:', batch_acc,
+                      '|BCEL:', batch_cel,
+                      '|BCELV:', batch_cel_valid,
+                      '|BMSP:', batch_msp,
+                      '|Batch Gradient Norms:', batch_grad_norms)
+
+                np.savez('%sbatch_info_%d.npz' % (directory, self.training_iterations),
+                         zeta=zeta,
+                         w_conv_1=w_conv_1,
+                         b_conv_1=b_conv_1,
+                         w_conv_2=w_conv_2,
+                         b_conv_2=b_conv_2,
+                         w_fc_1=w_fc_1,
+                         b_fc_1=b_fc_1,
+                         batch_acc=batch_acc,
+                         batch_cel=batch_cel,
+                         batch_cel_valid=batch_cel_valid,
+                         batch_msp=batch_msp,
+                         batch_complexity=batch_complexity,
+                         batch_grad_norms=batch_grad_norms,
+                         batch_grad_norm=batch_grad_norm)
+
+                # Log and save the progress every so iterations
+                if self.training_iterations % save_step == 0:
+
+                    test_acc = self.sess.run(self.query_accuracy, feed_dict=batch_test_feed_dict)
+                    test_cel = self.sess.run(self.query_cross_entropy_loss, feed_dict=batch_test_feed_dict)
+                    test_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_test_feed_dict)
+                    test_msp = self.sess.run(self.query_msp, feed_dict=batch_test_feed_dict)
+
+                    print('Step %d' % self.training_iterations,
+                          '|TACC:', test_acc,
+                          '|TCEL:', test_cel,
+                          '|TCELV:', test_cel_valid,
+                          '|TMSP:', test_msp)
+
+                    np.savez('%stest_info_%d.npz' % (directory, self.training_iterations),
+                             zeta=zeta,
+                             w_conv_1=w_conv_1,
+                             b_conv_1=b_conv_1,
+                             w_conv_2=w_conv_2,
+                             b_conv_2=b_conv_2,
+                             w_fc_1=w_fc_1,
+                             b_fc_1=b_fc_1,
+                             batch_acc=batch_acc,
+                             batch_cel=batch_cel,
+                             batch_cel_valid=batch_cel_valid,
+                             batch_msp=batch_msp,
+                             batch_complexity=batch_complexity,
+                             batch_grad_norms=batch_grad_norms,
+                             batch_grad_norm=batch_grad_norm,
+                             test_acc=test_acc,
+                             test_cel=test_cel,
+                             test_cel_valid=test_cel_valid,
+                             test_msp=test_msp)
+
+                # Run a training step
+                for i in range(100):
+                    self.sess.run(train, feed_dict=batch_feed_dict)
+                    self.training_iterations += 1
+                    print('\t%d' % i)
+
+        return self
+
+    def _setup_core_graph(self):
+        """Setup the core computational graph."""
         with tf.name_scope('train_data'):
 
             # Setup the data
-            self.x_train = tf.placeholder(tf_float_type, shape=[None, x_train.shape[1]], name='x_train')
-            self.y_train = tf.placeholder(tf_float_type, shape=[None, y_train.shape[1]], name='y_train')
-            self.feed_dict = {self.x_train: x_train, self.y_train: y_train}
+            self.x_train = tf.placeholder(tf_float_type, shape=[None, self.d], name='x_train')
+            self.y_train = tf.placeholder(tf_float_type, shape=[None, 1], name='y_train')
             self.n_train = tf.shape(self.x_train)[0]
 
             # Determine the one hot encoding and index form of the training labels
             self.y_train_one_hot = tf.equal(self.y_train, self.classes, name='y_train_one_hot')
             self.y_train_indices = _decode_one_hot(self.y_train_one_hot, name='y_train_indices')
 
-        with tf.name_scope('test_data'):
-
-            # Setup the data
-            self.x_test = tf.placeholder(tf_float_type, shape=[None, x_test.shape[1]], name='x_test')
-            self.y_test = tf.placeholder(tf_float_type, shape=[None, y_test.shape[1]], name='y_test')
-            self.feed_dict.update({self.x_test: x_test, self.y_test: y_test})
-            self.n_test = tf.shape(self.x_test)[0]
-
-            # Determine the one hot encoding and index form of the testing labels
-            self.y_test_one_hot = tf.equal(self.y_test, self.classes, name='y_test_one_hot')
-            self.y_test_indices = _decode_one_hot(self.y_test_one_hot, name='y_test_indices')
-
-        with tf.name_scope('hyperparameters'):
-            # Setup the output kernel hyperparameters and regulariser
-            if log_hypers:
-                self.log_theta = tf.Variable(np.log(theta).astype(np_float_type), name="log_theta")
-                self.log_zeta = tf.Variable(np.log(np.atleast_1d(zeta)).astype(np_float_type), name="log_zeta")
-                self.theta = tf.exp(self.log_theta, name="theta")
-                self.zeta = tf.exp(self.log_zeta, name="zeta")
-                var_list = [self.log_zeta]
-            else:
-                self.theta = tf.Variable(theta.astype(np_float_type), name="theta")
-                self.zeta = tf.Variable(np.atleast_1d(zeta).astype(np_float_type), name="zeta")
-                var_list = [self.zeta]
-
-            # Setup deep hyperparameters
-            self.dropout = tf.placeholder(tf_float_type)
-            self.feed_dict.update({self.dropout: 1.0})
-            self.initialise_deep_parameters()
-            var_list += self.deep_var_list
-
-        with tf.name_scope('core_graph'):
-            # Setup the core graph
-            self._setup_core_graph()
-
-        with tf.name_scope('train_graph'):
-            # Setup the training graph
-            self._setup_train_graph()
-
-        with tf.name_scope('test_graph'):
-            # Setup the testing graph
-            self._setup_test_graph()
-
-        with tf.name_scope('optimisation'):
-            # Setup the lagrangian objective
-            if objective == 'full':
-                self.lagrangian = self.train_cross_entropy_loss + self.complexity
-            elif objective == 'cross_entropy_loss':
-                self.lagrangian = self.train_cross_entropy_loss
-            elif objective == 'complexity':
-                self.lagrangian = self.complexity
-            else:
-                raise ValueError('No such objective named %s' % objective)
-
-            self.grad = tf.gradients(self.lagrangian, var_list)
-
-            # Setup the training optimisation program
-            opt = tf.train.AdamOptimizer(learning_rate=learning_rate)
-            train = opt.minimize(self.lagrangian, var_list=var_list)
-
-            # Run the optimisation
-            self.sess = tf.Session()
-            self.sess.run(tf.global_variables_initializer())
-
-            # Merge all the summaries
-            if tensorboard_directory:
-
-                self.define_summary_graph()
-                self.summary_hypers = tf.summary.merge(self.summary_hypers_str)
-                self.summary_train = tf.summary.merge(self.summary_train_str)
-                self.summary_test = tf.summary.merge(self.summary_test_str)
-
-                if n_sgd_batch:
-                    writer_batch = tf.summary.FileWriter(tensorboard_directory + 'batch/')
-                    writer_batch.add_graph(self.sess.graph)
-                    writer_whole = tf.summary.FileWriter(tensorboard_directory + 'whole/')
-                    writer_whole.add_graph(self.sess.graph)
-                else:
-                    writer = tf.summary.FileWriter(tensorboard_directory)
-                    writer.add_graph(self.sess.graph)
-
-            # Run the optimisation
-            print('Starting Training')
-            print('Batch size for stochastic gradient descent: %d' % n_sgd_batch) if n_sgd_batch else print('Using full dataset for gradient descent')
-            batch_feed_dict = self.feed_dict.copy()
-            batch_feed_dict.update({self.dropout: dropout})
-            step = 0
-            self.training_iterations = step
-            grad_norm = grad_tol + 1 if to_train else 0
-            np.set_printoptions(precision=2)
-            while grad_norm > grad_tol and step < max_iter:
-
-                # Sample the data batch for this training iteration
-                if n_sgd_batch:
-                    sgd_indices = np.arange(step * n_sgd_batch, (step + 1) * n_sgd_batch) % self.n if sequential_batch else np.random.choice(self.n, n_sgd_batch, replace=False)
-                    batch_feed_dict.update({self.x_train: x_train[sgd_indices], self.y_train: y_train[sgd_indices]})
-
-                # Log and save the progress every so iterations
-                if step % save_step == 0:
-                    theta = self.sess.run(self.theta)
-                    zeta = self.sess.run(self.zeta)
-
-                    train_acc = self.sess.run(self.train_accuracy, feed_dict=batch_feed_dict)
-                    train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=batch_feed_dict)
-                    train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=batch_feed_dict)
-                    train_msp = self.sess.run(self.train_msp, feed_dict=batch_feed_dict)
-                    complexity = self.sess.run(self.complexity, feed_dict=batch_feed_dict)
-
-                    test_acc = self.sess.run(self.test_accuracy, feed_dict=self.feed_dict)
-                    test_cel = self.sess.run(self.test_cross_entropy_loss, feed_dict=self.feed_dict)
-                    test_cel_valid = self.sess.run(self.test_cross_entropy_loss_valid, feed_dict=self.feed_dict)
-                    test_msp = self.sess.run(self.test_msp, feed_dict=self.feed_dict)
-
-                    grad = self.sess.run(self.grad, feed_dict=batch_feed_dict)
-                    grad_norm = compute_grad_norm(grad)
-
-                    print('Step %d' % step,
-                          '|H:', zeta[0],
-                          '|C:', complexity,
-                          '|BACC:', train_acc,
-                          '|BCEL:', train_cel,
-                          '|BCELV:', train_cel_valid,
-                          '|BMSP:', train_msp,
-                          '|TACC:', test_acc,
-                          '|TCEL:', test_cel,
-                          '|TCELV:', test_cel_valid,
-                          '|TMSP:', test_msp,
-                          '|Gradient Norm:', grad_norm)
-                    print('Gradient Norms:', np.array([np.max(np.abs(grad_i))
-                                                       for grad_i in grad]))
-
-                    if tensorboard_directory:
-
-                        if n_sgd_batch:
-                            # whole_summary = self.sess.run(self.summary_hypers, feed_dict=self.feed_dict)
-                            # writer_whole.add_summary(whole_summary, step)
-                            # whole_summary = self.sess.run(self.summary_train, feed_dict=self.feed_dict)
-                            # writer_whole.add_summary(whole_summary, step)
-                            # whole_summary = self.sess.run(self.summary_test, feed_dict=self.feed_dict)
-                            # writer_whole.add_summary(whole_summary, step)
-
-                            batch_summary = self.sess.run(self.summary_hypers, feed_dict=batch_feed_dict)
-                            writer_batch.add_summary(batch_summary, step)
-                            batch_summary = self.sess.run(self.summary_train, feed_dict=batch_feed_dict)
-                            writer_batch.add_summary(batch_summary, step)
-                            batch_summary = self.sess.run(self.summary_test, feed_dict=batch_feed_dict)
-                            writer_batch.add_summary(batch_summary, step)
-                        else:
-                            summary = self.sess.run(self.summary_hypers, feed_dict=batch_feed_dict)
-                            writer.add_summary(summary, step)
-                            summary = self.sess.run(self.summary_train, feed_dict=batch_feed_dict)
-                            writer.add_summary(summary, step)
-                            summary = self.sess.run(self.summary_test, feed_dict=batch_feed_dict)
-                            writer.add_summary(summary, step)
-
-                # We can still print out the hyperparameters and batch training performance
-                else:
-
-                    theta = self.sess.run(self.theta)
-                    zeta = self.sess.run(self.zeta)
-                    train_acc = self.sess.run(self.train_accuracy, feed_dict=batch_feed_dict)
-                    train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=batch_feed_dict)
-                    train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=batch_feed_dict)
-                    train_msp = self.sess.run(self.train_msp, feed_dict=batch_feed_dict)
-                    complexity = self.sess.run(self.complexity, feed_dict=batch_feed_dict)
-
-                    grad = self.sess.run(self.grad, feed_dict=batch_feed_dict)
-                    grad_norm = compute_grad_norm(grad)
-                    print('Step %d' % step,
-                          '|H:', zeta[0],
-                          '|C:', complexity,
-                          '|BACC:', train_acc,
-                          '|BCEL:', train_cel,
-                          '|BCELV:', train_cel_valid,
-                          '|BMSP:', train_msp,
-                          '|Gradient Norm:', grad_norm,
-                          '|Gradient Norms:', np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
-
-                    if tensorboard_directory:
-
-                        if n_sgd_batch:
-                            batch_summary = self.sess.run(self.summary_hypers, feed_dict=batch_feed_dict)
-                            writer_batch.add_summary(batch_summary, step)
-                            batch_summary = self.sess.run(self.summary_train, feed_dict=batch_feed_dict)
-                            writer_batch.add_summary(batch_summary, step)
-                            batch_summary = self.sess.run(self.summary_test, feed_dict=batch_feed_dict)
-                            writer_batch.add_summary(batch_summary, step)
-                        else:
-                            summary = self.sess.run(self.summary_hypers, feed_dict=batch_feed_dict)
-                            writer.add_summary(summary, step)
-                            summary = self.sess.run(self.summary_train, feed_dict=batch_feed_dict)
-                            writer.add_summary(summary, step)
-                            summary = self.sess.run(self.summary_test, feed_dict=batch_feed_dict)
-                            writer.add_summary(summary, step)
-
-                # Run a training step
-                self.sess.run(train, feed_dict=batch_feed_dict)
-                step += 1
-                self.training_iterations = step
-
-        return self
-
-    def _setup_core_graph(self):
-        """Setup the core computational graph."""
         with tf.name_scope('train_features'):
             self.z_train = self.features(self.x_train)
-
-        with tf.name_scope('test_features'):
-            self.z_test = self.features(self.x_test)
 
         with tf.name_scope('regularisation_matrix'):
             # The regulariser matrix
@@ -434,80 +263,58 @@ class MNISTLinearKernelEmbeddingClassifier():
             self.chol_ztz_reg = tf.cholesky(ztz_reg, name='chol_ztz_reg')
             self.weights = tf.cholesky_solve(self.chol_ztz_reg, tf.matmul(zt, tf.cast(self.y_train_one_hot, tf_float_type)), name='weights')
 
-    def _setup_train_graph(self):
-        """Setup the training computational graph."""
-        with tf.name_scope('train_decision_probabilities'):
-            # The decision probabilities on the training datatrain_cross_entropy_loss
-            self.train_p = tf.matmul(self.z_train, self.weights, name='train_p')
-
-            # The clip-normalised valid decision probabilities
-            self.train_p_valid = tf.transpose(_clip_normalize(tf.transpose(self.train_p)), name='train_p_valid')
-
-        with tf.name_scope('train_predictions'):
-            # The predictions on the training data
-            self.train_y = _classify(self.train_p, classes=self.classes, name='train_y')
-
-        with tf.name_scope('train_accuracy'):
-            # The training accuracy
-            self.train_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.train_y, tf.reshape(self.y_train, [-1])), tf_float_type), name='train_accuracy')
-
-        with tf.name_scope('train_cross_entropy_loss'):
-            # The prediction probabilities on the actual label
-            train_indices = tf.cast(tf.range(self.n_train), tf_int_type, name='train_indices')
-            self.train_p_y = tf.gather_nd(self.train_p, tf.stack([train_indices, self.y_train_indices], axis=1), name='train_p_y')
-
-            # self.train_p_y = np.where()
-            # The cross entropy loss over the training data
-            self.train_cross_entropy_loss = tf.reduce_mean(tf_info(self.train_p_y), name='train_cross_entropy_loss')
-
-            # The clip-normalised valid decision probabilities on the actual label
-            self.train_p_y_valid = tf.gather_nd(self.train_p_valid, tf.stack([train_indices, self.y_train_indices], axis=1), name='train_p_y_valid')
-
-            # The valid cross entropy loss over the training data
-            self.train_cross_entropy_loss_valid = tf.reduce_mean(tf_info(self.train_p_y_valid), name='train_cross_entropy_loss_valid')
-
-        with tf.name_scope('other'):
-            # Other interesting quantities
-            self.train_msp = tf.reduce_mean(tf.reduce_sum(self.train_p, axis=1), name='train_msp')
-
         with tf.name_scope('complexity'):
             # The model complexity of the classifier
             self.complexity = self._define_complexity(name='complexity')
 
-    def _setup_test_graph(self):
-        """Setup the testing computational graph."""
-        with tf.name_scope('test_decision_probabilities'):
-            # Decision Probability
-            self.test_p = tf.matmul(self.z_test, self.weights, name='test_p')
+    def _setup_query_graph(self):
+        """Setup the querying computational graph."""
+        with tf.name_scope('query_input'):
+
+            self.x_query = tf.placeholder(tf_float_type, shape=[None, self.d], name='x_query')
+            self.y_query = tf.placeholder(tf_float_type, shape=[None, 1], name='y_query')
+            self.n_query = tf.shape(self.x_query)[0]
+            self.y_query_one_hot = tf.equal(self.y_query, self.classes, name='y_query_one_hot')
+            self.y_query_indices = _decode_one_hot(self.y_query_one_hot, name='y_query_indices')
+
+        with tf.name_scope('query_features'):
+
+            self.z_query = self.features(self.x_query)
+
+        with tf.name_scope('query_decision_probabilities'):
+            # The decision probabilities
+            self.query_p = tf.matmul(self.z_query, self.weights, name='query_p')
 
             # The clip-normalised valid decision probabilities
-            self.test_p_valid = tf.transpose(_clip_normalize(tf.transpose(self.test_p)), name='test_p_valid')
+            self.query_p_valid = tf.transpose(_clip_normalize(tf.transpose(self.query_p)), name='query_p_valid')
 
-        with tf.name_scope('test_predictions'):
-            # Prediction
-            self.test_y = _classify(self.test_p, classes=self.classes, name='test_y')
+        with tf.name_scope('query_predictions'):
+            # The predictions
+            self.query_y = _classify(self.query_p, classes=self.classes, name='query_y')
 
-        with tf.name_scope('test_accuracy'):
-            # The testing accuracy
-            self.test_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.test_y, tf.reshape(self.y_test, [-1])), tf_float_type), name='test_accuracy')
+        with tf.name_scope('query_accuracy'):
+            # The accuracy
+            self.query_accuracy = tf.reduce_mean(tf.cast(tf.equal(self.query_y, tf.reshape(self.y_query, [-1])), tf_float_type), name='query_accuracy')
 
-        with tf.name_scope('test_cross_entropy_loss'):
+        with tf.name_scope('query_cross_entropy_loss'):
+
             # The prediction probabilities on the actual label
-            test_indices = tf.cast(tf.range(self.n_test), tf_int_type, name='indices')
-            self.test_p_y = tf.gather_nd(self.test_p, tf.stack([test_indices, self.y_test_indices], axis=1), name='test_p_y')
+            query_indices = tf.cast(tf.range(self.n_query), tf_int_type, name='query_indices')
+            self.query_p_y = tf.gather_nd(self.query_p, tf.stack([query_indices, self.y_query_indices], axis=1), name='query_p_y')
 
-            # The cross entropy loss over the testing data
-            self.test_cross_entropy_loss = tf.reduce_mean(tf_info(self.test_p_y), name='test_cross_entropy_loss')
+            # self.query_p_y = np.where()
+            # The cross entropy loss over the querying data
+            self.query_cross_entropy_loss = tf.reduce_mean(tf_info(self.query_p_y), name='query_cross_entropy_loss')
 
             # The clip-normalised valid decision probabilities on the actual label
-            self.test_p_y_valid = tf.gather_nd(self.test_p_valid, tf.stack([test_indices, self.y_test_indices], axis=1), name='test_p_y_valid')
+            self.query_p_y_valid = tf.gather_nd(self.query_p_valid, tf.stack([query_indices, self.y_query_indices], axis=1), name='query_p_y_valid')
 
-            # The valid cross entropy loss over the testing data
-            self.test_cross_entropy_loss_valid = tf.reduce_mean(tf_info(self.test_p_y_valid), name='test_cross_entropy_loss_valid')
+            # The valid cross entropy loss over the querying data
+            self.query_cross_entropy_loss_valid = tf.reduce_mean(tf_info(self.query_p_y_valid), name='query_cross_entropy_loss_valid')
 
-        with tf.name_scope('others'):
+        with tf.name_scope('other'):
             # Other interesting quantities
-            self.test_msp = tf.reduce_mean(tf.reduce_sum(self.test_p, axis=1), name='test_msp')
+            self.query_msp = tf.reduce_mean(tf.reduce_sum(self.query_p, axis=1), name='query_msp')
 
     def _define_complexity(self, name='complexity_definition'):
         """
@@ -520,24 +327,6 @@ class MNISTLinearKernelEmbeddingClassifier():
         """
         with tf.name_scope(name):
             return tf.sqrt(tf.reduce_sum(tf.square(self.weights)))
-
-
-def compute_grad_norm(grad):
-    """
-    Compute the L1 norm of a list of gradients in any shape.
-
-    Parameters
-    ----------
-    grad : list
-        The list of gradients of any shape
-
-    Returns
-    -------
-    float
-        The L1 norm of the gradient
-    """
-    return np.max([np.max(np.abs(grad_i)) for grad_i in grad])
-
 
 def tf_info(p):
     """
