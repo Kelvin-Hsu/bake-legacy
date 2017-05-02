@@ -301,11 +301,11 @@ class LinearKernelEmbeddingClassifier():
                     theta = self.sess.run(self.theta)
                     zeta = self.sess.run(self.zeta)
 
-                    train_acc = self.sess.run(self.train_accuracy, feed_dict=self.feed_dict)
-                    train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=self.feed_dict)
-                    train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=self.feed_dict)
-                    train_msp = self.sess.run(self.train_msp, feed_dict=self.feed_dict)
-                    complexity = self.sess.run(self.complexity, feed_dict=self.feed_dict)
+                    train_acc = self.sess.run(self.train_accuracy, feed_dict=batch_feed_dict)
+                    train_cel = self.sess.run(self.train_cross_entropy_loss, feed_dict=batch_feed_dict)
+                    train_cel_valid = self.sess.run(self.train_cross_entropy_loss_valid, feed_dict=batch_feed_dict)
+                    train_msp = self.sess.run(self.train_msp, feed_dict=batch_feed_dict)
+                    complexity = self.sess.run(self.complexity, feed_dict=batch_feed_dict)
 
                     test_acc = self.sess.run(self.test_accuracy, feed_dict=self.feed_dict)
                     test_cel = self.sess.run(self.test_cross_entropy_loss, feed_dict=self.feed_dict)
