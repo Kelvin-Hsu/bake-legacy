@@ -7,12 +7,10 @@ config = tf.ConfigProto()
 config.gpu_options.per_process_gpu_memory_fraction = 0.4
 sess = tf.Session(config=config)
 
-with tf.device('/gpu:0'):
+with tf.name_scope('tutorial'):
     with tf.name_scope('training_data'):
         x = tf.placeholder(tf.float32, shape=[None, 784])
         y_ = tf.placeholder(tf.float32, shape=[None, 10])
-
-    batch = mnist.train.next_batch(500)
 
     def weight_variable(shape):
       initial = tf.truncated_normal(shape, stddev=0.1)
@@ -54,7 +52,6 @@ with tf.device('/gpu:0'):
 
         h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
         h_pool2 = max_pool_2x2(h_conv2)
-
 
         for i in range(64):
             h_conv2_i = tf.reshape(h_conv2[:, :, :, i], shape=[-1, 14, 14, 1], name='h_conv2_%d' % i)
@@ -109,11 +106,24 @@ test_writer.add_graph(sess.graph)
 sess.run(tf.global_variables_initializer())
 
 import numpy as np
-train_feed_dict = {x: batch[0], y_: batch[1], keep_prob: 1.0}
-test_feed_dict = {x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0}
-for i in range(20000):
-  if i % 100 == 0:
 
+print(mnist.train.images.shape)
+
+for i in range(20000):
+
+  print('Step %d' % i)
+  # batch = mnist.train.next_batch(100)
+  # sess.run(train_step, feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
+
+
+  sgd_indices = np.random.choice(mnist.train.images.shape[0], 100, replace=False)
+  train_feed_dict = {x: mnist.train.images[sgd_indices], y_: mnist.train.labels[sgd_indices], keep_prob: 0.5}
+  print('Obtained Batch')
+  sess.run(train_step, feed_dict=train_feed_dict)
+
+  if i % 100 == 0:
+    # train_feed_dict = {x: mnist.train.images, y_: mnist.train.labels, keep_prob: 1.0}
+    test_feed_dict = {x: mnist.test.images, y_: mnist.test.labels, keep_prob: 1.0}
     train_accuracy = sess.run(accuracy, feed_dict=train_feed_dict)
     test_accuracy = sess.run(accuracy, feed_dict=test_feed_dict)
     train_cross_entropy = sess.run(cross_entropy, feed_dict=train_feed_dict)
@@ -128,7 +138,5 @@ for i in range(20000):
     test_summary = sess.run(merged_summary, feed_dict=test_feed_dict)
     test_writer.add_summary(test_summary, i)
 
-  print('Step %d' % i)
-  sgd_indices = np.random.choice(500, 50, replace=False)
-  sess.run(train_step, feed_dict={x: batch[0][sgd_indices], y_: batch[1][sgd_indices], keep_prob: 0.5})
+
 
