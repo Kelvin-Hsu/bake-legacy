@@ -228,10 +228,8 @@ class MNISTLinearKernelEmbeddingClassifier():
                              test_msp=test_msp)
 
                 # Run a training step
-                for i in range(100):
-                    self.sess.run(train, feed_dict=batch_feed_dict)
-                    self.training_iterations += 1
-                    print('\t%d' % i)
+                self.sess.run(train, feed_dict=batch_feed_dict)
+                self.training_iterations += 1
 
         return self
 
