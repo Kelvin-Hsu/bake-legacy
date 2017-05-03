@@ -33,12 +33,12 @@ class MNISTLinearKernelEmbeddingClassifier():
         """Initialize the classifier."""
         pass
 
-    def initialise_deep_parameters(self):
+    def initialise_deep_parameters(self, zeta=1e-2):
         """Define the deep parameters of the kernel embedding network."""
         with tf.name_scope('all_parameters'):
 
             tf.set_random_seed(0)
-            self.zeta_init = 10000.
+            self.zeta_init = zeta
             self.log_zeta = tf.Variable(np.log(np.atleast_1d(self.zeta_init)).astype(np_float_type), name="log_zeta")
             self.zeta = tf.exp(self.log_zeta, name="zeta")
 
