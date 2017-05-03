@@ -38,7 +38,7 @@ class MNISTLinearKernelEmbeddingClassifier():
         with tf.name_scope('all_parameters'):
 
             tf.set_random_seed(0)
-            self.zeta_init = 1.
+            self.zeta_init = 100.
             self.log_zeta = tf.Variable(np.log(np.atleast_1d(self.zeta_init)).astype(np_float_type), name="log_zeta")
             self.zeta = tf.exp(self.log_zeta, name="zeta")
 
@@ -139,6 +139,8 @@ class MNISTLinearKernelEmbeddingClassifier():
             batch_grad_norm = grad_tol + 1 if to_train else 0
             np.set_printoptions(precision=2)
             test_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
+            batch_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_train, self.y_query: y_train, self.dropout: dropout}
+            batch_test_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
 
             while batch_grad_norm > grad_tol and self.training_iterations < max_iter:
 
