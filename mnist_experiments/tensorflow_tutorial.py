@@ -3,9 +3,7 @@ from tensorflow.examples.tutorials.mnist import input_data
 
 mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
 
-config = tf.ConfigProto()
-config.gpu_options.per_process_gpu_memory_fraction = 0.4
-sess = tf.Session(config=config)
+sess = tf.Session()
 
 with tf.name_scope('tutorial'):
     with tf.name_scope('training_data'):
@@ -30,8 +28,8 @@ with tf.name_scope('tutorial'):
 
     with tf.name_scope('convolutional_layer_1'):
 
-        W_conv1 = weight_variable([5, 5, 1, 32])
-        b_conv1 = bias_variable([32])
+        W_conv1 = weight_variable([5, 5, 1, 4])
+        b_conv1 = bias_variable([4])
 
         h_conv1 = tf.nn.relu(conv2d(x_image, W_conv1) + b_conv1)
         h_pool1 = max_pool_2x2(h_conv1)
@@ -39,32 +37,32 @@ with tf.name_scope('tutorial'):
         tf.summary.histogram('W_conv1', W_conv1)
         tf.summary.histogram('b_conv1', b_conv1)
 
-        for i in range(32):
-            h_conv1_i = tf.reshape(h_conv1[:, :, :, i], shape=[-1, 28, 28, 1], name='h_conv1_%d' % i)
-            tf.summary.image('h_conv1_%d' % i, h_conv1_i, max_outputs=3)
-            h_pool1_i = tf.reshape(h_pool1[:, :, :, i], shape=[-1, 14, 14, 1], name='h_pool1_%d' % i)
-            tf.summary.image('h_pool1_%d' % i, h_pool1_i, max_outputs=3)
+        # for i in range(32):
+        #     h_conv1_i = tf.reshape(h_conv1[:, :, :, i], shape=[-1, 28, 28, 1], name='h_conv1_%d' % i)
+        #     tf.summary.image('h_conv1_%d' % i, h_conv1_i, max_outputs=3)
+        #     h_pool1_i = tf.reshape(h_pool1[:, :, :, i], shape=[-1, 14, 14, 1], name='h_pool1_%d' % i)
+        #     tf.summary.image('h_pool1_%d' % i, h_pool1_i, max_outputs=3)
 
     with tf.name_scope('convolutional_layer_2'):
 
-        W_conv2 = weight_variable([5, 5, 32, 64])
-        b_conv2 = bias_variable([64])
+        W_conv2 = weight_variable([5, 5, 4, 8])
+        b_conv2 = bias_variable([8])
 
         h_conv2 = tf.nn.relu(conv2d(h_pool1, W_conv2) + b_conv2)
         h_pool2 = max_pool_2x2(h_conv2)
 
-        for i in range(64):
-            h_conv2_i = tf.reshape(h_conv2[:, :, :, i], shape=[-1, 14, 14, 1], name='h_conv2_%d' % i)
-            tf.summary.image('h_conv2_%d' % i, h_conv2_i, max_outputs=3)
-            h_pool2_i = tf.reshape(h_pool2[:, :, :, i], shape=[-1, 7, 7, 1], name='h_pool2_%d' % i)
-            tf.summary.image('h_pool2_%d' % i, h_pool2_i, max_outputs=3)
+        # for i in range(64):
+        #     h_conv2_i = tf.reshape(h_conv2[:, :, :, i], shape=[-1, 14, 14, 1], name='h_conv2_%d' % i)
+        #     tf.summary.image('h_conv2_%d' % i, h_conv2_i, max_outputs=3)
+        #     h_pool2_i = tf.reshape(h_pool2[:, :, :, i], shape=[-1, 7, 7, 1], name='h_pool2_%d' % i)
+        #     tf.summary.image('h_pool2_%d' % i, h_pool2_i, max_outputs=3)
 
     with tf.name_scope('fully_connected_layer'):
 
-        W_fc1 = weight_variable([7 * 7 * 64, 1024])
-        b_fc1 = bias_variable([1024])
+        W_fc1 = weight_variable([7 * 7 * 8, 512])
+        b_fc1 = bias_variable([512])
 
-        h_pool2_flat = tf.reshape(h_pool2, [-1, 7*7*64])
+        h_pool2_flat = tf.reshape(h_pool2, [-1, 7*7*8])
         h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
 
     with tf.name_scope('dropout'):
@@ -74,7 +72,7 @@ with tf.name_scope('tutorial'):
 
     with tf.name_scope('softmax_regression_layer'):
 
-        W_fc2 = weight_variable([1024, 10])
+        W_fc2 = weight_variable([512, 10])
         b_fc2 = bias_variable([10])
 
         y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
@@ -97,12 +95,12 @@ with tf.name_scope('tutorial'):
         gradients = tf.gradients(cross_entropy, [W_conv1, b_conv1, W_conv2, b_conv2, W_fc1, b_fc1, W_fc2, b_fc2])
         train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
-# Start Training
-merged_summary = tf.summary.merge_all()
-train_writer = tf.summary.FileWriter('./mnist_tutorial/train/')
-train_writer.add_graph(sess.graph)
-test_writer = tf.summary.FileWriter('./mnist_tutorial/test/')
-test_writer.add_graph(sess.graph)
+# # Start Training
+# merged_summary = tf.summary.merge_all()
+# train_writer = tf.summary.FileWriter('./mnist_tutorial/train/')
+# train_writer.add_graph(sess.graph)
+# test_writer = tf.summary.FileWriter('./mnist_tutorial/test/')
+# test_writer.add_graph(sess.graph)
 sess.run(tf.global_variables_initializer())
 
 import numpy as np
@@ -116,10 +114,13 @@ for i in range(20000):
   # sess.run(train_step, feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
 
 
-  sgd_indices = np.random.choice(mnist.train.images.shape[0], 100, replace=False)
+  sgd_indices = np.random.choice(mnist.train.images.shape[0], 1000, replace=False)
   train_feed_dict = {x: mnist.train.images[sgd_indices], y_: mnist.train.labels[sgd_indices], keep_prob: 0.5}
   print('Obtained Batch')
   sess.run(train_step, feed_dict=train_feed_dict)
+  grad = sess.run(gradients, feed_dict=train_feed_dict)
+
+  print('Gradient Norms:', np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
 
   if i % 100 == 0:
     # train_feed_dict = {x: mnist.train.images, y_: mnist.train.labels, keep_prob: 1.0}
@@ -133,10 +134,10 @@ for i in range(20000):
     print("Step %d: Training accuracy: %g, Test accuracy: %g, Training Cross Entropy: %g, Test Cross Entropy: %g" % (i, train_accuracy, test_accuracy, train_cross_entropy, test_cross_entropy))
     print('Gradient Norms: ', np.array([np.max(np.abs(grad_i)) for grad_i in grad]))
 
-    train_summary = sess.run(merged_summary, feed_dict=train_feed_dict)
-    train_writer.add_summary(train_summary, i)
-    test_summary = sess.run(merged_summary, feed_dict=test_feed_dict)
-    test_writer.add_summary(test_summary, i)
+    # train_summary = sess.run(merged_summary, feed_dict=train_feed_dict)
+    # train_writer.add_summary(train_summary, i)
+    # test_summary = sess.run(merged_summary, feed_dict=test_feed_dict)
+    # test_writer.add_summary(test_summary, i)
 
 
 
