@@ -206,13 +206,13 @@ class MNISTLinearKernelEmbeddingClassifier():
                     batch_test_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_test_feed_dict)
                     batch_test_msp = self.sess.run(self.query_msp, feed_dict=batch_test_feed_dict)
 
-                    _z = np.concatenate(tuple([self.sess.run(self.z_query, feed_dict={self.x_query: x_train_batches[i]}) for i in range(100)]), axis=0)
+                    _z = np.concatenate(tuple([self.sess.run(self.z_query, feed_dict={self.x_query: x_train_batches[i], self.dropout: 1.0}) for i in range(100)]), axis=0)
                     _zeta = self.sess.run(self.zeta)
                     _b = self.sess.run(self.y_train_one_hot, feed_dict={self.y_train: y_train})
 
                     _w = weights(_z, _b, _zeta)
 
-                    _z_test = self.sess.run(self.z_query, feed_dict={self.x_query: x_test})
+                    _z_test = self.sess.run(self.z_query, feed_dict={self.x_query: x_test, self.dropout: 1.0})
 
                     _p_test = np.dot(_z_test, _w)
 
