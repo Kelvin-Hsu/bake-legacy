@@ -143,7 +143,8 @@ class MNISTLinearKernelEmbeddingClassifier():
             batch_test_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
 
             assert self.n % 100 == 0
-            x_train_batches = np.reshape(x_train, (int(self.n / 100), 100, 28 * 28))
+            _n_batch = int(self.n / 100)
+            _x_train_batches = np.reshape(x_train, (_n_batch, 100, 28 * 28))
 
             while batch_grad_norm > grad_tol and self.training_iterations < max_iter:
 
@@ -206,7 +207,7 @@ class MNISTLinearKernelEmbeddingClassifier():
                     batch_test_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_test_feed_dict)
                     batch_test_msp = self.sess.run(self.query_msp, feed_dict=batch_test_feed_dict)
 
-                    _z = np.concatenate(tuple([self.sess.run(self.z_query, feed_dict={self.x_query: x_train_batches[i], self.dropout: 1.0}) for i in range(100)]), axis=0)
+                    _z = np.concatenate(tuple([self.sess.run(self.z_query, feed_dict={self.x_query: _x_train_batches[i], self.dropout: 1.0}) for i in range(_n_batch)]), axis=0)
                     _zeta = self.sess.run(self.zeta)
                     _b = self.sess.run(self.y_train_one_hot, feed_dict={self.y_train: y_train})
 
