@@ -142,7 +142,7 @@ class MNISTLinearKernelEmbeddingClassifier():
             batch_grad_norm = grad_tol + 1 if to_train else 0
             np.set_printoptions(precision=2)
             test_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
-            batch_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_train, self.y_query: y_train, self.dropout: dropout}
+            batch_train_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_train, self.y_query: y_train, self.dropout: dropout}
             batch_test_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
 
             _n_block = n_block
@@ -157,7 +157,7 @@ class MNISTLinearKernelEmbeddingClassifier():
                     sgd_indices = np.arange(self.training_iterations * n_sgd_batch, (self.training_iterations + 1) * n_sgd_batch) % self.n if sequential_batch else np.random.choice(self.n, n_sgd_batch, replace=False)
                     x_batch = x_train[sgd_indices]
                     y_batch = y_train[sgd_indices]
-                    batch_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: x_batch, self.y_query: y_batch, self.dropout: dropout}
+                    batch_train_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: x_batch, self.y_query: y_batch, self.dropout: dropout}
                     batch_test_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
 
                 zeta = self.sess.run(self.zeta)
@@ -168,48 +168,47 @@ class MNISTLinearKernelEmbeddingClassifier():
                 w_fc_1 = self.sess.run(self.w_fc_1)
                 b_fc_1 = self.sess.run(self.b_fc_1)
 
-                batch_acc = self.sess.run(self.query_accuracy, feed_dict=batch_feed_dict)
-                batch_cel = self.sess.run(self.query_cross_entropy_loss, feed_dict=batch_feed_dict)
-                batch_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_feed_dict)
-                batch_msp = self.sess.run(self.query_msp, feed_dict=batch_feed_dict)
-                batch_complexity = self.sess.run(self.complexity, feed_dict=batch_feed_dict)
-
-                batch_grad = self.sess.run(self.grad, feed_dict=batch_feed_dict)
-                batch_grad_norms = np.array([np.max(np.abs(grad_i)) for grad_i in batch_grad])
-                batch_grad_norm = np.max(batch_grad_norms)
-
-                print('Step %d' % self.training_iterations,
-                      '|Reg:', zeta[0],
-                      '|BC:', batch_complexity,
-                      '|BACC:', batch_acc,
-                      '|BCEL:', batch_cel,
-                      '|BCELV:', batch_cel_valid,
-                      '|BMSP:', batch_msp,
-                      '|Batch Gradient Norms:', batch_grad_norms)
-
-                np.savez('%sbatch_info_%d.npz' % (directory, self.training_iterations),
+                np.savez('%sparameter_info_%d.npz' % (directory, self.training_iterations),
                          zeta=zeta,
                          w_conv_1=w_conv_1,
                          b_conv_1=b_conv_1,
                          w_conv_2=w_conv_2,
                          b_conv_2=b_conv_2,
                          w_fc_1=w_fc_1,
-                         b_fc_1=b_fc_1,
-                         batch_acc=batch_acc,
-                         batch_cel=batch_cel,
-                         batch_cel_valid=batch_cel_valid,
-                         batch_msp=batch_msp,
-                         batch_complexity=batch_complexity,
-                         batch_grad_norms=batch_grad_norms,
-                         batch_grad_norm=batch_grad_norm)
+                         b_fc_1=b_fc_1)
 
                 # Log and save the progress every so iterations
                 if self.training_iterations % save_step == 0:
+
+                    batch_train_acc = self.sess.run(self.query_accuracy, feed_dict=batch_train_feed_dict)
+                    batch_train_cel = self.sess.run(self.query_cross_entropy_loss, feed_dict=batch_train_feed_dict)
+                    batch_train_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_train_feed_dict)
+                    batch_train_msp = self.sess.run(self.query_msp, feed_dict=batch_train_feed_dict)
+                    batch_complexity = self.sess.run(self.complexity, feed_dict=batch_train_feed_dict)
+
+                    batch_grad = self.sess.run(self.grad, feed_dict=batch_train_feed_dict)
+                    batch_grad_norms = np.array([np.max(np.abs(grad_i)) for grad_i in batch_grad])
+                    batch_grad_norm = np.max(batch_grad_norms)
+
+                    print('Step %d' % self.training_iterations,
+                          '|REG:', zeta[0],
+                          '|BC:', batch_complexity,
+                          '|BACC:', batch_train_acc,
+                          '|BCEL:', batch_train_cel,
+                          '|BCELV:', batch_train_cel_valid,
+                          '|BMSP:', batch_train_msp,
+                          '|Batch Gradient Norms:', batch_grad_norms)
 
                     batch_test_acc = self.sess.run(self.query_accuracy, feed_dict=batch_test_feed_dict)
                     batch_test_cel = self.sess.run(self.query_cross_entropy_loss, feed_dict=batch_test_feed_dict)
                     batch_test_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_test_feed_dict)
                     batch_test_msp = self.sess.run(self.query_msp, feed_dict=batch_test_feed_dict)
+
+                    print('Step %d' % self.training_iterations,
+                          '|BTACC:', batch_test_acc,
+                          '|BTCEL:', batch_test_cel,
+                          '|BTCELV:', batch_test_cel_valid,
+                          '|BTMSP:', batch_test_msp)
 
                     _z = np.concatenate(tuple([self.sess.run(self.z_query, feed_dict={self.x_query: _x_train_batches[i], self.dropout: 1.0}) for i in range(_n_batch)]), axis=0)
                     _zeta = self.sess.run(self.zeta)
@@ -236,29 +235,17 @@ class MNISTLinearKernelEmbeddingClassifier():
                     test_cel_valid = np.mean(- np.log(np.clip(_p_y_test_valid, 1e-15, np.inf)))
                     test_msp = np.mean(np.sum(_p_test, axis=1))
 
-
                     print('Step %d' % self.training_iterations,
-                          '|BTACC:', batch_test_acc,
-                          '|BTCEL:', batch_test_cel,
-                          '|BTCELV:', batch_test_cel_valid,
-                          '|BTMSP:', batch_test_msp,
                           '|TACC:', test_acc,
                           '|TCEL:', test_cel,
                           '|TCELV:', test_cel_valid,
                           '|TMSP:', test_msp)
 
-                    np.savez('%stest_info_%d.npz' % (directory, self.training_iterations),
-                             zeta=zeta,
-                             w_conv_1=w_conv_1,
-                             b_conv_1=b_conv_1,
-                             w_conv_2=w_conv_2,
-                             b_conv_2=b_conv_2,
-                             w_fc_1=w_fc_1,
-                             b_fc_1=b_fc_1,
-                             batch_acc=batch_acc,
-                             batch_cel=batch_cel,
-                             batch_cel_valid=batch_cel_valid,
-                             batch_msp=batch_msp,
+                    np.savez('%strain_test_info_%d.npz' % (directory, self.training_iterations),
+                             batch_train_acc=batch_train_acc,
+                             batch_train_cel=batch_train_cel,
+                             batch_train_cel_valid=batch_train_cel_valid,
+                             batch_train_msp=batch_train_msp,
                              batch_complexity=batch_complexity,
                              batch_grad_norms=batch_grad_norms,
                              batch_grad_norm=batch_grad_norm,
@@ -272,7 +259,7 @@ class MNISTLinearKernelEmbeddingClassifier():
                              test_msp=test_msp)
 
                 # Run a training step
-                self.sess.run(train, feed_dict=batch_feed_dict)
+                self.sess.run(train, feed_dict=batch_train_feed_dict)
                 self.training_iterations += 1
 
         return self
