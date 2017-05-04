@@ -142,6 +142,9 @@ class MNISTLinearKernelEmbeddingClassifier():
             batch_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_train, self.y_query: y_train, self.dropout: dropout}
             batch_test_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
 
+            assert self.n % 100 == 0
+            x_train_batches = np.reshape(x_train, (int(self.n / 100), 100, 28 * 28))
+
             while batch_grad_norm > grad_tol and self.training_iterations < max_iter:
 
                 # Sample the data batch for this training iteration
@@ -198,12 +201,40 @@ class MNISTLinearKernelEmbeddingClassifier():
                 # Log and save the progress every so iterations
                 if self.training_iterations % save_step == 0:
 
-                    test_acc = self.sess.run(self.query_accuracy, feed_dict=batch_test_feed_dict)
-                    test_cel = self.sess.run(self.query_cross_entropy_loss, feed_dict=batch_test_feed_dict)
-                    test_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_test_feed_dict)
-                    test_msp = self.sess.run(self.query_msp, feed_dict=batch_test_feed_dict)
+                    batch_test_acc = self.sess.run(self.query_accuracy, feed_dict=batch_test_feed_dict)
+                    batch_test_cel = self.sess.run(self.query_cross_entropy_loss, feed_dict=batch_test_feed_dict)
+                    batch_test_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_test_feed_dict)
+                    batch_test_msp = self.sess.run(self.query_msp, feed_dict=batch_test_feed_dict)
+
+                    _z = np.concatenate(tuple([self.sess.run(self.z_query, feed_dict={self.x_query: x_train_batches[i]}) for i in range(100)]), axis=0)
+                    _zeta = self.sess.run(self.zeta)
+                    _b = self.sess.run(self.y_train_one_hot, feed_dict={self.y_train: y_train})
+
+                    _w = weights(_z, _b, _zeta)
+
+                    _z_test = self.sess.run(self.z_query, feed_dict={self.x_query: x_test})
+
+                    _p_test = np.dot(_z_test, _w)
+
+                    _p_test_valid = clip_normalize(_p_test.T).T
+
+                    _y_test = classify(_p_test, classes=self.classes)
+
+                    _p_y_test = np.sum(_b * _p_test, axis=1)
+
+                    _p_y_test_valid = np.sum(_b * _p_test_valid, axis=1)
+
+                    test_acc = np.mean(_y_test == y_test.ravel())
+                    test_cel = np.mean(- np.log(np.clip(_p_y_test, 1e-15, np.inf)))
+                    test_cel_valid = np.mean(- np.log(np.clip(_p_y_test_valid, 1e-15, np.inf)))
+                    test_msp = np.mean(np.sum(_p_test, axis=1))
+
 
                     print('Step %d' % self.training_iterations,
+                          '|BTACC:', batch_test_acc,
+                          '|BTCEL:', batch_test_cel,
+                          '|BTCELV:', batch_test_cel_valid,
+                          '|BTMSP:', batch_test_msp,
                           '|TACC:', test_acc,
                           '|TCEL:', test_cel,
                           '|TCELV:', test_cel_valid,
@@ -224,6 +255,10 @@ class MNISTLinearKernelEmbeddingClassifier():
                              batch_complexity=batch_complexity,
                              batch_grad_norms=batch_grad_norms,
                              batch_grad_norm=batch_grad_norm,
+                             batch_test_acc=batch_test_acc,
+                             batch_test_cel=batch_test_cel,
+                             batch_test_cel_valid=batch_test_cel_valid,
+                             batch_test_msp=batch_test_msp,
                              test_acc=test_acc,
                              test_cel=test_cel,
                              test_cel_valid=test_cel_valid,
@@ -298,18 +333,28 @@ class MNISTLinearKernelEmbeddingClassifier():
 
         with tf.name_scope('query_cross_entropy_loss'):
 
-            # The prediction probabilities on the actual label
-            query_indices = tf.cast(tf.range(self.n_query), tf_int_type, name='query_indices')
-            self.query_p_y = tf.gather_nd(self.query_p, tf.stack([query_indices, self.y_query_indices], axis=1), name='query_p_y')
+            # # The prediction probabilities on the actual label
+            # query_indices = tf.cast(tf.range(self.n_query), tf_int_type, name='query_indices')
+            # self.query_p_y = tf.gather_nd(self.query_p, tf.stack([query_indices, self.y_query_indices], axis=1), name='query_p_y')
+            #
+            # # self.query_p_y = np.where()
+            # # The cross entropy loss over the querying data
+            # self.query_cross_entropy_loss = tf.reduce_mean(tf_info(self.query_p_y), name='query_cross_entropy_loss')
+            #
+            # # The clip-normalised valid decision probabilities on the actual label
+            # self.query_p_y_valid = tf.gather_nd(self.query_p_valid, tf.stack([query_indices, self.y_query_indices], axis=1), name='query_p_y_valid')
+            #
+            # # The valid cross entropy loss over the querying data
+            # self.query_cross_entropy_loss_valid = tf.reduce_mean(tf_info(self.query_p_y_valid), name='query_cross_entropy_loss_valid')
 
-            # self.query_p_y = np.where()
-            # The cross entropy loss over the querying data
+            y_query_one_hot = tf.cast(self.y_query_one_hot, tf_float_type)
+
+            self.query_p_y = tf.reduce_sum(tf.multiply(y_query_one_hot, self.query_p), axis=1, name='query_p_y')
+
+            self.query_p_y_valid = tf.reduce_sum(tf.multiply(y_query_one_hot, self.query_p_valid), axis=1, name='query_p_y_valid')
+
             self.query_cross_entropy_loss = tf.reduce_mean(tf_info(self.query_p_y), name='query_cross_entropy_loss')
 
-            # The clip-normalised valid decision probabilities on the actual label
-            self.query_p_y_valid = tf.gather_nd(self.query_p_valid, tf.stack([query_indices, self.y_query_indices], axis=1), name='query_p_y_valid')
-
-            # The valid cross entropy loss over the querying data
             self.query_cross_entropy_loss_valid = tf.reduce_mean(tf_info(self.query_p_y_valid), name='query_cross_entropy_loss_valid')
 
         with tf.name_scope('other'):
@@ -328,6 +373,7 @@ class MNISTLinearKernelEmbeddingClassifier():
         with tf.name_scope(name):
             return tf.sqrt(tf.reduce_sum(tf.square(self.weights)))
 
+
 def tf_info(p):
     """
     Compute information.
@@ -343,3 +389,56 @@ def tf_info(p):
         A tensor of information of the same shape as the input probabilities
     """
     return - tf.log(tf.clip_by_value(p, 1e-15, np.inf))
+
+
+from scipy.linalg import cholesky, cho_solve
+
+
+def weights(z, b, zeta):
+
+    a = np.dot(z.T, z) + z.shape[0] * zeta * np.eye(z.shape[1])
+
+    lower = True
+    l = cholesky(a, lower=lower, check_finite=True)
+    w = cho_solve((l, lower), np.dot(z.T, b), check_finite=True)
+
+    return w
+
+
+def clip_normalize(w):
+    """
+    Use the clipping method to normalize weights.
+
+    Parameters
+    ----------
+    w : numpy.ndarray
+        The conditional or posterior weight matrix (n, n_q)
+
+    Returns
+    -------
+    numpy.ndarray
+        The clip-normalized conditional or posterior weight matrix (n, n_q)
+    """
+    w_clip = np.clip(w, 0, np.inf)
+    return w_clip / np.sum(w_clip, axis=0)
+
+
+def classify(p, classes=None):
+    """
+    Classify or predict based on a discrete probability distribution.
+
+    Parameters
+    ----------
+    p : numpy.ndarray
+        Discrete probability distribution of size (n, m)
+    classes : numpy.ndarray
+        The unique class labels of size (m,) where the default is [0, 1, ..., m]
+
+    Returns
+    -------
+    numpy.ndarray
+        The classification predictions of size (n,)
+    """
+    if classes is None:
+        classes = np.arange(p.shape[1])
+    return classes[np.argmax(p, axis=1)]
