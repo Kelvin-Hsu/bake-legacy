@@ -85,7 +85,7 @@ class MNISTLinearKernelEmbeddingClassifier():
 
             with tf.name_scope('fully_connected_layer'):
                 # (n, 7 * 7 * 64)
-                h_pool_2_flat = tf.reshape(h_pool_2, [-1, tf.shape(self.w_fc_1[0])])
+                h_pool_2_flat = tf.reshape(h_pool_2, [-1, 7 * 7 * 64])
                 # (n, 1024)
                 h_fc_1 = tf.nn.relu(tf.matmul(h_pool_2_flat, self.w_fc_1) + self.b_fc_1)
 
