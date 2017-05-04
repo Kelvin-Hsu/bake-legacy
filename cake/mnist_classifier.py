@@ -219,7 +219,8 @@ class MNISTLinearKernelEmbeddingClassifier():
 
                     _p_test_valid = clip_normalize(_p_test.T).T
 
-                    _y_test = classify(_p_test, classes=self.classes)
+                    classes = self.sess.run(self.classes)
+                    _y_test = classify(_p_test, classes=classes)
 
                     _p_y_test = np.sum(_b * _p_test, axis=1)
 
