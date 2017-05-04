@@ -142,9 +142,10 @@ class MNISTLinearKernelEmbeddingClassifier():
             batch_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_train, self.y_query: y_train, self.dropout: dropout}
             batch_test_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
 
-            assert self.n % 100 == 0
-            _n_batch = int(self.n / 100)
-            _x_train_batches = np.reshape(x_train, (_n_batch, 100, 28 * 28))
+            _n_block = 1000
+            assert self.n % _n_block == 0
+            _n_batch = int(self.n / _n_block)
+            _x_train_batches = np.reshape(x_train, (_n_batch, _n_block, 28 * 28))
 
             while batch_grad_norm > grad_tol and self.training_iterations < max_iter:
 
