@@ -214,6 +214,7 @@ class MNISTLinearKernelEmbeddingClassifier():
                     _w = weights(_z, _b, _zeta)
 
                     _z_test = self.sess.run(self.z_query, feed_dict={self.x_query: x_test, self.dropout: 1.0})
+                    _b_test = self.sess.run(self.y_query_one_hot, feed_dict={self.y_query: y_test})
 
                     _p_test = np.dot(_z_test, _w)
 
@@ -222,9 +223,9 @@ class MNISTLinearKernelEmbeddingClassifier():
                     classes = self.sess.run(self.classes)
                     _y_test = classify(_p_test, classes=classes)
 
-                    _p_y_test = np.sum(_b * _p_test, axis=1)
+                    _p_y_test = np.sum(_b_test * _p_test, axis=1)
 
-                    _p_y_test_valid = np.sum(_b * _p_test_valid, axis=1)
+                    _p_y_test_valid = np.sum(_b_test * _p_test_valid, axis=1)
 
                     test_acc = np.mean(_y_test == y_test.ravel())
                     test_cel = np.mean(- np.log(np.clip(_p_y_test, 1e-15, np.inf)))
