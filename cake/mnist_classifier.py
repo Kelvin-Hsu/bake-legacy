@@ -91,6 +91,7 @@ class MNISTLinearKernelEmbeddingClassifier():
             sequential_batch=False,
             to_train=True,
             save_step=1,
+            n_block=3000,
             directory='./'):
 
         with tf.name_scope('class_data'):
@@ -144,7 +145,7 @@ class MNISTLinearKernelEmbeddingClassifier():
             batch_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_train, self.y_query: y_train, self.dropout: dropout}
             batch_test_feed_dict = {self.x_train: x_train, self.y_train: y_train, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
 
-            _n_block = 3000
+            _n_block = n_block
             assert self.n % _n_block == 0
             _n_batch = int(self.n / _n_block)
             _x_train_batches = np.reshape(x_train, (_n_batch, _n_block, 28 * 28))
