@@ -170,9 +170,9 @@ class MNISTLinearKernelEmbeddingClassifier():
 
                 if sequential_batch:
 
-                    if self.training_iterations * n_sgd_batch % self.n > epoch:
+                    if int((self.training_iterations * n_sgd_batch) / self.n) > epoch:
 
-                        epoch = self.training_iterations * n_sgd_batch % self.n
+                        epoch += 1
                         perm_indices = np.random.permutation(np.arange(self.n))
 
                     sgd_indices = np.arange(self.training_iterations * n_sgd_batch, (self.training_iterations + 1) * n_sgd_batch) % self.n
