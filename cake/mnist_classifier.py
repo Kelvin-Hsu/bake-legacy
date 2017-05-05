@@ -102,7 +102,7 @@ class MNISTLinearKernelEmbeddingClassifier():
             max_iter=60000,
             n_sgd_batch=1000,
             objective='full',
-            sequential_batch=False,
+            sequential_batch=True,
             save_step=1,
             n_block=6000,
             directory='./'):
@@ -158,13 +158,33 @@ class MNISTLinearKernelEmbeddingClassifier():
         _n_batch = int(self.n / _n_block)
         _x_train_batches = np.reshape(x_train, (_n_batch, _n_block, 28 * 28))
 
+        if sequential_batch:
+
+            epoch = 0
+            perm_indices = np.random.permutation(np.arange(self.n))
+
         while batch_grad_norm > grad_tol and self.training_iterations < max_iter:
 
             # Sample the data batch for this training iteration
             if n_sgd_batch:
-                sgd_indices = np.arange(self.training_iterations * n_sgd_batch, (self.training_iterations + 1) * n_sgd_batch) % self.n if sequential_batch else np.random.choice(self.n, n_sgd_batch, replace=False)
-                x_batch = x_train[sgd_indices]
-                y_batch = y_train[sgd_indices]
+
+                if sequential_batch:
+
+                    if self.training_iterations * n_sgd_batch % self.n > epoch:
+
+                        epoch = self.training_iterations * n_sgd_batch % self.n
+                        perm_indices = np.random.permutation(np.arange(self.n))
+
+                    sgd_indices = np.arange(self.training_iterations * n_sgd_batch, (self.training_iterations + 1) * n_sgd_batch) % self.n
+                    x_batch = x_train[perm_indices][sgd_indices]
+                    y_batch = y_train[perm_indices][sgd_indices]
+
+                else:
+
+                    sgd_indices = np.random.choice(self.n, n_sgd_batch, replace=False)
+                    x_batch = x_train[sgd_indices]
+                    y_batch = y_train[sgd_indices]
+
                 batch_train_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: x_batch, self.y_query: y_batch, self.dropout: dropout}
                 batch_test_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
 
