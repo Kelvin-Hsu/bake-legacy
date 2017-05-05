@@ -162,6 +162,7 @@ class MNISTLinearKernelEmbeddingClassifier():
 
             epoch = 0
             perm_indices = np.random.permutation(np.arange(self.n))
+            print('Epoch: %d' % epoch)
 
         while batch_grad_norm > grad_tol and self.training_iterations < max_iter:
 
@@ -174,6 +175,7 @@ class MNISTLinearKernelEmbeddingClassifier():
 
                         epoch += 1
                         perm_indices = np.random.permutation(np.arange(self.n))
+                        print('Epoch: %d' % epoch)
 
                     sgd_indices = np.arange(self.training_iterations * n_sgd_batch, (self.training_iterations + 1) * n_sgd_batch) % self.n
                     x_batch = x_train[perm_indices][sgd_indices]
