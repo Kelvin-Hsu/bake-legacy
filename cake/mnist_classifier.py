@@ -190,25 +190,26 @@ class MNISTLinearKernelEmbeddingClassifier():
                 batch_train_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: x_batch, self.y_query: y_batch, self.dropout: dropout}
                 batch_test_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: x_test, self.y_query: y_test, self.dropout: 1.0}
 
-            # Save the parameters
-            zeta = self.sess.run(self.zeta)
-            w_conv_1 = self.sess.run(self.w_conv_1)
-            b_conv_1 = self.sess.run(self.b_conv_1)
-            w_conv_2 = self.sess.run(self.w_conv_2)
-            b_conv_2 = self.sess.run(self.b_conv_2)
-            w_fc_1 = self.sess.run(self.w_fc_1)
-            b_fc_1 = self.sess.run(self.b_fc_1)
-            np.savez('%sparameter_info_%d.npz' % (directory, self.training_iterations),
-                     zeta=zeta,
-                     w_conv_1=w_conv_1,
-                     b_conv_1=b_conv_1,
-                     w_conv_2=w_conv_2,
-                     b_conv_2=b_conv_2,
-                     w_fc_1=w_fc_1,
-                     b_fc_1=b_fc_1)
-
             # Log and save the progress every so iterations
             if self.training_iterations % save_step == 0:
+
+                # Save the parameters
+                zeta = self.sess.run(self.zeta)
+                w_conv_1 = self.sess.run(self.w_conv_1)
+                b_conv_1 = self.sess.run(self.b_conv_1)
+                w_conv_2 = self.sess.run(self.w_conv_2)
+                b_conv_2 = self.sess.run(self.b_conv_2)
+                w_fc_1 = self.sess.run(self.w_fc_1)
+                b_fc_1 = self.sess.run(self.b_fc_1)
+                np.savez('%sparameter_info_%d.npz' % (
+                directory, self.training_iterations),
+                         zeta=zeta,
+                         w_conv_1=w_conv_1,
+                         b_conv_1=b_conv_1,
+                         w_conv_2=w_conv_2,
+                         b_conv_2=b_conv_2,
+                         w_fc_1=w_fc_1,
+                         b_fc_1=b_fc_1)
 
                 # Save the batch training performance
                 batch_train_acc = self.sess.run(self.query_accuracy, feed_dict=batch_train_feed_dict)
