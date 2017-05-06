@@ -134,6 +134,10 @@ class MNISTLinearKernelEmbeddingClassifier():
                 self.lagrangian = self.query_cross_entropy_loss
             elif objective == 'complexity':
                 self.lagrangian = self.complexity
+            elif objective == 'cross_entropy_loss_valid':
+                self.lagrangian = self.query_cross_entropy_loss_valid
+            elif objective == 'full_valid':
+                self.lagrangian = self.query_cross_entropy_loss_valid + self.complexity
             else:
                 raise ValueError('No such objective named %s' % objective)
 
