@@ -105,6 +105,7 @@ class MNISTLinearKernelEmbeddingClassifier():
             sequential_batch=True,
             save_step=1,
             n_block=6000,
+            config=None,
             directory='./'):
 
         with tf.name_scope('metadata'):
@@ -142,7 +143,7 @@ class MNISTLinearKernelEmbeddingClassifier():
             train = opt.minimize(self.lagrangian, var_list=self.var_list)
 
         # Run the optimisation
-        self.sess = tf.Session()
+        self.sess = tf.Session(config=config)
         self.sess.run(tf.global_variables_initializer())
         self.training_iterations = 0
         batch_grad_norm = grad_tol + 1
