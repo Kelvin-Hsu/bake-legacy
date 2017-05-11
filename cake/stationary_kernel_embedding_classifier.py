@@ -28,7 +28,7 @@ class StationaryKernelEmbeddingClassifier():
             self.log_theta = tf.Variable(np.log(np.atleast_1d(self.theta_init)).astype(np_float_type), name="log_theta")
             self.theta = tf.exp(self.log_theta, name="theta")
 
-            self.var_list = [self.theta_init, self.zeta_init]
+            self.var_list = [self.log_theta, self.log_zeta]
 
     def log_test_data(self, x_test, y_test, directory='./'):
 
@@ -77,6 +77,22 @@ class StationaryKernelEmbeddingClassifier():
                   'test_msp': test_msp,
                   'grad_norms': grad_norms}
 
+        print('Step %d' % self.step,
+              '|REG:', zeta[0],
+              '|THETA: ', theta,
+              '|BC:', complexity,
+              '|BACC:', train_acc,
+              '|BCEL:', train_cel,
+              '|BCELV:', train_cel_valid,
+              '|BMSP:', train_msp,
+              '|Batch Gradient Norms:', grad_norms)
+
+        print('Step %d' % self.step,
+              '|BTACC:', test_acc,
+              '|BTCEL:', test_cel,
+              '|BTCELV:', test_cel_valid,
+              '|BTMSP:', test_msp)
+
         np.savez('%sresults_%d.npz' % (self.directory, self.step), **result)
 
     def kernel(self, x_p, x_q, name=None):
@@ -114,7 +130,8 @@ class StationaryKernelEmbeddingClassifier():
 
             self.lagrangian = self.objective
             self.grad = tf.gradients(self.lagrangian, self.var_list)
-            train_step = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(self.lagrangian, var_list=self.var_list)
+            opt = tf.train.AdamOptimizer(learning_rate=learning_rate)
+            train_step = opt.minimize(self.lagrangian, var_list=self.var_list)
 
         # Run the optimisation
         self.sess = tf.Session()
@@ -195,7 +212,7 @@ class StationaryKernelEmbeddingClassifier():
             self.v = tf.cholesky_solve(self.chol_k_reg, y, name='v')
             self.p = tf.matmul(self.k, self.v, name='p')
             # Extra
-            self.p_valid = tf.transpose(_clip_normalize(tf.transpose(self.query_p)), name='p_valid')
+            self.p_valid = tf.transpose(_clip_normalize(tf.transpose(self.p)), name='p_valid')
 
         with tf.name_scope('core_cross_entropy_loss'):
 
@@ -212,7 +229,8 @@ class StationaryKernelEmbeddingClassifier():
 
         with tf.name_scope('objective'):
 
-            self.objective = tf.add(self.cross_entropy_loss, tf.multiply(4 * np.exp(1), self.complexity))
+            const = tf.cast(tf.constant(4. * np.exp(1.)), tf_float_type)
+            self.objective = tf.add(self.cross_entropy_loss, tf.multiply(const, self.complexity))
 
         with tf.name_scope('core_predictions'):
 
@@ -283,7 +301,7 @@ def tf_label_prob(y, p, name=None):
 def tf_info(p, eps=1e-15, name=None):
 
     with tf.name_scope(name):
-        return - tf.log(tf.clip_by_value(p, eps, 1))
+        return tf.reduce_sum(- tf.log(tf.clip_by_value(p, eps, 1)))
 
 def tf_accuracy(y_true, y_pred, name=None):
 
