@@ -12,88 +12,34 @@ from .data_type_def import *
 
 class StationaryKernelEmbeddingClassifier():
 
-    def __init__(self, kernel=_s_gaussian):
+    def __init__(self, kernel=_s_gaussian, learning_objective='er+rcb', learning_rate=0.1):
 
         self.out_kernel = kernel
+        self.learning_objective = learning_objective
+        self.learning_rate = learning_rate
+        self.setup = False
+        self.has_test_data = False
 
     def initialise_parameters(self, theta, zeta):
 
         with tf.name_scope('parameters'):
 
             self.zeta_init = zeta
-            self.log_zeta = tf.Variable(np.log(np.atleast_1d(self.zeta_init)).astype(np_float_type), name="log_zeta")
+            log_zeta = np.log(np.atleast_1d(self.zeta_init)).astype(np_float_type)
+            self.log_zeta = tf.Variable(log_zeta, name="log_zeta")
             self.zeta = tf.exp(self.log_zeta, name="zeta")
 
             self.theta_init = theta
-            self.log_theta = tf.Variable(np.log(np.atleast_1d(self.theta_init)).astype(np_float_type), name="log_theta")
+            log_theta = np.log(np.atleast_1d(self.theta_init)).astype(np_float_type)
+            self.log_theta = tf.Variable(log_theta, name="log_theta")
             self.theta = tf.exp(self.log_theta, name="theta")
 
             self.var_list = [self.log_theta, self.log_zeta]
-
-    def log_test_data(self, x_test, y_test, directory='./'):
-
-        self.x_test_data = x_test
-        self.y_test_data = y_test
-        self.directory = directory
 
     def features(self, x, name='features'):
 
         with tf.name_scope(name):
             return x
-
-    def _log_status(self, x_batch, y_batch):
-
-        theta = self.sess.run(self.theta)
-        zeta = self.sess.run(self.zeta)
-
-        batch_feed_dict = {self.x_train: x_batch, self.y_train: y_batch}
-        batch_test_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: self.x_test_data, self.y_query: self.y_test_data}
-
-        train_acc = self.sess.run(self.accuracy, feed_dict=batch_feed_dict)
-        train_cel = self.sess.run(self.cross_entropy_loss, feed_dict=batch_feed_dict)
-        train_cel_valid = self.sess.run(self.cross_entropy_loss_valid, feed_dict=batch_feed_dict)
-        train_msp = self.sess.run(self.msp, feed_dict=batch_feed_dict)
-        complexity = self.sess.run(self.complexity, feed_dict=batch_feed_dict)
-
-        test_acc = self.sess.run(self.query_accuracy, feed_dict=batch_test_feed_dict)
-        test_cel = self.sess.run(self.query_cross_entropy_loss, feed_dict=batch_test_feed_dict)
-        test_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_test_feed_dict)
-        test_msp = self.sess.run(self.query_msp, feed_dict=batch_test_feed_dict)
-
-        grad = self.sess.run(self.grad, feed_dict=batch_feed_dict)
-        grad_norms = compute_grad_norms(grad)
-
-        result = {'step': self.step,
-                  'theta': theta,
-                  'zeta': zeta,
-                  'train_acc': train_acc,
-                  'train_cel': train_cel,
-                  'train_cel_valid': train_cel_valid,
-                  'train_msp': train_msp,
-                  'complexity': complexity,
-                  'test_acc': test_acc,
-                  'test_cel': test_cel,
-                  'test_cel_valid': test_cel_valid,
-                  'test_msp': test_msp,
-                  'grad_norms': grad_norms}
-
-        print('Step %d' % self.step,
-              '|REG:', zeta[0],
-              '|THETA: ', theta,
-              '|BC:', complexity,
-              '|BACC:', train_acc,
-              '|BCEL:', train_cel,
-              '|BCELV:', train_cel_valid,
-              '|BMSP:', train_msp,
-              '|Batch Gradient Norms:', grad_norms)
-
-        print('Step %d' % self.step,
-              '|BTACC:', test_acc,
-              '|BTCEL:', test_cel,
-              '|BTCELV:', test_cel_valid,
-              '|BTMSP:', test_msp)
-
-        np.savez('%sresults_%d.npz' % (self.directory, self.step), **result)
 
     def kernel(self, x_p, x_q, name=None):
 
@@ -101,45 +47,15 @@ class StationaryKernelEmbeddingClassifier():
             return self.out_kernel(self.features(x_p), self.features(x_q), self.theta)
 
     def fit(self, x_train, y_train,
-            learning_rate=0.1,
             max_iter=1000,
             n_sgd_batch=None,
             sequential_batch=False,
-            learning_objective='er+rcb',
             save_step=10,
-            log_all=False):
-
-        with tf.name_scope('metadata'):
-
-            classes = np.unique(y_train)
-            class_indices = np.arange(classes.shape[0])
-            self.classes = tf.cast(tf.constant(classes), tf_float_type, name='classes')
-            self.class_indices = tf.cast(tf.constant(class_indices), tf_int_type, name='class_indices')
-            self.n_classes = classes.shape[0]
-            self.n = x_train.shape[0]
-            self.d = x_train.shape[1]
-
-        with tf.name_scope('core_graph'):
-
-            self._setup_core_graph()
-
-        with tf.name_scope('query_graph'):
-
-            self._setup_query_graph()
-
-        with tf.name_scope('optimisation'):
-
-            if learning_objective == 'er+rcb':
-                self.lagrangian = self.objective
-            elif learning_objective == 'er':
-                self.lagrangian = self.cross_entropy_loss
-            elif learning_objective == 'rcb':
-                self.lagrangian = self.complexity
-            else:
-                raise ValueError('No learning objective named "%s"' % learning_objective)
-            self.grad = tf.gradients(self.lagrangian, self.var_list)
-            opt = tf.train.AdamOptimizer(learning_rate=learning_rate)
-            train_step = opt.minimize(self.lagrangian, var_list=self.var_list)
+            log_all=False,
+            directory=None):
+        if not self.setup:
+            self._setup_graph(x_train, y_train)
+        self.directory = directory
 
         # Run the optimisation
         self.sess = tf.Session()
@@ -177,17 +93,119 @@ class StationaryKernelEmbeddingClassifier():
 
             # Save status
             if self.step % save_step == 0:
-
                 if log_all:
                     self._log_status(x_train, y_train)
                 else:
                     self._log_status(x_batch, y_batch)
 
             # Run a training step
-            self.sess.run(train_step, feed_dict=self.batch_train_feed_dict)
+            self.sess.run(self.train_step, feed_dict=self.batch_train_feed_dict)
             self.step += 1
 
         return self
+
+    def log_test_data(self, x_test, y_test):
+
+        self.x_test_data = x_test
+        self.y_test_data = y_test
+        self.has_test_data = True
+
+    def _log_status(self, x_batch, y_batch):
+
+        theta = self.sess.run(self.theta)
+        zeta = self.sess.run(self.zeta)
+
+        batch_feed_dict = {self.x_train: x_batch, self.y_train: y_batch}
+
+        train_acc = self.sess.run(self.accuracy, feed_dict=batch_feed_dict)
+        train_cel = self.sess.run(self.cross_entropy_loss, feed_dict=batch_feed_dict)
+        train_cel_valid = self.sess.run(self.cross_entropy_loss_valid, feed_dict=batch_feed_dict)
+        train_msp = self.sess.run(self.msp, feed_dict=batch_feed_dict)
+        complexity = self.sess.run(self.complexity, feed_dict=batch_feed_dict)
+
+        grad = self.sess.run(self.grad, feed_dict=batch_feed_dict)
+        grad_norms = compute_grad_norms(grad)
+
+        result = {'step': self.step,
+                  'theta': theta,
+                  'zeta': zeta,
+                  'train_acc': train_acc,
+                  'train_cel': train_cel,
+                  'train_cel_valid': train_cel_valid,
+                  'train_msp': train_msp,
+                  'complexity': complexity,
+                  'grad_norms': grad_norms}
+
+        print('Step %d' % self.step,
+              '|REG:', zeta[0],
+              '|THETA: ', theta,
+              '|BC:', complexity,
+              '|BACC:', train_acc,
+              '|BCEL:', train_cel,
+              '|BCELV:', train_cel_valid,
+              '|BMSP:', train_msp,
+              '|Batch Gradient Norms:', grad_norms)
+
+        if self.has_test_data:
+
+            batch_test_feed_dict = {self.x_train: x_batch, self.y_train: y_batch, self.x_query: self.x_test_data, self.y_query: self.y_test_data}
+            test_acc = self.sess.run(self.query_accuracy, feed_dict=batch_test_feed_dict)
+            test_cel = self.sess.run(self.query_cross_entropy_loss, feed_dict=batch_test_feed_dict)
+            test_cel_valid = self.sess.run(self.query_cross_entropy_loss_valid, feed_dict=batch_test_feed_dict)
+            test_msp = self.sess.run(self.query_msp, feed_dict=batch_test_feed_dict)
+
+            result.update({'test_acc': test_acc,
+                           'test_cel': test_cel,
+                           'test_cel_valid': test_cel_valid,
+                           'test_msp': test_msp})
+
+            print('Step %d' % self.step,
+                  '|BTACC:', test_acc,
+                  '|BTCEL:', test_cel,
+                  '|BTCELV:', test_cel_valid,
+                  '|BTMSP:', test_msp)
+
+        if self.directory is not None:
+            np.savez('%sresults_%d.npz' % (self.directory, self.step), **result)
+
+    def _setup_graph(self, x_train, y_train):
+
+        with tf.name_scope('metadata'):
+
+            classes = np.unique(y_train)
+            class_indices = np.arange(classes.shape[0])
+            self.classes = tf.cast(tf.constant(classes), tf_float_type,
+                                   name='classes')
+            self.class_indices = tf.cast(tf.constant(class_indices),
+                                         tf_int_type, name='class_indices')
+            self.n_classes = classes.shape[0]
+            self.n = x_train.shape[0]
+            self.d = x_train.shape[1]
+
+        with tf.name_scope('core_graph'):
+
+            self._setup_core_graph()
+
+        with tf.name_scope('query_graph'):
+
+            self._setup_query_graph()
+
+        with tf.name_scope('optimisation'):
+
+            if self.learning_objective == 'er+rcb':
+                self.lagrangian = self.objective
+            elif self.learning_objective == 'er':
+                self.lagrangian = self.cross_entropy_loss
+            elif self.learning_objective == 'rcb':
+                self.lagrangian = self.complexity
+            else:
+                raise ValueError(
+                    'No learning objective named "%s"' % self.learning_objective)
+            self.grad = tf.gradients(self.lagrangian, self.var_list)
+            opt = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+            self.train_step = opt.minimize(self.lagrangian, var_list=self.var_list)
+
+        self.setup = True
 
     def _setup_core_graph(self):
 
@@ -300,6 +318,7 @@ def compute_grad_norms(grad):
 
     return np.array([np.max(np.abs(grad_i)) for grad_i in grad])
 
+
 def tf_label_prob(y, p, name=None):
 
     with tf.name_scope(name):
@@ -310,6 +329,7 @@ def tf_info(p, eps=1e-15, name=None):
 
     with tf.name_scope(name):
         return tf.reduce_sum(- tf.log(tf.clip_by_value(p, eps, 1)))
+
 
 def tf_accuracy(y_true, y_pred, name=None):
 
