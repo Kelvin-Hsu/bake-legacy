@@ -41,13 +41,17 @@ def run_experiment(x_train, y_train, x_test, y_test,
     kec.log_test_data(x_test, y_test)
     kec.log_directory(full_directory)
     kec.initialise_parameters(theta_init, zeta_init)
-    kec.fit(x_train, y_train,
-            max_iter=max_iter,
-            n_sgd_batch=n_sgd_batch,
-            sequential_batch=sequential_batch,
-            save_step=save_step,
-            log_all=log_all)
+    try:
+        kec.fit(x_train, y_train,
+                max_iter=max_iter,
+                n_sgd_batch=n_sgd_batch,
+                sequential_batch=sequential_batch,
+                save_step=save_step,
+                log_all=log_all)
+    except:
+        pass
     kec.sess.close()
+    total_steps = kec.step
 
     config = {'x_train': x_train,
               'y_train': y_train,
@@ -95,7 +99,8 @@ def run_experiment(x_train, y_train, x_test, y_test,
                    'train_acc', 'train_cel', 'train_cel_valid', 'train_msp',
                    'test_acc', 'test_cel', 'test_cel_valid', 'test_msp']
 
-    result = np.load('%sresults_%d.npz' % (full_directory, max_iter - 1))
+    result = np.load('%sresults_%d.npz' % (full_directory, total_steps))
+    f.write('Iterations Completed: %d' % total_steps)
     for key in result_keys:
         quantity = result[key]
         if isinstance(quantity, np.ndarray):
@@ -111,10 +116,10 @@ def run_experiment(x_train, y_train, x_test, y_test,
                 f.write('%s: %s\n' % (key, str(quantity)))
     f.close()
 
-    return full_directory
+    return full_directory, total_steps
 
 
-def run_cross_val_experiment(x, y, k=10,
+def run_cross_val_experiment(x, y, k=10, seed=0,
                              name='stationary_experiment',
                              learning_objective='er+rcb',
                              learning_rate=0.1,
@@ -126,7 +131,7 @@ def run_cross_val_experiment(x, y, k=10,
                              save_step=10,
                              log_all=False):
 
-    np.random.seed(0)
+    np.random.seed(seed)
     n = x.shape[0]
     perm_indices = np.random.permutation(np.arange(n))
     x_perm = x[perm_indices]
@@ -144,19 +149,19 @@ def run_cross_val_experiment(x, y, k=10,
 
         fold_name = name + ('_fold_%d' % i)
 
-        fold_directory = run_experiment(x_train, y_train, x_test, y_test,
-                                        name=fold_name,
-                                        learning_objective=learning_objective,
-                                        learning_rate=learning_rate,
-                                        theta_init=theta_init,
-                                        zeta_init=zeta_init,
-                                        max_iter=max_iter,
-                                        n_sgd_batch=n_sgd_batch,
-                                        sequential_batch=sequential_batch,
-                                        save_step=save_step,
-                                        log_all=log_all)
+        fold_directory, total_steps = run_experiment(x_train, y_train, x_test, y_test,
+                                                     name=fold_name,
+                                                     learning_objective=learning_objective,
+                                                     learning_rate=learning_rate,
+                                                     theta_init=theta_init,
+                                                     zeta_init=zeta_init,
+                                                     max_iter=max_iter,
+                                                     n_sgd_batch=n_sgd_batch,
+                                                     sequential_batch=sequential_batch,
+                                                     save_step=save_step,
+                                                     log_all=log_all)
 
-        result = np.load('%sresults_%d.npz' % (fold_directory, max_iter - 1))
+        result = np.load('%sresults_%d.npz' % (fold_directory, total_steps))
         results.append(result)
 
     ### SAVE RESULT INTO A FILE
