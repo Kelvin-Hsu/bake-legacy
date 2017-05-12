@@ -211,6 +211,7 @@ def run_cross_val_experiment(x, y, k=10,
                 f.write('%s: %s\n' % (key, str(quantity)))
     f.close()
 
+
 def load_train_test_data(name, normalize_features=True):
     """
     Load the dataset.
@@ -280,3 +281,13 @@ def load_all_data(name, normalize_features=True):
     y = data['y'][:, np.newaxis]
     class_names = data['class_names']
     return x, y, class_names
+
+
+def parse(key, currentvalue, arg=1):
+
+    cast = type(currentvalue)
+    if key in sys.argv:
+        if cast == bool:
+            return not currentvalue
+        currentvalue = sys.argv[sys.argv.index(key) + arg]
+    return cast(currentvalue)
