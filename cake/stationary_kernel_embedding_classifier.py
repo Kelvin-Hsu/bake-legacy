@@ -19,6 +19,7 @@ class StationaryKernelEmbeddingClassifier():
         self.learning_rate = learning_rate
         self.setup = False
         self.has_test_data = False
+        self.directory = None
 
     def initialise_parameters(self, theta, zeta):
 
@@ -51,11 +52,9 @@ class StationaryKernelEmbeddingClassifier():
             n_sgd_batch=None,
             sequential_batch=False,
             save_step=10,
-            log_all=False,
-            directory=None):
+            log_all=False):
         if not self.setup:
             self._setup_graph(x_train, y_train)
-        self.directory = directory
 
         # Run the optimisation
         self.sess = tf.Session()
@@ -109,6 +108,10 @@ class StationaryKernelEmbeddingClassifier():
         self.x_test_data = x_test
         self.y_test_data = y_test
         self.has_test_data = True
+
+    def log_directory(self, directory):
+
+        self.directory = directory
 
     def _log_status(self, x_batch, y_batch):
 
