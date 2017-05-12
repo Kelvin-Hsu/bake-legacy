@@ -1,6 +1,5 @@
 import numpy as np
-import datetime
-import os
+import os, sys, datetime
 from cake import StationaryKernelEmbeddingClassifier
 
 
@@ -100,7 +99,7 @@ def run_experiment(x_train, y_train, x_test, y_test,
     for key in result_keys:
         quantity = result[key]
         if isinstance(quantity, np.ndarray):
-            f.write('%s: %s\n' % (key, np.array_str(quantity, precision=8)))
+            f.write('%s: %s\n' % (key, np.array_str(quantity, precision=8).replace('\n', '')))
         elif isinstance(quantity, bool):
             f.write('%s: %s\n' % (key, str(quantity)))
         elif isinstance(quantity, int):
@@ -161,26 +160,15 @@ def run_cross_val_experiment(x, y, k=10,
         results.append(result)
 
     ### SAVE RESULT INTO A FILE
-
     result_keys = ['complexity',
                    'train_acc', 'train_cel', 'train_cel_valid', 'train_msp',
                    'test_acc', 'test_cel', 'test_cel_valid', 'test_msp']
 
-    result_average_values = np.zeros(len(result_keys))
+    result_all_values = np.zeros(k, len(result_keys))
 
     for i, result in enumerate(results):
-
         for j, key in enumerate(result_keys):
-
-            result_average_values[j] += result[key]
-
-    result_average_values /= k
-
-    average_result = {}
-
-    for j, key in enumerate(result_keys):
-
-        average_result.update({key: result_average_values[j]})
+            result_all_values[i, j] = result[key]
 
     now = datetime.datetime.now()
     now_string = '_%s_%s_%s_%s_%s_%s' % (now.year, now.month, now.day,
@@ -188,27 +176,28 @@ def run_cross_val_experiment(x, y, k=10,
 
     full_directory = './%s_average_%s/' % (name, now_string)
     os.mkdir(full_directory)
-    np.savez('%saverage_result.npz' % full_directory, **average_result)
+    np.savez('%saverage_results.npz' % full_directory,
+             result_keys=np.array(result_keys),
+             result_all_values=result_all_values)
 
-    ### LOAD THAT AND DISPLAY AS A TXT FILE
+    ### DISPLAY AS A TEXT FILE
+    f = open('%sresults.txt' % full_directory, 'w')
+    mean_values = np.mean(result_all_values, axis=0)
+    std_values = np.std(result_all_values, axis=0)
+    for j, key in enumerate(result_keys):
+        sample_values = result_all_values[:, j]
+        f.write('%s: %s\n' % (key, np.array_str(np.array_str(sample_values, precision=8).replace('\n', ''), precision=8)))
 
-    f = open('%saverage_results.txt' % full_directory, 'w')
-    f.write('Final Results:\n')
+    f.write('\n\n-----\n\n')
+    f.write('Average:')
+    for j, key in enumerate(result_keys):
+        f.write('%s: %.8f\n' % (key, mean_values[j]))
 
-    result = np.load('%saverage_result.npz' % full_directory)
-    for key in result_keys:
-        quantity = result[key]
-        if isinstance(quantity, np.ndarray):
-            f.write('%s: %s\n' % (key, np.array_str(quantity, precision=8)))
-        elif isinstance(quantity, bool):
-            f.write('%s: %s\n' % (key, str(quantity)))
-        elif isinstance(quantity, int):
-            f.write('%s: %d\n' % (key, quantity))
-        else:
-            try:
-                f.write('%s: %f\n' % (key, quantity))
-            except:
-                f.write('%s: %s\n' % (key, str(quantity)))
+    f.write('\n\n-----\n\n')
+    f.write('Standard Deviation:')
+    for j, key in enumerate(result_keys):
+        f.write('%s: %.8f\n' % (key, std_values[j]))
+
     f.close()
 
 
