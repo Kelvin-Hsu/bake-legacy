@@ -105,6 +105,7 @@ class StationaryKernelEmbeddingClassifier():
             max_iter=1000,
             n_sgd_batch=None,
             sequential_batch=False,
+            learning_objective='er+rcb',
             save_step=10,
             log_all=False):
 
@@ -128,7 +129,14 @@ class StationaryKernelEmbeddingClassifier():
 
         with tf.name_scope('optimisation'):
 
-            self.lagrangian = self.objective
+            if learning_objective == 'er+rcb':
+                self.lagrangian = self.objective
+            elif learning_objective == 'er':
+                self.lagrangian = self.cross_entropy_loss
+            elif learning_objective == 'rcb':
+                self.lagrangian = self.complexity
+            else:
+                raise ValueError('No learning objective named "%s"' % learning_objective)
             self.grad = tf.gradients(self.lagrangian, self.var_list)
             opt = tf.train.AdamOptimizer(learning_rate=learning_rate)
             train_step = opt.minimize(self.lagrangian, var_list=self.var_list)
