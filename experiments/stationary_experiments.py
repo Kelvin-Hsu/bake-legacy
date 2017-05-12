@@ -164,7 +164,7 @@ def run_cross_val_experiment(x, y, k=10,
                    'train_acc', 'train_cel', 'train_cel_valid', 'train_msp',
                    'test_acc', 'test_cel', 'test_cel_valid', 'test_msp']
 
-    result_all_values = np.zeros(k, len(result_keys))
+    result_all_values = np.zeros((k, len(result_keys)))
 
     for i, result in enumerate(results):
         for j, key in enumerate(result_keys):
@@ -186,15 +186,15 @@ def run_cross_val_experiment(x, y, k=10,
     std_values = np.std(result_all_values, axis=0)
     for j, key in enumerate(result_keys):
         sample_values = result_all_values[:, j]
-        f.write('%s: %s\n' % (key, np.array_str(np.array_str(sample_values, precision=8).replace('\n', ''), precision=8)))
+        f.write('%s: %s\n' % (key, np.array_str(sample_values, precision=8).replace('\n', '')))
 
     f.write('\n\n-----\n\n')
-    f.write('Average:')
+    f.write('Average:\n')
     for j, key in enumerate(result_keys):
         f.write('%s: %.8f\n' % (key, mean_values[j]))
 
     f.write('\n\n-----\n\n')
-    f.write('Standard Deviation:')
+    f.write('Standard Deviation:\n')
     for j, key in enumerate(result_keys):
         f.write('%s: %.8f\n' % (key, std_values[j]))
 
