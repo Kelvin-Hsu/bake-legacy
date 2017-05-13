@@ -11,19 +11,17 @@ from .data_type_def import *
 
 class NeuralEmbeddingClassifier():
 
-    def __init__(self, n_dim=2, n_class=3, learning_objective='er+rcb', learning_rate=0.1, n_layer=2, hidden_units=[20, 10]):
+    def __init__(self, n_dim=2, n_class=3, learning_objective='er+rcb', learning_rate=0.1, hidden_units=[20, 10]):
 
         self.n_dim = n_dim
         self.n_class = n_class
         self.learning_objective = learning_objective
         self.learning_rate = learning_rate
-        self.n_layer = n_layer
+        self.n_layer = len(hidden_units)
         self.hidden_units = np.array(hidden_units)
         self.setup = False
         self.has_test_data = False
         self.directory = None
-
-        assert len(hidden_units) == n_layer
 
     def initialise_parameters(self, zeta=0.1, weights_std=0.1, biases=0.1, seed=0):
 
