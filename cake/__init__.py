@@ -1,3 +1,4 @@
 from . import kernels
 from .base_classifier import KernelEmbeddingClassifier
 from .stationary_kernel_embedding_classifier import StationaryKernelEmbeddingClassifier
+from .neural_embedding_classifier import NeuralEmbeddingClassifier

@@ -6,22 +6,26 @@ import numpy as np
 from .infer import clip_normalize as _clip_normalize
 from .infer import classify as _classify
 from .infer import decode_one_hot as _decode_one_hot
-from .kernels import s_gaussian as _s_gaussian
 from .data_type_def import *
 
 
-class StationaryKernelEmbeddingClassifier():
+class NeuralEmbeddingClassifier():
 
-    def __init__(self, kernel=_s_gaussian, learning_objective='er+rcb', learning_rate=0.1):
+    def __init__(self, n_dim=2, n_class=3, learning_objective='er+rcb', learning_rate=0.1, n_layer=2, hidden_units=[20, 10]):
 
-        self.out_kernel = kernel
+        self.n_dim = n_dim
+        self.n_class = n_class
         self.learning_objective = learning_objective
         self.learning_rate = learning_rate
+        self.n_layer = n_layer
+        self.hidden_units = np.array(hidden_units)
         self.setup = False
         self.has_test_data = False
         self.directory = None
 
-    def initialise_parameters(self, theta, zeta):
+        assert len(hidden_units) == n_layer
+
+    def initialise_parameters(self, zeta=0.1, weights_std=0.1, biases=0.1, seed=0):
 
         with tf.name_scope('parameters'):
 
@@ -30,22 +34,45 @@ class StationaryKernelEmbeddingClassifier():
             self.log_zeta = tf.Variable(log_zeta, name="log_zeta")
             self.zeta = tf.exp(self.log_zeta, name="zeta")
 
-            self.theta_init = theta
-            log_theta = np.log(np.atleast_1d(self.theta_init)).astype(np_float_type)
-            self.log_theta = tf.Variable(log_theta, name="log_theta")
-            self.theta = tf.exp(self.log_theta, name="theta")
+            self.weight_list = []
+            self.bias_list = []
 
-            self.var_list = [self.log_theta, self.log_zeta]
+            weights_std = weights_std * np.ones(self.n_layer)
+            biases = biases * np.ones(self.n_layer)
+
+            tf.set_random_seed(seed)
+            old_hidden_dim = self.n_dim
+            for l in range(self.n_layer):
+                new_hidden_dim = self.hidden_units[l]
+                self.weight_list.append(weight_variable([old_hidden_dim, new_hidden_dim], std=weights_std[l], name='weight_%d' % l))
+                self.bias_list.append(bias_variable([new_hidden_dim], bias=biases[l], name='bias_%d' % l))
+                old_hidden_dim = new_hidden_dim
+
+            alpha = tf.sqrt(tf.cast(self.n_dim, tf_float_type))
+            for l in range(self.n_layer):
+                weight_norm = tf.sqrt(tf.reduce_sum(tf.square(self.weight_list[l])))
+                bias_norm = tf.sqrt(tf.reduce_sum(tf.square(self.bias_list[l])))
+                alpha = tf.multiply(weight_norm, alpha) + bias_norm
+            self.alpha = alpha
+
+            self.var_list = [self.log_zeta] + self.weight_list + self.bias_list
+
+        if not self.setup:
+            self._setup_graph(self.n_dim, self.n_class)
 
     def features(self, x, name='features'):
 
         with tf.name_scope(name):
-            return x
+
+            h = x
+            for l in range(self.n_layer):
+                h = perceptron(h, self.weight_list[l], self.bias_list[l])
+            return h
 
     def kernel(self, x_p, x_q, name=None):
 
         with tf.name_scope(name):
-            return self.out_kernel(self.features(x_p), self.features(x_q), self.theta)
+            return tf.matmul(self.features(x_p), tf.transpose(self.features(x_q)))
 
     def fit(self, x_train, y_train,
             max_iter=1000,
@@ -53,9 +80,6 @@ class StationaryKernelEmbeddingClassifier():
             sequential_batch=False,
             save_step=10,
             log_all=False):
-        if not self.setup:
-            self._setup_graph(x_train, y_train)
-
         # Run the optimisation
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
@@ -65,8 +89,9 @@ class StationaryKernelEmbeddingClassifier():
         print('Starting Training')
         print('Batch size for stochastic gradient descent: %d' % n_sgd_batch) if n_sgd_batch else print('Using full dataset for gradient descent')
 
+        n = x_train.shape[0]
         epoch = 0
-        perm_indices = np.random.permutation(np.arange(self.n))
+        perm_indices = np.random.permutation(np.arange(n))
         print('Epoch: %d' % epoch)
 
         while self.step < max_iter:
@@ -74,15 +99,15 @@ class StationaryKernelEmbeddingClassifier():
             # Sample batch data
             if n_sgd_batch:
                 if sequential_batch:
-                    if int((self.step * n_sgd_batch) / self.n) > epoch:
+                    if int((self.step * n_sgd_batch) / n) > epoch:
                         epoch += 1
-                        perm_indices = np.random.permutation(np.arange(self.n))
+                        perm_indices = np.random.permutation(np.arange(n))
                         print('Epoch: %d' % epoch)
-                    sgd_indices = np.arange(self.step * n_sgd_batch, (self.step + 1) * n_sgd_batch) % self.n
+                    sgd_indices = np.arange(self.step * n_sgd_batch, (self.step + 1) * n_sgd_batch) % n
                     x_batch = x_train[perm_indices][sgd_indices]
                     y_batch = y_train[perm_indices][sgd_indices]
                 else:
-                    sgd_indices = np.random.choice(self.n, n_sgd_batch, replace=False)
+                    sgd_indices = np.random.choice(n, n_sgd_batch, replace=False)
                     x_batch = x_train[sgd_indices]
                     y_batch = y_train[sgd_indices]
                 self.batch_train_feed_dict = {self.x_train: x_batch, self.y_train: y_batch}
@@ -115,8 +140,10 @@ class StationaryKernelEmbeddingClassifier():
 
     def _log_status(self, x_batch, y_batch):
 
-        theta = self.sess.run(self.theta)
         zeta = self.sess.run(self.zeta)
+
+        weights = [self.sess.run(w) for w in self.weight_list]
+        biases = [self.sess.run(b) for b in self.bias_list]
 
         batch_feed_dict = {self.x_train: x_batch, self.y_train: y_batch}
 
@@ -130,8 +157,9 @@ class StationaryKernelEmbeddingClassifier():
         grad_norms = compute_grad_norms(grad)
 
         result = {'step': self.step,
-                  'theta': theta,
                   'zeta': zeta,
+                  'weights': weights,
+                  'bias': biases,
                   'train_acc': train_acc,
                   'train_cel': train_cel,
                   'train_cel_valid': train_cel_valid,
@@ -141,7 +169,8 @@ class StationaryKernelEmbeddingClassifier():
 
         print('Step %d' % self.step,
               '|REG:', zeta[0],
-              '|THETA: ', theta,
+              '|W_NORM:', np.max([np.max(w) for w in weights]),
+              '|B_NORM:', np.max([np.max(b) for b in biases]),
               '|BC:', complexity,
               '|BACC:', train_acc,
               '|BCEL:', train_cel,
@@ -172,19 +201,13 @@ class StationaryKernelEmbeddingClassifier():
             np.savez('%sresults_%d.npz' % (self.directory, self.step), **result)
             self.save_step = self.step
 
-    def _setup_graph(self, x_train, y_train):
+    def _setup_graph(self, n_dim, n_class):
 
         with tf.name_scope('metadata'):
 
-            classes = np.unique(y_train)
-            class_indices = np.arange(classes.shape[0])
-            self.classes = tf.cast(tf.constant(classes), tf_float_type,
-                                   name='classes')
-            self.class_indices = tf.cast(tf.constant(class_indices),
-                                         tf_int_type, name='class_indices')
-            self.n_classes = classes.shape[0]
-            self.n = x_train.shape[0]
-            self.d = x_train.shape[1]
+            self.n_class = n_class
+            self.n_dim = n_dim
+            self.classes = tf.cast(tf.constant(np.arange(n_class)), tf_float_type, name='classes')
 
         with tf.name_scope('core_graph'):
 
@@ -215,7 +238,7 @@ class StationaryKernelEmbeddingClassifier():
 
         with tf.name_scope('train_data'):
 
-            self.x_train = tf.placeholder(tf_float_type, shape=[None, self.d], name='x_train')
+            self.x_train = tf.placeholder(tf_float_type, shape=[None, self.n_dim], name='x_train')
             self.y_train = tf.placeholder(tf_float_type, shape=[None, 1], name='y_train')
             self.n_train = tf.shape(self.x_train)[0]
             self.y_train_one_hot = tf.equal(self.y_train, self.classes, name='y_train_one_hot')
@@ -227,20 +250,24 @@ class StationaryKernelEmbeddingClassifier():
 
         with tf.name_scope('regularisation_matrix'):
 
-            i = tf.cast(tf.eye(self.n_train), tf_float_type, name='i')
+            i = tf.cast(tf.eye(tf.shape(self.z_train)[1]), tf_float_type, name='i')
             reg = tf.multiply(tf.cast(self.n_train, tf_float_type), tf.multiply(self.zeta, i), name='reg')
 
-        with tf.name_scope('gram_matrix'):
+        with tf.name_scope('scatter_matrix'):
 
-            self.k = self.kernel(self.x_train, self.x_train, name='k')
-            self.k_reg = tf.add(self.k, reg, name='k_reg')
-            self.chol_k_reg = tf.cholesky(self.k_reg, name='chol_k_reg')
+            zt = tf.transpose(self.z_train)
+            z = self.z_train
+            ztz_reg = tf.add(tf.matmul(zt, z, name='scatter'), reg, name='scatter_reg')
+            self.chol_ztz_reg = tf.cholesky(ztz_reg, name='chol_scatter_reg')
+
+        with tf.name_scope('weights'):
+
+            y = tf.cast(self.y_train_one_hot, tf_float_type)
+            self.w = tf.cholesky_solve(self.chol_ztz_reg, tf.matmul(zt, y), name='weights')
 
         with tf.name_scope('core_decision_probabilities'):
 
-            y = tf.cast(self.y_train_one_hot, tf_float_type)
-            self.v = tf.cholesky_solve(self.chol_k_reg, y, name='v')
-            self.p = tf.matmul(self.k, self.v, name='p')
+            self.p = tf.matmul(z, self.w, name='p')
             # Extra
             self.p_valid = tf.transpose(_clip_normalize(tf.transpose(self.p)), name='p_valid')
 
@@ -254,13 +281,13 @@ class StationaryKernelEmbeddingClassifier():
 
         with tf.name_scope('complexity'):
 
-            vkv = tf.matmul(tf.transpose(self.v), self.p)
-            self.complexity = tf.multiply(self.theta[0], tf.sqrt(tf.trace(vkv)), name='complexity')
+            w_tr = tf.sqrt(tf.reduce_sum(tf.square(self.w)))
+            self.complexity = tf.multiply(1.0, w_tr, name='complexity')
 
         with tf.name_scope('objective'):
 
             const = tf.cast(tf.constant(4. * np.exp(1.)), tf_float_type)
-            self.objective = tf.add(self.cross_entropy_loss, tf.multiply(const, self.complexity), name='objective')
+            self.objective = tf.add(self.cross_entropy_loss, tf.multiply(const, self.complexity), 'objective')
 
         with tf.name_scope('core_predictions'):
 
@@ -278,7 +305,7 @@ class StationaryKernelEmbeddingClassifier():
 
         with tf.name_scope('query_input'):
 
-            self.x_query = tf.placeholder(tf_float_type, shape=[None, self.d], name='x_query')
+            self.x_query = tf.placeholder(tf_float_type, shape=[None, self.n_dim], name='x_query')
             self.y_query = tf.placeholder(tf_float_type, shape=[None, 1], name='y_query')
             self.n_query = tf.shape(self.x_query)[0]
             self.y_query_one_hot = tf.equal(self.y_query, self.classes, name='y_query_one_hot')
@@ -288,13 +315,9 @@ class StationaryKernelEmbeddingClassifier():
 
             self.z_query = self.features(self.x_query, name='z_query')
 
-        with tf.name_scope('query_gram_matrix'):
-
-            self.k_query = self.kernel(self.x_train, self.x_query, name='k_query')
-
         with tf.name_scope('query_decision_probabilities'):
 
-            self.query_p = tf.matmul(tf.transpose(self.k_query), self.v, name='query_p')
+            self.query_p = tf.matmul(self.z_query, self.w, name='query_p')
             self.query_p_valid = tf.transpose(_clip_normalize(tf.transpose(self.query_p)), name='query_p_valid')
 
         with tf.name_scope('query_predictions'):
@@ -316,6 +339,26 @@ class StationaryKernelEmbeddingClassifier():
         with tf.name_scope('query_other'):
 
             self.query_msp = tf.reduce_mean(tf.reduce_sum(self.query_p, axis=1), name='query_msp')
+
+
+def perceptron(x, w, b, name='perceptron'):
+
+    with tf.name_scope(name):
+        return tf.nn.relu(tf.matmul(x, w) + b)
+
+
+def weight_variable(shape, std=0.1, name='weight'):
+
+    with tf.name_scope(name):
+        initial = tf.truncated_normal(shape, stddev=std)
+        return tf.Variable(tf.cast(initial, tf_float_type))
+
+
+def bias_variable(shape, bias=0.1, name='bias'):
+
+    with tf.name_scope(name):
+        initial = tf.constant(bias, shape=shape)
+        return tf.Variable(tf.cast(initial, tf_float_type))
 
 
 def compute_grad_norms(grad):

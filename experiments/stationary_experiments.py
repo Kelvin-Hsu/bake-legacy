@@ -51,7 +51,7 @@ def run_experiment(x_train, y_train, x_test, y_test,
     except:
         pass
     kec.sess.close()
-    total_steps = kec.step
+    total_steps = kec.save_step
 
     config = {'x_train': x_train,
               'y_train': y_train,
