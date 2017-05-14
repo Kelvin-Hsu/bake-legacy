@@ -50,6 +50,7 @@ def run_experiment(x_train, y_train, x_test, y_test,
                 log_all=log_all)
     except:
         pass
+    kec.save_status(x_train, y_train)
     kec.sess.close()
     total_steps = kec.save_step
 
@@ -100,7 +101,7 @@ def run_experiment(x_train, y_train, x_test, y_test,
                    'test_acc', 'test_cel', 'test_cel_valid', 'test_msp']
 
     result = np.load('%sresults_%d.npz' % (full_directory, total_steps))
-    f.write('Iterations Completed: %d' % total_steps)
+    f.write('Iterations Completed: %d\n' % total_steps)
     for key in result_keys:
         quantity = result[key]
         if isinstance(quantity, np.ndarray):

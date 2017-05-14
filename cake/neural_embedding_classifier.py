@@ -116,9 +116,9 @@ class NeuralEmbeddingClassifier():
             # Save status
             if self.step % save_step == 0:
                 if log_all:
-                    self._log_status(x_train, y_train)
+                    self.save_status(x_train, y_train)
                 else:
-                    self._log_status(x_batch, y_batch)
+                    self.save_status(x_batch, y_batch)
 
             # Run a training step
             self.sess.run(self.train_step, feed_dict=self.batch_train_feed_dict)
@@ -136,7 +136,7 @@ class NeuralEmbeddingClassifier():
 
         self.directory = directory
 
-    def _log_status(self, x_batch, y_batch):
+    def save_status(self, x_batch, y_batch):
 
         zeta = self.sess.run(self.zeta)
 
