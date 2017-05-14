@@ -147,6 +147,7 @@ def run_cross_val_experiment(x, y, k=10, seed=0,
     y_perm = y[perm_indices]
 
     results = []
+    all_steps = np.zeros(k)
     from sklearn.model_selection import KFold
     kf = KFold(n_splits=k)
     for i, (train_index, test_index) in enumerate(kf.split(x)):
@@ -175,6 +176,7 @@ def run_cross_val_experiment(x, y, k=10, seed=0,
 
         result = np.load('%sresults_%d.npz' % (fold_directory, total_steps))
         results.append(result)
+        all_steps[i] = total_steps
 
     ### SAVE RESULT INTO A FILE
     result_keys = ['complexity',
@@ -204,6 +206,7 @@ def run_cross_val_experiment(x, y, k=10, seed=0,
     for j, key in enumerate(result_keys):
         sample_values = result_all_values[:, j]
         f.write('%s: %s\n' % (key, np.array_str(sample_values, precision=8).replace('\n', '')))
+    f.write('\nSteps Taken: %s\n' % np.array_str(all_steps, precision=0).replace('\n', ''))
 
     f.write('\n\n-----\n\n')
     f.write('Average:\n')
