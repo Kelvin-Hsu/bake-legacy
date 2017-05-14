@@ -165,7 +165,7 @@ class NeuralEmbeddingClassifier():
                   'complexity': complexity,
                   'grad_norms': grad_norms}
 
-        print('Step %d' % self.step,
+        print('Step %d (n=%d)' % (self.step, x_batch.shape[0]),
               '|REG:', zeta[0],
               '|W_NORM:', np.max([np.max(w) for w in weights]),
               '|B_NORM:', np.max([np.max(b) for b in biases]),
@@ -189,7 +189,7 @@ class NeuralEmbeddingClassifier():
                            'test_cel_valid': test_cel_valid,
                            'test_msp': test_msp})
 
-            print('Step %d' % self.step,
+            print('Step %d (n=%d)' % (self.step, x_batch.shape[0]),
                   '|BTACC:', test_acc,
                   '|BTCEL:', test_cel,
                   '|BTCELV:', test_cel_valid,

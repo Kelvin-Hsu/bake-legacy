@@ -139,7 +139,7 @@ class StationaryKernelEmbeddingClassifier():
                   'complexity': complexity,
                   'grad_norms': grad_norms}
 
-        print('Step %d' % self.step,
+        print('Step %d (n=%d)' % (self.step, x_batch.shape[0]),
               '|REG:', zeta[0],
               '|THETA: ', theta,
               '|BC:', complexity,
@@ -162,7 +162,7 @@ class StationaryKernelEmbeddingClassifier():
                            'test_cel_valid': test_cel_valid,
                            'test_msp': test_msp})
 
-            print('Step %d' % self.step,
+            print('Step %d (n=%d)' % (self.step, x_batch.shape[0]),
                   '|BTACC:', test_acc,
                   '|BTCEL:', test_cel,
                   '|BTCELV:', test_cel_valid,
