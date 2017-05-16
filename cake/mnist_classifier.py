@@ -1,5 +1,5 @@
 """
-Define the base kernel embedding classifier.
+Define the mnist linear kernel embedding classifier.
 """
 import tensorflow as tf
 import numpy as np
@@ -128,8 +128,10 @@ class MNISTLinearKernelEmbeddingClassifier():
 
         with tf.name_scope('optimisation'):
 
+            const = tf.cast(tf.constant(4. * np.exp(1.)), tf_float_type)
+
             if objective == 'full':
-                self.lagrangian = self.query_cross_entropy_loss + self.complexity
+                self.lagrangian = self.query_cross_entropy_loss + const * self.complexity
             elif objective == 'cross_entropy_loss':
                 self.lagrangian = self.query_cross_entropy_loss
             elif objective == 'complexity':
@@ -137,7 +139,7 @@ class MNISTLinearKernelEmbeddingClassifier():
             elif objective == 'cross_entropy_loss_valid':
                 self.lagrangian = self.query_cross_entropy_loss_valid
             elif objective == 'full_valid':
-                self.lagrangian = self.query_cross_entropy_loss_valid + self.complexity
+                self.lagrangian = self.query_cross_entropy_loss_valid + const * self.complexity
             else:
                 raise ValueError('No such objective named %s' % objective)
 
